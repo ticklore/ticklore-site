@@ -47,7 +47,6 @@ contract TickloreTicket is ERC721, Ownable {
         uint256 ticketId = nextTicketId; // take the current number...
         nextTicketId++;                  // ...and advance the dispenser.
 
-        // Fill in the ticket's permanent stub.
         tickets[ticketId] = TicketData({
             eventName: eventName,
             eventDate: eventDate,
@@ -59,8 +58,29 @@ contract TickloreTicket is ERC721, Ownable {
             originalHolder: to
         });
 
-        _safeMint(to, ticketId);                      // the actual "print & hand over".
-        emit TicketMinted(ticketId, to, eventName);   // announce it to the world.
-        return ticketId;                              // tell the caller which id was made.
+        _safeMint(to, ticketId);
+        emit TicketMinted(ticketId, to, eventName);
+        return ticketId;
+    }
+
+    /// @dev The chokepoint EVERY mint, transfer, and burn flows through.
+    ///      We override it to enforce the transfer lock. `from` is the current
+    ///      owner (address(0) means this is a fresh mint).
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override
+        returns (address)
+    {
+        address from = _ownerOf(tokenId);
+
+        // Guard ONLY real wallet-to-wallet transfers — never the initial mint.
+        if (from != address(0) && to != address(0)) {
+            require(
+                block.timestamp >= tickets[tokenId].transferUnlock,
+                "Ticklore: ticket is still locked (event not far enough behind us)"
+            );
+        }
+
+        return super._update(to, tokenId, auth); // let the standard logic finish.
     }
 }
