@@ -202,6 +202,9 @@ show();
       // Mounted first so the webhook's express.raw() sees unparsed bytes.
       require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe });
     }
+    // The public storefront. Uses Stripe checkout when available, and falls
+    // back to a gated demo mint so it is never dead in a local showing.
+    require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
 
     const { ethers } = require("ethers");
     const balance = await chain.provider.getBalance(chain.signer.address);

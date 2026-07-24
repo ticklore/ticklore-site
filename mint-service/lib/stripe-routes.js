@@ -165,6 +165,10 @@ function mountStripeRoutes(app, { chain, stripe }) {
 
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
+        // Card only. Stripe Link (the "save my info" / phone-verification flow)
+        // adds friction that does not fit a "no wallet, no fuss" ticket buy,
+        // and it blocks testing. Naming the type explicitly disables Link.
+        payment_method_types: ["card"],
         line_items: [{
           quantity: 1,
           price_data: {
