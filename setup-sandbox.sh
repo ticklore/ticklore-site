@@ -75,11 +75,11 @@ echo
 echo "[3/3] Running the test suite..."
 echo
 cd "$(dirname "$0")/contracts"
-"${FOUNDRY_DIR}/forge" test
+FOUNDRY_PROFILE=sandbox "${FOUNDRY_DIR}/forge" test
 
 echo
 echo "=================================================="
 echo " Ready. Run forge with:"
-echo "   ${FOUNDRY_DIR}/forge test"
-echo "   ${FOUNDRY_DIR}/forge test -vv     # with console output"
+echo "   FOUNDRY_PROFILE=sandbox ${FOUNDRY_DIR}/forge test"
+echo "   FOUNDRY_PROFILE=sandbox ${FOUNDRY_DIR}/forge test -vv"
 echo "=================================================="
