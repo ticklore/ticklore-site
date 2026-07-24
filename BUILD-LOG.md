@@ -110,9 +110,21 @@ transferUnlock (unix), nonTransferable (bool), originalHolder (address)`.
     appears on our own landing page.
 - `tickets(id)` getter; `nextTicketId` counter (starts at 1).
 
+### Deployment (added 2026-07-24, separate session)
+
+- `contracts/script/Deploy.s.sol` — creates the contract, assigns the box-office owner.
+- `contracts/script/MintDemo.s.sol` — mints ticket #1 so the artwork can be seen on a real network.
+- `contracts/DEPLOY.md` — step-by-step Base Sepolia walkthrough.
+- Uses an **encrypted keystore** (`cast wallet import`), not a plaintext key in `.env`.
+  A committed key cannot be un-leaked; git history keeps it forever.
+- Root `.gitignore` added — blocks `.env`, `*.key`, `*.pem`, `.git-credentials`, `.tl_token`.
+- Verified clean: no secrets in any project-authored file; `.env.example` holds placeholders only.
+
 ### Remaining Solidity punch-list
 
-- **Deploy script** + deploy to **Base Sepolia testnet** — the "it's alive" milestone. ← NEXT
+- **Actually deploy to Base Sepolia** — scripts are written and rehearsed against local Anvil,
+  but nothing is on a public network yet. This is the "it's alive" milestone. ← NEXT
+  - Needs: an owner wallet address, and a Base Sepolia RPC endpoint (Alchemy or similar).
 - Before real money: **security audit**, **Pausable** (emergency stop), **staff/minter roles**
   (AccessControl) so door staff can scan without the master key.
 - Optional: batch minting; refactor `mintTicket`'s 8-arg signature to a struct input.
@@ -144,17 +156,23 @@ foundation already supports it (`originalHolder` governs who keeps access).
 ## Working practices
 
 - **Push before closing anything.** Sessions end; commits don't.
+- **One session at a time.** Two Claude chats open at once share the same sandbox and the same
+  branch. On 2026-07-24 a phone session committed deploy scripts into the same working
+  directory a desktop session was using. Nothing broke, but concurrent uncommitted edits to
+  the same file would collide, and neither session can see the other's reasoning. Finish and
+  push in one before starting the next.
 - **Credentials:** GitHub tokens are fine-grained, single-repo, Contents-only, short expiry,
   and revoked at end of session. Private keys never go in chat — deploy keys live in an
-  environment variable on the local machine.
+  encrypted keystore or an environment variable on the local machine.
 - **Update this file at the end of each session**, then commit it.
 
 ---
 
 ## Next session
 
-Write the deploy script → deploy to **Base Sepolia** → then the app layer
-(scaffold → Stripe checkout → Privy wallet → email → wire the POC end-to-end).
+**Deploy to Base Sepolia.** Scripts are written; nothing is on a public network yet.
+Then the app layer (scaffold → Stripe checkout → Privy wallet → email → wire the POC
+end-to-end).
 
 Open questions for deployment: which wallet address owns the contract, and which RPC provider.
 
