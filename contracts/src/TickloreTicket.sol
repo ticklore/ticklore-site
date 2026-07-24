@@ -79,13 +79,17 @@ contract TickloreTicket is ERC721, Ownable {
         string memory usedStr     = t.used ? "Yes" : "No";
         string memory image       = _svgDataURI(ticketId, t);
 
+        // Escape once, reuse — building the escaped string twice would double the gas.
+        string memory nameJSON = _escapeJSON(t.eventName);
+        string memory tierJSON = _escapeJSON(t.tier);
+
         string memory json = string.concat(
-            '{"name":"Ticklore #', Strings.toString(ticketId), unicode" — ", t.eventName, '",',
+            '{"name":"Ticklore #', Strings.toString(ticketId), unicode" — ", nameJSON, '",',
             '"description":"A one-of-one keepsake ticket on Ticklore. Every ticket has a story.",',
             '"image":"', image, '",',
             '"attributes":[',
-                '{"trait_type":"Event","value":"', t.eventName, '"},',
-                '{"trait_type":"Tier","value":"', t.tier, '"},',
+                '{"trait_type":"Event","value":"', nameJSON, '"},',
+                '{"trait_type":"Tier","value":"', tierJSON, '"},',
                 '{"trait_type":"Price","value":"', priceStr, '"},',
                 '{"trait_type":"Donation","value":"', donationStr, '"},',
                 '{"trait_type":"Checked In","value":"', usedStr, '"}',
@@ -120,8 +124,8 @@ contract TickloreTicket is ERC721, Ownable {
             '<line x1="52" y1="90" x2="748" y2="90" stroke="#C9A227" stroke-opacity="0.25" stroke-width="1"/>',
             stamp,
             '<text x="52" y="205" fill="#C9A227" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>',
-            '<text x="52" y="258" fill="#F1E9DD" font-family="Georgia, serif" font-size="46">', t.eventName, '</text>',
-            '<text x="52" y="296" fill="#7FB3A6" font-family="monospace" font-size="18" letter-spacing="1">', t.tier, '</text>',
+            '<text x="52" y="258" fill="#F1E9DD" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
+            '<text x="52" y="296" fill="#7FB3A6" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
             '<text x="52" y="446" fill="#F1E9DD" font-family="monospace" font-size="22">', priceStr, '</text>',
             '<text x="748" y="450" fill="#E3C25E" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(ticketId), '</text>',
             '<text x="52" y="472" fill="#5F817A" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
@@ -137,6 +141,108 @@ contract TickloreTicket is ERC721, Ownable {
             ? string.concat("0", Strings.toString(rem))
             : Strings.toString(rem);
         return string.concat("$", Strings.toString(dollars), ".", remStr);
+    }
+
+    // ---------------------------------------------------------------------
+    // Escaping
+    //
+    // Organizer-supplied text (eventName, tier) gets embedded into two very
+    // different documents: a JSON metadata file and an SVG image. Each has its
+    // own set of characters that mean "stop reading text, start reading
+    // structure." If we paste raw text in, a name like  Mom & Dad's 50th  or
+    // Summer "Gala"  can break the document — permanently, because this is
+    // written on-chain and can never be edited.
+    //
+    // These two functions neutralize those characters. Same idea both times,
+    // different rulebook, because JSON and XML disagree about what's dangerous.
+    // ---------------------------------------------------------------------
+
+    /// @dev Escape text for safe use inside a JSON string literal.
+    ///      JSON cares about: double-quote, backslash, and control characters.
+    function _escapeJSON(string memory input) internal pure returns (string memory) {
+        bytes memory b = bytes(input);
+        // Worst case is a control char becoming \u00XX — six bytes for one.
+        bytes memory buf = new bytes(b.length * 6);
+        uint256 n = 0;
+
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+
+            if (c == '"') {
+                buf[n++] = "\\";
+                buf[n++] = '"';
+            } else if (c == "\\") {
+                buf[n++] = "\\";
+                buf[n++] = "\\";
+            } else if (uint8(c) < 0x20) {
+                // Newlines, tabs, and friends are illegal raw inside JSON strings.
+                buf[n++] = "\\";
+                buf[n++] = "u";
+                buf[n++] = "0";
+                buf[n++] = "0";
+                buf[n++] = _hexDigit(uint8(c) >> 4);
+                buf[n++] = _hexDigit(uint8(c) & 0x0f);
+            } else {
+                // Everything else passes through untouched — including the
+                // multi-byte pieces of accented and non-Latin characters,
+                // which all sit above 0x7F and never collide with the rules above.
+                buf[n++] = c;
+            }
+        }
+
+        return string(_trim(buf, n));
+    }
+
+    /// @dev Escape text for safe use inside SVG/XML element content.
+    ///      XML cares about: ampersand, angle brackets, and quotes.
+    function _escapeXML(string memory input) internal pure returns (string memory) {
+        bytes memory b = bytes(input);
+        // Worst case is a quote becoming &quot; — six bytes for one.
+        bytes memory buf = new bytes(b.length * 6);
+        uint256 n = 0;
+
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+
+            if (c == "&") {
+                // Must come first in our thinking: & is the escape character
+                // itself. Because we emit entities directly rather than doing
+                // find-and-replace passes, there's no double-escaping risk.
+                buf[n++] = "&"; buf[n++] = "a"; buf[n++] = "m"; buf[n++] = "p"; buf[n++] = ";";
+            } else if (c == "<") {
+                buf[n++] = "&"; buf[n++] = "l"; buf[n++] = "t"; buf[n++] = ";";
+            } else if (c == ">") {
+                buf[n++] = "&"; buf[n++] = "g"; buf[n++] = "t"; buf[n++] = ";";
+            } else if (c == '"') {
+                buf[n++] = "&"; buf[n++] = "q"; buf[n++] = "u"; buf[n++] = "o"; buf[n++] = "t"; buf[n++] = ";";
+            } else if (c == "'") {
+                buf[n++] = "&"; buf[n++] = "a"; buf[n++] = "p"; buf[n++] = "o"; buf[n++] = "s"; buf[n++] = ";";
+            } else if (uint8(c) < 0x20) {
+                // Control characters aren't legal in XML at all. Drop them
+                // rather than encode them — there's nothing to render anyway.
+                continue;
+            } else {
+                buf[n++] = c;
+            }
+        }
+
+        return string(_trim(buf, n));
+    }
+
+    /// @dev We allocate for the worst case, then cut the buffer down to what we used.
+    function _trim(bytes memory buf, uint256 n) private pure returns (bytes memory) {
+        bytes memory out = new bytes(n);
+        for (uint256 i = 0; i < n; i++) {
+            out[i] = buf[i];
+        }
+        return out;
+    }
+
+    /// @dev 0-15 -> "0".."f", for the \u00XX form above.
+    function _hexDigit(uint8 v) private pure returns (bytes1) {
+        return v < 10
+            ? bytes1(uint8(bytes1("0")) + v)
+            : bytes1(uint8(bytes1("a")) + (v - 10));
     }
 
     /// @dev The chokepoint every mint, transfer, and burn flows through.
