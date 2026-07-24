@@ -109,10 +109,17 @@ contract TickloreTicketTest is Test {
     }
 
     function test_TokenURICard() public {
-        uint256 id = _mintPicnic();
-        string memory uri = ticklore.tokenURI(id);
-        console2.log("TOKENURI:", uri);
-        assertGt(bytes(uri).length, 0);
+        uint256 id1 = _mintPicnic();
+        string memory fresh = ticklore.tokenURI(id1);
+        console2.log("FRESH:", fresh);
+        assertGt(bytes(fresh).length, 0);
+
+        uint256 id2 = _mintPicnic();
+        vm.prank(boxOffice);
+        ticklore.checkIn(id2);
+        string memory used = ticklore.tokenURI(id2);
+        console2.log("USED:", used);
+        assertGt(bytes(used).length, 0);
     }
 
     function test_TokenURINonexistentReverts() public {
