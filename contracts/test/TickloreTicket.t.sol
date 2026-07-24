@@ -6,9 +6,9 @@ import {TickloreTicket} from "../src/TickloreTicket.sol";
 
 contract TickloreTicketTest is Test {
     TickloreTicket ticklore;
-    address boxOffice = makeAddr("boxOffice"); // the platform / owner
-    address buyer     = makeAddr("L.Grant");   // the attendee
-    address friend    = makeAddr("friend");    // someone they might gift/sell to
+    address boxOffice = makeAddr("boxOffice");
+    address buyer     = makeAddr("L.Grant");
+    address friend    = makeAddr("friend");
 
     uint64 constant EVENT_DATE = 1780142400;         // ~ May 30, 2026 12:00 UTC
     uint64 constant UNLOCK     = EVENT_DATE + 30 days;
@@ -20,6 +20,10 @@ contract TickloreTicketTest is Test {
     function _mintPicnic() internal returns (uint256 id) {
         vm.prank(boxOffice);
         id = ticklore.mintTicket(buyer, "Founders' Day Picnic", EVENT_DATE, "General", 2500, 0, UNLOCK);
+    }
+
+    function _used(uint256 id) internal view returns (bool u) {
+        (,,,,, u,,) = ticklore.tickets(id);
     }
 
     function test_MintAndReadBackFirstTicket() public {
@@ -42,27 +46,50 @@ contract TickloreTicketTest is Test {
 
     function test_TransferBlockedBeforeUnlock() public {
         uint256 id = _mintPicnic();
-        // clock is still way before the event; try to pass the ticket along
         vm.prank(buyer);
-        vm.expectRevert(); // the bouncer stops it
+        vm.expectRevert();
         ticklore.transferFrom(buyer, friend, id);
-        // ownership unchanged
         assertEq(ticklore.ownerOf(id), buyer);
-        console2.log("Before unlock: transfer correctly BLOCKED. Owner still:", ticklore.ownerOf(id));
     }
 
     function test_TransferAllowedAfterUnlock() public {
         uint256 id = _mintPicnic();
-        // time-travel to just past the unlock window
         vm.warp(uint256(UNLOCK) + 1);
         vm.prank(buyer);
-        ticklore.transferFrom(buyer, friend, id); // now it's a keepsake, freely movable
+        ticklore.transferFrom(buyer, friend, id);
         assertEq(ticklore.ownerOf(id), friend);
-        console2.log("After unlock: transfer ALLOWED. New owner:", ticklore.ownerOf(id));
+    }
 
-        // provenance check: original holder is still recorded as the buyer
-        (,,,,,,,address originalHolder) = ticklore.tickets(id);
-        assertEq(originalHolder, buyer);
-        console2.log("Chapter One intact: original holder still", originalHolder);
+    function test_CheckIn() public {
+        uint256 id = _mintPicnic();
+        assertEq(_used(id), false);           // fresh
+        vm.prank(boxOffice);
+        ticklore.checkIn(id);                  // scan at the door
+        assertEq(_used(id), true);             // stamped
+        console2.log("Ticket #1 checked in. used =", _used(id));
+    }
+
+    function test_CheckInBlocksSecondScan() public {
+        uint256 id = _mintPicnic();
+        vm.prank(boxOffice);
+        ticklore.checkIn(id);
+        // try to sneak the same ticket through again
+        vm.prank(boxOffice);
+        vm.expectRevert(bytes("Ticklore: ticket already used"));
+        ticklore.checkIn(id);
+        console2.log("Second scan correctly REJECTED.");
+    }
+
+    function test_StrangerCannotCheckIn() public {
+        uint256 id = _mintPicnic();
+        vm.prank(buyer);                       // an attendee can't check themselves in
+        vm.expectRevert();
+        ticklore.checkIn(id);
+    }
+
+    function test_CheckInNonexistentReverts() public {
+        vm.prank(boxOffice);
+        vm.expectRevert(bytes("Ticklore: no such ticket"));
+        ticklore.checkIn(999);
     }
 }

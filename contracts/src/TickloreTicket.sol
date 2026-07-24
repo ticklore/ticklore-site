@@ -7,7 +7,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @title  TickloreTicket
 /// @notice Every ticket is a one-of-one keepsake. This is the foundation.
 contract TickloreTicket is ERC721, Ownable {
-    // The blueprint for what every ticket remembers — its "Chapter One".
     struct TicketData {
         string  eventName;       // "Founders' Day Picnic"
         uint64  eventDate;       // when the event happens (unix time)
@@ -19,16 +18,12 @@ contract TickloreTicket is ERC721, Ownable {
         address originalHolder;  // who it was first issued to (permanent provenance)
     }
 
-    // The filing cabinet: look up any ticket's data by its ID number.
     mapping(uint256 => TicketData) public tickets;
-
-    // A number dispenser: the ID the next ticket will get. Starts at 1.
     uint256 public nextTicketId = 1;
 
-    // A public announcement emitted every time a ticket is created.
     event TicketMinted(uint256 indexed ticketId, address indexed to, string eventName);
+    event TicketCheckedIn(uint256 indexed ticketId);
 
-    // At birth, name the collection AND record who owns the box office.
     constructor(address initialOwner)
         ERC721("Ticklore Ticket", "TCKL")
         Ownable(initialOwner)
@@ -44,8 +39,8 @@ contract TickloreTicket is ERC721, Ownable {
         uint256 donationAmount,
         uint64 transferUnlock
     ) external onlyOwner returns (uint256) {
-        uint256 ticketId = nextTicketId; // take the current number...
-        nextTicketId++;                  // ...and advance the dispenser.
+        uint256 ticketId = nextTicketId;
+        nextTicketId++;
 
         tickets[ticketId] = TicketData({
             eventName: eventName,
@@ -63,24 +58,29 @@ contract TickloreTicket is ERC721, Ownable {
         return ticketId;
     }
 
-    /// @dev The chokepoint EVERY mint, transfer, and burn flows through.
-    ///      We override it to enforce the transfer lock. `from` is the current
-    ///      owner (address(0) means this is a fresh mint).
+    /// @notice Scan a ticket in at the door. Marks it used; a second scan fails.
+    ///         Only the owner (the platform / organizer's system) may do this.
+    function checkIn(uint256 ticketId) external onlyOwner {
+        require(_ownerOf(ticketId) != address(0), "Ticklore: no such ticket");
+        require(!tickets[ticketId].used, "Ticklore: ticket already used");
+
+        tickets[ticketId].used = true;      // flip the stamp permanently
+        emit TicketCheckedIn(ticketId);     // announce the check-in
+    }
+
+    /// @dev The chokepoint every mint, transfer, and burn flows through.
     function _update(address to, uint256 tokenId, address auth)
         internal
         override
         returns (address)
     {
         address from = _ownerOf(tokenId);
-
-        // Guard ONLY real wallet-to-wallet transfers — never the initial mint.
         if (from != address(0) && to != address(0)) {
             require(
                 block.timestamp >= tickets[tokenId].transferUnlock,
                 "Ticklore: ticket is still locked (event not far enough behind us)"
             );
         }
-
-        return super._update(to, tokenId, auth); // let the standard logic finish.
+        return super._update(to, tokenId, auth);
     }
 }
