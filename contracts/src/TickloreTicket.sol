@@ -3,20 +3,22 @@ pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// @title  TickloreTicket
 /// @notice Every ticket is a one-of-one keepsake. This is the foundation.
 contract TickloreTicket is ERC721, Ownable {
     struct TicketData {
-        string  eventName;        // "Founders' Day Picnic"
-        uint64  eventDate;        // when the event happens (unix time)
-        string  tier;             // "General", "VIP", a seat, or a role
-        uint256 pricePaid;        // what this ticket sold for, in cents (0 = free)
-        uint256 donationAmount;   // optional gift to a cause, in cents (0 = none)
-        bool    used;             // has it been checked in at the door?
-        uint64  transferUnlock;   // when the ticket becomes transferable
-        bool    nonTransferable;  // if true: NEVER transferable (sensitive events)
-        address originalHolder;   // who it was first issued to (permanent provenance)
+        string  eventName;
+        uint64  eventDate;
+        string  tier;
+        uint256 pricePaid;
+        uint256 donationAmount;
+        bool    used;
+        uint64  transferUnlock;
+        bool    nonTransferable;
+        address originalHolder;
     }
 
     mapping(uint256 => TicketData) public tickets;
@@ -30,7 +32,6 @@ contract TickloreTicket is ERC721, Ownable {
         Ownable(initialOwner)
     {}
 
-    /// @notice Create one ticket and hand it to `to`. Only the owner may call this.
     function mintTicket(
         address to,
         string calldata eventName,
@@ -61,12 +62,51 @@ contract TickloreTicket is ERC721, Ownable {
         return ticketId;
     }
 
-    /// @notice Scan a ticket in at the door. Marks it used; a second scan fails.
     function checkIn(uint256 ticketId) external onlyOwner {
         require(_ownerOf(ticketId) != address(0), "Ticklore: no such ticket");
         require(!tickets[ticketId].used, "Ticklore: ticket already used");
         tickets[ticketId].used = true;
         emit TicketCheckedIn(ticketId);
+    }
+
+    /// @notice Standard NFT metadata — the ticket describes itself, on-chain.
+    function tokenURI(uint256 ticketId) public view override returns (string memory) {
+        require(_ownerOf(ticketId) != address(0), "Ticklore: no such ticket");
+        TicketData memory t = tickets[ticketId];
+
+        // Human-friendly values (this is a display layer, so we format here).
+        string memory priceStr    = t.pricePaid == 0 ? "Free" : _formatMoney(t.pricePaid);
+        string memory donationStr = t.donationAmount == 0 ? "None" : _formatMoney(t.donationAmount);
+        string memory usedStr     = t.used ? "Yes" : "No";
+
+        // Build the metadata JSON the whole NFT world understands.
+        string memory json = string.concat(
+            '{"name":"Ticklore #', Strings.toString(ticketId), unicode" — ", t.eventName, '",',
+            '"description":"A one-of-one keepsake ticket on Ticklore. Every ticket has a story.",',
+            '"attributes":[',
+                '{"trait_type":"Event","value":"', t.eventName, '"},',
+                '{"trait_type":"Tier","value":"', t.tier, '"},',
+                '{"trait_type":"Price","value":"', priceStr, '"},',
+                '{"trait_type":"Donation","value":"', donationStr, '"},',
+                '{"trait_type":"Checked In","value":"', usedStr, '"}',
+            ']}'
+        );
+
+        // Wrap it as a self-contained data URI (no server needed, ever).
+        return string.concat(
+            "data:application/json;base64,",
+            Base64.encode(bytes(json))
+        );
+    }
+
+    /// @dev Turn whole cents into "$25.00". Solidity has no decimals, so we do it by hand.
+    function _formatMoney(uint256 cents) internal pure returns (string memory) {
+        uint256 dollars = cents / 100;   // whole dollars
+        uint256 rem     = cents % 100;   // leftover cents
+        string memory remStr = rem < 10
+            ? string.concat("0", Strings.toString(rem)) // pad "5" -> "05"
+            : Strings.toString(rem);
+        return string.concat("$", Strings.toString(dollars), ".", remStr);
     }
 
     /// @dev The chokepoint every mint, transfer, and burn flows through.
@@ -77,12 +117,10 @@ contract TickloreTicket is ERC721, Ownable {
     {
         address from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0)) {
-            // Sensitive events: sealed shut, forever.
             require(
                 !tickets[tokenId].nonTransferable,
                 "Ticklore: ticket is permanently non-transferable"
             );
-            // Everyone else: locked until the event is far enough behind us.
             require(
                 block.timestamp >= tickets[tokenId].transferUnlock,
                 "Ticklore: ticket is still locked (event not far enough behind us)"

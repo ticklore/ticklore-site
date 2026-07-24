@@ -107,4 +107,16 @@ contract TickloreTicketTest is Test {
         assertEq(ticklore.ownerOf(id), buyer);
         console2.log("Sensitive ticket stays put even a year after unlock. Owner:", ticklore.ownerOf(id));
     }
+
+    function test_TokenURICard() public {
+        uint256 id = _mintPicnic();
+        string memory uri = ticklore.tokenURI(id);
+        console2.log("TOKENURI:", uri);
+        assertGt(bytes(uri).length, 0);
+    }
+
+    function test_TokenURINonexistentReverts() public {
+        vm.expectRevert(bytes("Ticklore: no such ticket"));
+        ticklore.tokenURI(999);
+    }
 }
