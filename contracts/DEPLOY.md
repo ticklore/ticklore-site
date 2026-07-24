@@ -19,6 +19,89 @@ You need three things:
 
 ---
 
+## Step 0 — Windows only: install WSL and Foundry
+
+**Skip this if you're on macOS or Linux.**
+
+Foundry is built for Linux and macOS; there is no proper Windows build. WSL
+(Windows Subsystem for Linux) runs a real Ubuntu environment inside Windows —
+not a virtual machine you boot into, just a Linux terminal alongside everything
+else. Your Windows files stay where they are.
+
+### 0a. Install WSL
+
+Open **PowerShell as Administrator** (right-click Start → Terminal (Admin)):
+
+```powershell
+wsl --install
+```
+
+Reboot when it asks. On restart, an Ubuntu window opens and asks you to create a
+username and password. **This password is for Linux, not Windows** — pick
+something you'll remember; you'll type it for admin commands. Nothing is echoed
+to the screen as you type it, not even dots. That's normal.
+
+From then on: Start menu → **Ubuntu** gets you a Linux terminal.
+
+### 0b. Install Foundry inside WSL
+
+In the Ubuntu terminal:
+
+```bash
+sudo apt update && sudo apt install -y curl git build-essential
+curl -L https://foundry.paradigm.xyz | bash
+source ~/.bashrc
+foundryup
+```
+
+Confirm it worked:
+
+```bash
+forge --version
+cast --version
+```
+
+### 0c. Get the code
+
+```bash
+cd ~
+git clone https://github.com/weldingcrypto/ticklore-site.git
+cd ticklore-site
+git checkout feature/ticket-contract
+cd contracts
+forge test
+```
+
+You should see **17 passing tests**. That means your machine can build the
+contract independently — you are no longer dependent on any sandbox.
+
+> **Note on where files live.** Work inside the Linux home directory (`~`), not
+> under `/mnt/c/`. Foundry is dramatically slower across the Windows filesystem
+> boundary. To open the project in a Windows editor, run `code .` from the WSL
+> terminal — VS Code bridges the two automatically.
+
+---
+
+## A note on which Sepolia
+
+There are two testnets with nearly the same name:
+
+- **Sepolia** — Ethereum's testnet.
+- **Base Sepolia** — Base's testnet. This is ours.
+
+They are separate chains. Test ETH on one is useless on the other. Add Base
+Sepolia to MetaMask with:
+
+| Field | Value |
+|---|---|
+| Network name | Base Sepolia |
+| RPC URL | `https://sepolia.base.org` |
+| Chain ID | `84532` |
+| Currency | ETH |
+| Explorer | `https://sepolia.basescan.org` |
+
+---
+
 ## Step 1 — Get an RPC URL
 
 An RPC endpoint is your phone line to the blockchain. You don't run a copy of
