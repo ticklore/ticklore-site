@@ -37,7 +37,21 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
 
 const app = express();
-app.use(express.json());
+
+// NOTE ON MIDDLEWARE ORDER
+// Stripe signs the RAW bytes of the webhook body. If express.json() parses it
+// first, the bytes get reassembled slightly differently and the signature no
+// longer matches. So the Stripe routes are mounted BEFORE express.json(), and
+// the webhook route uses express.raw() for itself. Getting this backwards is
+// the most common reason a Stripe integration fails, and the error it produces
+// does not point at the cause.
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+}
+
+// Body parsing is applied PER ROUTE rather than globally, so there is no way
+// for a global parser to consume the webhook's raw bytes by accident.
 
 // Set at startup, used by every request.
 let chain = null;
@@ -97,7 +111,7 @@ app.get("/health", async (req, res) => {
  *
  * price is in whole cents.
  */
-app.post("/mint", requireApiKey, async (req, res) => {
+app.post("/mint", express.json(), requireApiKey, async (req, res) => {
   const started = Date.now();
   try {
     const result = await ticklore.mintTicket(chain.contract, req.body);
@@ -183,6 +197,11 @@ show();
     console.log("\nTicklore mint service");
     console.log("─────────────────────");
     chain = await ticklore.connect();
+
+    if (stripe) {
+      // Mounted first so the webhook's express.raw() sees unparsed bytes.
+      require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe });
+    }
 
     const { ethers } = require("ethers");
     const balance = await chain.provider.getBalance(chain.signer.address);
