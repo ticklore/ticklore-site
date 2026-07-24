@@ -174,7 +174,81 @@ foundation already supports it (`originalHolder` governs who keeps access).
 Then the app layer (scaffold → Stripe checkout → Privy wallet → email → wire the POC
 end-to-end).
 
-Open questions for deployment: which wallet address owns the contract, and which RPC provider.
+### Exactly where we stopped (2026-07-24, end of session)
+
+Alex's **desktop is fully set up and independent**:
+
+- WSL (Ubuntu) installed on Windows.
+- Foundry **1.7.1** installed inside WSL.
+- `gh auth login` completed.
+- Repo cloned to `~/ticklore-site`, on branch `feature/ticket-contract`.
+- **`forge test` → 17 passed, 0 failed, on his own machine.** No sandbox required.
+
+Remaining steps to the "it's alive" milestone, in order:
+
+1. Create a **fresh MetaMask account** named e.g. `Ticklore Deployer` — must NOT be a wallet
+   holding real crypto, since its private key gets exported into the keystore. Alex holds
+   real positions; keep them entirely separate.
+2. Add Base Sepolia to MetaMask: RPC `https://sepolia.base.org`, chain ID **84532**,
+   explorer `https://sepolia.basescan.org`.
+3. Get test ETH from a Base Sepolia faucet (Coinbase Developer Platform or Alchemy).
+4. `cast wallet import tickloreDeployer --interactive` — encrypted keystore, password-protected.
+5. `cp .env.example .env`, set `BASE_SEPOLIA_RPC`.
+6. Run `script/Deploy.s.sol`, save the contract address into `.env` as `TICKLORE_CONTRACT`.
+7. Run `script/MintDemo.s.sol`, then view the ticket on sepolia.basescan.org.
+
+**Shortcut agreed:** skip the Alchemy signup for the first deploy and use Base's public
+endpoint `https://sepolia.base.org`. Swap to Alchemy only if it proves flaky.
+
+Full walkthrough is in `contracts/DEPLOY.md`.
+
+---
+
+## Session log — 2026-07-24
+
+Started with Alex believing an entire night's work had been lost after closing a chat
+window. Nothing had been: every commit was already on GitHub. The recovery took minutes;
+the rest of the day was spent making that failure mode impossible to repeat.
+
+**Completed:**
+
+- **Escaping fix** — organizer text was pasted raw into both the metadata JSON and the
+  on-chain SVG. `_escapeJSON` and `_escapeXML` added at all five emission points. 6 new
+  tests, each verified to fail when the escaping is removed. **17 tests passing.**
+- **`setup-sandbox.sh`** — one-command toolchain rebuild for the sandbox.
+- **`foundry.toml` portability bug fixed** — the default profile hardcoded
+  `solc = /home/claude/.solc/solc`, a sandbox-only path. Any clone on any other machine
+  failed with "solc does not exist," which is exactly what happened on Alex's desktop.
+  Default now uses `solc_version = "0.8.28"`; the absolute path is quarantined in
+  `[profile.sandbox]`. **First real test of whether the repo works outside its author's
+  machine — and it had been failing.**
+- **`BUILD-LOG.md` and `DEPLOY.md` moved into the repo**, including a WSL setup section
+  and the Sepolia-vs-Base-Sepolia distinction (they are separate chains; test ETH does
+  not cross between them).
+- **Website reviewed.** Page weight problem documented (one 403 KB logo inlined six
+  times; 3.2 MB total for ~31 KB of real content). Fix not yet applied.
+- **Business plan v2 rebuilt** as a branded PDF — `docs/business-plan-v2.pdf`, source
+  HTML committed alongside so it can be regenerated. Royalty revenue stream removed
+  (it contradicted the plan's own securities risk mitigation), keepsake vault section
+  added, Ownership & Transferability and Technical Approach sections added, Appendix A
+  primer restored, stale facts corrected.
+- **Founder bio strengthened** in both the plan and on the site — from "currently learning
+  Solidity" to the operator-turned-builder framing, written to remain accurate under
+  diligence questioning about AI-assisted development.
+- **Co-founders removed** from the site (merged) and unnamed in the plan. Ozzy has not
+  committed; Allison is employed elsewhere and undecided. Naming her as co-founder of
+  another venture in a circulating investor document would create a real conflict for her.
+  Plan now carries a "Founding Team in Formation" section describing the two roles without
+  naming individuals. Stat band changed from "3 founding team members" to
+  "$0 outside capital to date."
+
+**Lessons that cost real time today:**
+
+- Two Claude sessions (phone + desktop) shared one sandbox and one branch. Deploy scripts
+  appeared mid-session from the other chat. Nothing broke, but neither session could see
+  the other's reasoning. **One session at a time.**
+- Anything that lives only in a chat window is at risk. Everything material now lives in
+  the repo.
 
 ---
 
