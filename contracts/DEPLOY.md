@@ -205,13 +205,17 @@ Verification publishes your Solidity source to the block explorer so anyone can
 read what the contract actually does. For an investor conversation this is the
 difference between "trust me" and "read it yourself."
 
-Get a free API key at basescan.org, add it to `.env`, then:
+Get a free API key at **etherscan.io/myapikey** — *not* basescan.org. Etherscan
+now issues a single multi-chain V2 key covering Basescan, Arbiscan, Polygonscan
+and the others; legacy per-explorer keys are rejected as invalid. Add it to
+`.env` as `ETHERSCAN_API_KEY`, then:
 
 ```bash
 forge verify-contract \
   --chain base-sepolia \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
   --constructor-args $(cast abi-encode "constructor(address)" YOUR_OWNER_ADDRESS) \
+  --watch \
   YOUR_CONTRACT_ADDRESS \
   src/TickloreTicket.sol:TickloreTicket
 ```
