@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: Letter; margin: 0; }
+
+  :root {
+    --ink: #0E262B;
+    --ink-deep: #081619;
+    --parchment: #F1E9DD;
+    --gold: #C9A227;
+    --gold-bright: #E3C25E;
+    --teal: #2FAF93;
+    --body: #24373B;
+    --muted: #5F7174;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--body);
+    font-size: 10.2pt;
+    line-height: 1.62;
+    -webkit-print-color-adjust: exact;
+  }
+
+  h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; }
+
+  /* ---------------- COVER ---------------- */
+  .cover {
+    background: linear-gradient(150deg, #123138 0%, #0B2024 55%, #081619 100%);
+    height: 11in; width: 8.5in;
+    padding: 1.15in 1in;
+    color: var(--parchment);
+    position: relative;
+    page-break-after: always;
+  }
+  .cover .rule-top {
+    height: 2px; width: 74px; background: var(--gold); margin-bottom: 46px;
+  }
+  .cover img { width: 300px; display: block; margin-bottom: 30px; }
+  .cover h1 {
+    font-size: 40pt; line-height: 1.05; letter-spacing: -0.5px;
+    color: var(--parchment); margin-bottom: 14px;
+  }
+  .cover .tagline {
+    font-family: Georgia, serif; font-style: italic;
+    font-size: 17pt; color: var(--gold-bright); margin-bottom: 52px;
+  }
+  .cover .subject {
+    font-size: 12.5pt; color: rgba(241,233,221,0.9); line-height: 1.75;
+    border-left: 3px solid var(--gold); padding-left: 18px; margin-bottom: 40px;
+  }
+  .cover .meta {
+    position: absolute; bottom: 1.15in; left: 1in; right: 1in;
+    font-family: "Courier New", monospace; font-size: 8.6pt;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    color: rgba(241,233,221,0.55);
+    border-top: 1px solid rgba(241,233,221,0.18); padding-top: 16px;
+  }
+  .cover .confidential { color: var(--gold-bright); }
+
+  /* ---------------- INTERIOR ---------------- */
+  .page {
+    padding: 0.85in 0.95in 0.95in;
+    background: #FFFFFF;
+  }
+
+  h2 {
+    font-size: 17.5pt; color: var(--ink); margin: 0 0 4px;
+    letter-spacing: -0.3px;
+  }
+  h2 + .kicker {
+    font-family: "Courier New", monospace; font-size: 7.6pt;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--gold);
+    margin-bottom: 16px;
+  }
+  .sec { margin-bottom: 26px; }
+  .sec-rule { height: 2px; width: 46px; background: var(--gold); margin: 0 0 18px; }
+
+  h3 {
+    font-size: 11.6pt; color: var(--ink); margin: 18px 0 6px;
+  }
+
+  p { margin-bottom: 10px; }
+  strong { color: var(--ink); }
+  em { font-family: Georgia, serif; }
+
+  ul { margin: 0 0 12px 17px; }
+  li { margin-bottom: 7px; }
+
+  /* stat band */
+  .stats {
+    display: table; width: 100%; table-layout: fixed;
+    background: var(--ink); color: var(--parchment);
+    margin: 22px 0 26px;
+  }
+  .stat { display: table-cell; padding: 18px 14px; text-align: center;
+          border-right: 1px solid rgba(241,233,221,0.15); }
+  .stat:last-child { border-right: none; }
+  .stat .n { font-family: Georgia, serif; font-size: 22pt; color: var(--gold-bright); display: block; line-height: 1.1; }
+  .stat .l { font-family: "Courier New", monospace; font-size: 6.9pt; letter-spacing: 1.3px;
+             text-transform: uppercase; color: rgba(241,233,221,0.72); display: block; margin-top: 5px; }
+
+  /* callout */
+  .callout {
+    background: #F6F1E8; border-left: 3px solid var(--gold);
+    padding: 14px 18px; margin: 16px 0; font-size: 9.7pt;
+  }
+  .callout .lbl {
+    font-family: "Courier New", monospace; font-size: 7.2pt; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 6px;
+  }
+
+  .pull {
+    font-family: Georgia, serif; font-style: italic; font-size: 13pt;
+    color: var(--ink); line-height: 1.5;
+    border-top: 1px solid #DED5C6; border-bottom: 1px solid #DED5C6;
+    padding: 16px 0; margin: 20px 0;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 18px; font-size: 9.2pt; }
+  th {
+    background: var(--ink); color: var(--parchment);
+    font-family: "Courier New", monospace; font-size: 7.4pt; letter-spacing: 1.2px;
+    text-transform: uppercase; text-align: left; padding: 9px 11px; font-weight: normal;
+  }
+  td { padding: 9px 11px; border-bottom: 1px solid #E4DCCE; vertical-align: top; }
+  tr:nth-child(even) td { background: #FAF7F1; }
+  td.ph { font-family: "Courier New", monospace; font-size: 8pt; color: var(--gold);
+          white-space: nowrap; font-weight: bold; }
+
+  .breaker { page-break-before: always; }
+  .nobreak { page-break-inside: avoid; }
+
+  /* appendix divider */
+  .divider-page {
+    background: linear-gradient(150deg, #123138 0%, #0B2024 100%);
+    height: 11in; width: 8.5in; padding: 3.6in 1in;
+    color: var(--parchment); page-break-before: always; page-break-after: always;
+  }
+  .divider-page .rule { height: 2px; width: 60px; background: var(--gold); margin-bottom: 30px; }
+  .divider-page h1 { font-size: 32pt; color: var(--parchment); margin-bottom: 14px; }
+  .divider-page p { font-family: Georgia, serif; font-style: italic; font-size: 13pt;
+                    color: rgba(241,233,221,0.78); max-width: 4.6in; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="rule-top"></div>
+  <img src="logo_small.png" alt="Ticklore">
+  <h1>Ticklore</h1>
+  <div class="tagline">Every ticket has a story.</div>
+  <div class="subject">
+    Business Plan &amp; Investment Overview<br>
+    Prepared for Prospective Investors
+  </div>
+  <div class="meta">
+    <span class="confidential">Confidential</span> &nbsp;·&nbsp; Revised July 2026 &nbsp;·&nbsp; ticklore.com
+  </div>
+</div>
+
+<!-- ============ EXEC SUMMARY ============ -->
+<div class="page">
+  <div class="sec">
+    <h2>Executive Summary</h2>
+    <div class="kicker">The thesis in brief</div>
+    <div class="sec-rule"></div>
+
+    <p>Ticklore is a ticketing platform built around a simple idea: a ticket shouldn't be thrown away after the event — it should become a keepsake.</p>
+
+    <p>Where existing NFT ticketing platforms compete on fraud prevention and resale control, Ticklore leads with sentimental and collectible value. That positioning fits a far wider range of events than concerts alone: family reunions, benefit fundraisers, community gatherings, corporate events, and milestone celebrations.</p>
+
+    <p>The platform hides blockchain complexity from the end user entirely. Attendees buy with a credit card and receive a ticket by email — no wallet setup, no crypto knowledge, no technical friction. Every ticket is a one-of-one digital record the owner keeps permanently, with the option to move it into a personal wallet as self-custody becomes more mainstream.</p>
+
+    <p>Critically, the ticket is not the end of the product — it is the <strong>key</strong>. Each ticket unlocks a permanent, private vault of the event's memories: photographs, written recollections, the record of who was there. Ticketing acquires the customer; the vault is what they keep, and what they come back for.</p>
+
+    <p>Ticklore is designed from day one as a general-purpose platform, not a single-vertical tool. The go-to-market plan is to prove the model with one real, well-chosen first event, then expand deliberately across event categories. We are raising a pre-seed round to fund initial development and our first live pilot event.</p>
+
+    <div class="stats">
+      <div class="stat"><span class="n">4+</span><span class="l">Target Event Categories</span></div>
+      <div class="stat"><span class="n">3</span><span class="l">Founding Team Members</span></div>
+      <div class="stat"><span class="n">17</span><span class="l">Contract Tests Passing</span></div>
+    </div>
+  </div>
+
+  <div class="sec nobreak">
+    <h2>The Market Opportunity</h2>
+    <div class="kicker">An underserved wedge, not the whole market</div>
+    <div class="sec-rule"></div>
+
+    <p>Industry research places the global online event ticketing market in the range of roughly $60–90 billion in 2026, growing at a mid-single-digit to low-double-digit CAGR depending on the source. Ticklore is not targeting this entire market — it is targeting an underserved wedge within it.</p>
+
+    <p><strong>Large platforms</strong> (Ticketmaster, AXS, Eventbrite) are built for scale — major venues, national tours, high-volume events — and are not designed around, or particularly attentive to, small nonprofits, family gatherings, or community organizers.</p>
+
+    <p><strong>Existing NFT ticketing platforms</strong> (GET Protocol, YellowHeart, SeatlabNFT) target concerts and festivals specifically, competing on fraud prevention and resale royalties — a pitch with limited resonance outside live music.</p>
+
+    <p><strong>Ticklore's wedge</strong> is the large, fragmented long tail of smaller organizers — reunions, galas, community events, corporate gatherings — underserved by both categories above, combined with a keepsake-first positioning no competitor currently owns.</p>
+
+    <div class="callout">
+      <span class="lbl">Note for investors</span>
+      The figures above are drawn from third-party market research and presented as directional context, not a bottoms-up projection of Ticklore's addressable revenue. A detailed TAM/SAM/SOM model specific to our target segments should be built as part of due diligence.
+    </div>
+  </div>
+</div>
+
+<!-- ============ WHY NOW / PROBLEM ============ -->
+<div class="page breaker">
+  <div class="sec nobreak">
+    <h2>Why Now</h2>
+    <div class="sec-rule"></div>
+    <ul>
+      <li>NFT infrastructure — minting, wallet-abstraction tooling, low-fee networks — has matured enough that a small team can ship a production-grade product without deep blockchain R&amp;D.</li>
+      <li>Consumer wallet adoption is trending upward. Building optional self-custody in now positions Ticklore ahead of that curve rather than retrofitting for it later.</li>
+      <li>No incumbent — large or NFT-native — currently owns the "keepsake" positioning for non-concert events, leaving a clear, defensible wedge open.</li>
+    </ul>
+  </div>
+
+  <div class="sec">
+    <h2>The Problem</h2>
+    <div class="sec-rule"></div>
+    <ul>
+      <li>Paper and PDF tickets are disposable. Once the night is over, no lasting record of the event exists.</li>
+      <li>Ticket fraud and duplication remain persistent problems for organizers of all sizes, especially smaller nonprofits and community groups without access to enterprise tooling.</li>
+      <li>Nonprofits and community organizers are underserved by major platforms built for scale, not for a 200-person gala or a family reunion.</li>
+      <li>Donors increasingly want transparency into where their money goes. Most nonprofit ticketing tools provide no verifiable, permanent record of fund allocation.</li>
+      <li>Existing NFT ticketing platforms lead with fraud prevention or resale royalties — a value proposition that resonates with concert promoters and means little to a family planning a reunion.</li>
+    </ul>
+  </div>
+
+  <div class="sec">
+    <h2>The Solution</h2>
+    <div class="kicker">Three principles</div>
+    <div class="sec-rule"></div>
+
+    <p>Ticklore is a ticketing platform where every ticket minted is a unique digital record the buyer keeps permanently, positioned first and foremost as a keepsake rather than a financial instrument.</p>
+
+    <h3>Invisible blockchain</h3>
+    <p>Buyers pay with a card and receive their ticket by email. No wallet setup, no crypto purchase, no technical friction. The technology should be as unremarkable to the user as the payment network behind a credit card swipe.</p>
+
+    <h3>One of one</h3>
+    <p>Every ticket is a unique record — event, date, seat or role, price paid, and where relevant the donation it carried — permanently tied to its holder.</p>
+
+    <h3>Transparent by design</h3>
+    <p>For fundraising events, the platform can show in aggregate how ticket-linked donations were used — a trust feature most nonprofit tools cannot offer.</p>
+  </div>
+</div>
+
+<!-- ============ LIVING TICKET + VAULT ============ -->
+<div class="page breaker">
+  <div class="sec">
+    <h2>The Living Ticket</h2>
+    <div class="kicker">Before and after the event</div>
+    <div class="sec-rule"></div>
+
+    <p>The core differentiator in Ticklore's roadmap is a hybrid data model that lets a ticket's story keep growing after the event ends, without ever compromising the integrity of the original record.</p>
+
+    <h3>Before — the locked original</h3>
+    <p>The moment a ticket is minted, its core facts are written permanently and can never be altered or deleted. This is the ticket's <em>Chapter One</em>, and it is the foundation the rest of the product depends on.</p>
+
+    <h3>After — the growing addendum</h3>
+    <p>Once the event has happened, the organizer can add new content: photographs, an attendee roster, highlights, a closing note. These additions are append-only — new entries can be added, but nothing already recorded can be overwritten or removed. Each addition is timestamped, so the history of what was added and when becomes part of the permanent record itself.</p>
+
+    <h3>Why this matters</h3>
+    <p>This turns each ticket into a genuine, growing keepsake rather than a static receipt: a family reunion ticket that shows the whole family's photographs months later, or a fundraiser ticket that shows the outcome the donation helped fund. No existing NFT ticketing platform offers this; all of them treat the ticket as finished the moment the event ends.</p>
+
+    <div class="callout">
+      <span class="lbl">A practical note</span>
+      Rich content such as photographs and detailed rosters is stored off-chain with only a permanent reference recorded on-chain — standard practice, and what keeps the model both affordable and genuinely tamper-proof. Sensitive attendance data, for example a private support-group or wellness event roster, remains private or opt-in only, never public by default.
+    </div>
+  </div>
+
+  <div class="sec breaker">
+    <h2>The Keepsake Vault</h2>
+    <div class="kicker">Where the durable business is</div>
+    <div class="sec-rule"></div>
+
+    <p>The ticket is the key. The vault is what it opens.</p>
+
+    <p>Every event gets a permanent, private archive — photographs, written memories, the record of who was there — unlocked by proving ownership of a ticket. The blockchain holds the tamper-proof fingerprints and the access rules; the content itself lives in permanent off-chain storage.</p>
+
+    <div class="pull">
+      Ticketing is a fee race to the bottom against companies far larger than us. Memories have no competitor.
+    </div>
+
+    <p>This is the strategic centre of the business, and it is worth stating plainly why. Ticket fees are a commodity: every competitor can undercut them, and the giants can afford to. But an organizer who has placed four hundred family photographs into a permanent archive does not casually switch platforms next year. The vault is where pricing power and retention actually live. <strong>Acquire with the ticket; retain and monetize with the vault.</strong></p>
+
+    <h3>How it is priced — and the line we will not cross</h3>
+    <ul>
+      <li><strong>Pay once, never a subscription.</strong> A recurring fee on a keepsake creates a hostage: pay or lose your memories. That is brand suicide for a product built on sentiment, and we will not build it.</li>
+      <li><strong>Permanent by default</strong> for photographs and written memories, funded up front from the event's base price — an endowment model, where part of the setup fee pays for genuinely permanent storage.</li>
+      <li><strong>Video and heavy storage are a paid upgrade,</strong> priced to pass real cost plus a fair margin.</li>
+      <li><strong>The organizer controls contributions</strong> — a switch between <em>locked</em> (organizer only) and <em>open</em> (attendees contribute, subject to organizer approval). Approval matters when the record is permanent.</li>
+      <li><strong>Charge the organizer, never the attendee.</strong> Money enters through the organizer's front door, up front, as a business decision. A paywall in front of a grandmother's photographs poisons the exact feeling the product exists to sell.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ OWNERSHIP ============ -->
+<div class="page breaker">
+  <div class="sec">
+    <h2>Ownership &amp; Transferability</h2>
+    <div class="kicker">What the holder actually owns</div>
+    <div class="sec-rule"></div>
+
+    <p>A keepsake the holder cannot control is not a keepsake. Ticklore's position is that the holder owns the ticket outright — with rules that protect the event itself while it is happening.</p>
+
+    <h3>Locked before and during the event</h3>
+    <p>Tickets cannot be transferred in the run-up to or during an event. This removes the scalping and duplication problems at the source, without any need for a resale marketplace or enforcement apparatus.</p>
+
+    <h3>Unlocked afterward</h3>
+    <p>After a window set by the organizer — with a platform minimum of thirty days — the ticket unlocks. From that point the holder may keep it, gift it, pass it down, or sell it. It is theirs.</p>
+
+    <h3>What travels, and what stays</h3>
+    <p>If a ticket is sold, <em>Chapter One</em> — the permanent, verifiable event record — travels with it. That is the part with genuine provenance value. Post-event addendum content, such as family photographs and attendee rosters, is licensed to the holder at the time of publication and does <strong>not</strong> transfer with a resale. A stranger buying a reunion ticket receives the artifact, not the family album. That is the correct outcome in both directions.</p>
+
+    <h3>No platform royalty</h3>
+    <p>Ticklore takes no cut of secondary sales. This is a deliberate stance rather than an omission. A resale royalty would put the company's revenue on the same side as ticket price appreciation — directly contradicting our commitment never to position tickets as investments. We would rather have a consistent story than a marginal revenue line.</p>
+
+    <div class="callout">
+      <span class="lbl">Custody</span>
+      Wallets are created silently for buyers through third-party wallet-as-a-service infrastructure rather than key management we build ourselves. An optional self-custody export path is designed in from the start, so ownership claims remain credible to crypto-native observers.
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Business Model</h2>
+    <div class="sec-rule"></div>
+
+    <h3>Revenue streams</h3>
+    <ul>
+      <li><strong>Per-ticket platform fee</strong> — a small percentage or flat fee applied at checkout. The primary model is direct-to-attendee sales; organizers may also purchase a batch outright.</li>
+      <li><strong>Tiered organizer plans</strong> — free or low-cost for small community events; paid tiers for higher-volume organizers needing custom branding, analytics, or donation-tracking dashboards.</li>
+      <li><strong>Keepsake vault setup and upgrades</strong> — a one-time, up-front charge to the organizer covering permanent storage, with video and heavy media as a priced upgrade. Never a subscription.</li>
+    </ul>
+
+    <h3>Cost structure</h3>
+    <ul>
+      <li>Smart contract development and network fees, minimized by building on Base, a low-fee Ethereum layer-2 network.</li>
+      <li>Permanent storage funded up front per event, sized so the endowment covers the obligation.</li>
+      <li>Platform hosting, payment processing, and customer support.</li>
+      <li>Early stage: primarily founder time plus the raise outlined below.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ TECHNICAL ============ -->
+<div class="page breaker">
+  <div class="sec">
+    <h2>Technical Approach</h2>
+    <div class="kicker">What is built, and what it deliberately does not do</div>
+    <div class="sec-rule"></div>
+
+    <p>Two systems, kept strictly separate. <strong>Stripe is the cash register; the smart contract is the deed office.</strong> Money never touches the contract, and the contract never touches money.</p>
+
+    <p>This is not a technicality. A contract that holds funds is a contract that can be drained, and it is the single largest source of catastrophic failure in this industry. Ticklore's contract holds no balance, has no withdrawal function, and has nothing worth stealing. Payment is handled by ordinary payment infrastructure that businesses have used for years; the contract only ever records facts and enforces rules.</p>
+
+    <h3>Current state</h3>
+    <ul>
+      <li>Network: <strong>Base</strong>, an Ethereum layer-2 chosen for consumer-grade tooling and low fees.</li>
+      <li>The core ticket contract is <strong>written and tested</strong> — ERC-721, with per-ticket event name, date, tier, price paid, donation amount, check-in status, and transfer rules.</li>
+      <li>Ticket artwork is generated <strong>entirely on-chain</strong>. The card image is not hosted on any server; the contract draws it from scratch on request. If Ticklore disappears, the tickets still render.</li>
+      <li>Door check-in is a single owner-only operation that marks a ticket used and cannot be repeated.</li>
+      <li><strong>17 automated tests passing</strong>, covering minting, access control, transfer locks, permanent non-transferability for sensitive events, and metadata integrity.</li>
+    </ul>
+
+    <h3>Before any real money moves</h3>
+    <p>Three things are deliberately scheduled ahead of a live paid event, and are steps rather than oversights: a third-party <strong>security audit</strong>; an <strong>emergency pause</strong> capability; and <strong>separate staff roles</strong>, so door staff can scan tickets without holding the master key.</p>
+  </div>
+
+  <div class="sec">
+    <h2>Roadmap</h2>
+    <div class="kicker">Narrow first, then broaden</div>
+    <div class="sec-rule"></div>
+
+    <table>
+      <tr><th style="width:13%">Phase</th><th style="width:17%">Timeframe</th><th style="width:38%">Focus</th><th style="width:32%">Milestone</th></tr>
+      <tr><td class="ph">Phase 1</td><td>Now – Month 3</td><td>Build the core ticket contract and wire the full purchase path: card payment, silent wallet creation, mint, email delivery.</td><td>A ticket bought with a credit card and delivered by email, end to end.</td></tr>
+      <tr><td class="ph">Phase 2</td><td>Month 3 – 5</td><td>Secure a first pilot event; sell real tickets with the wallet hidden from attendees, and donation tracking where relevant.</td><td>First live event sold entirely on Ticklore.</td></tr>
+      <tr><td class="ph">Phase 3</td><td>Month 5 – 8</td><td>Refine on pilot feedback; build the organizer dashboard — event setup, ticket design, sales tracking.</td><td>Self-serve organizer tool, usable without our direct help.</td></tr>
+      <tr><td class="ph">Phase 4</td><td>Month 8 – 12</td><td>Open to a second and third organizer across two different event categories to test general fit.</td><td>3 organizers, 2+ categories proven.</td></tr>
+      <tr><td class="ph">Phase 5</td><td>Year 2</td><td>Broaden to additional categories; build the keepsake vault on top of the proven contract.</td><td>Repeatable onboarding playbook; first vault pilot event.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============ LANDSCAPE / RISK / TRACTION / ASK / TEAM ============ -->
+<div class="page breaker">
+  <div class="sec nobreak">
+    <h2>Competitive Landscape</h2>
+    <div class="sec-rule"></div>
+    <p>The NFT ticketing space is not empty, but it is not crowded with our positioning. Established players (GET Protocol, YellowHeart, SeatlabNFT, DeFy Tickets) primarily serve concerts and large festivals, competing on fraud prevention and resale control. Ticketmaster and other majors have added token-gating features but are not built for — and do not prioritize — small nonprofits or community organizers.</p>
+    <p>Ticklore's differentiation is threefold: a <strong>keepsake-first pitch</strong> that resonates across non-concert events; a <strong>transparency layer</strong> purpose-built for mission-driven fundraising; and the <strong>keepsake vault</strong>, which no competitor offers and which converts a one-time transaction into a durable relationship.</p>
+  </div>
+
+  <div class="sec">
+    <h2>Risks &amp; Mitigations</h2>
+    <div class="sec-rule"></div>
+    <table>
+      <tr><th style="width:46%">Risk</th><th style="width:54%">Mitigation</th></tr>
+      <tr><td>Donation-linked tickets imply tax-deductibility before a nonprofit partner's status is confirmed</td><td>Hold all tax-deductible messaging until 501(c)(3) status is confirmed; market the donation feature as transparent giving, not a tax benefit</td></tr>
+      <tr><td>Marketing tickets as an appreciating asset could raise securities concerns</td><td>All messaging focused on sentimental and collectible value, never financial return. No platform participation in resale proceeds</td></tr>
+      <tr><td>General-purpose pitch dilutes go-to-market focus</td><td>Launch narrow with one strong first event as the proof point; expand only after the first playbook is proven</td></tr>
+      <tr><td>Sensitive attendance data could expose attendees if mishandled</td><td>No public attendance credentials by default for sensitive categories; no public wallet-to-identity linkage; permanent non-transferability available per event</td></tr>
+      <tr><td>Wallet model could draw "not your keys" criticism</td><td>Third-party wallet infrastructure with an optional self-custody export path built in from the start</td></tr>
+      <tr><td>Permanent storage is a permanent obligation</td><td>Storage funded up front per event from the base price, sized to cover the commitment rather than depending on future revenue</td></tr>
+      <tr><td>Smart contract vulnerability</td><td>Third-party security audit before any live event handling real funds; contract scope kept deliberately minimal and holds no funds by design</td></tr>
+    </table>
+  </div>
+
+  <div class="sec nobreak">
+    <h2>Traction To Date</h2>
+    <div class="sec-rule"></div>
+    <ul>
+      <li>Brand, product concept, and visual identity fully developed — name, logo, colour system, and voice.</li>
+      <li>Live, password-protected preview website deployed at ticklore.com.</li>
+      <li>Three-person founding team assembled, spanning operations, business development, and technical build.</li>
+      <li><strong>Core smart contract written and tested</strong> — ERC-721 with on-chain artwork generation, transfer locks, door check-in, and permanent non-transferability for sensitive events. 17 automated tests passing.</li>
+      <li>Core architecture decided and documented: network, wallet infrastructure, transferability model, content ownership rules, and payment separation.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ ASK + TEAM ============ -->
+<div class="page breaker">
+  <div class="sec">
+    <h2>The Ask</h2>
+    <div class="sec-rule"></div>
+    <p>Ticklore is raising a pre-seed round to fund initial technical development and our first live pilot event.</p>
+    <div class="callout">
+      The figures below are a starting proposal for discussion, not a finalized term sheet. Actual terms, amount, and structure — SAFE, convertible note, or priced equity — will be finalized with counsel and in conversation with investors.
+    </div>
+    <table>
+      <tr><th style="width:36%">Use of Funds</th><th style="width:14%">Allocation</th><th style="width:50%">Detail</th></tr>
+      <tr><td>Technical development</td><td class="ph">~40%</td><td>Platform build — payments, wallet integration, delivery, check-in, organizer dashboard — plus smart contract completion and security audit</td></tr>
+      <tr><td>First pilot event execution</td><td class="ph">~20%</td><td>Organizer incentives, support, and iteration based on real-world feedback</td></tr>
+      <tr><td>Legal &amp; entity formation</td><td class="ph">~15%</td><td>Incorporation, cap table setup, investment documents, compliance review</td></tr>
+      <tr><td>Organizer acquisition &amp; marketing</td><td class="ph">~15%</td><td>Outreach to second and third organizers across different event categories</td></tr>
+      <tr><td>Reserve / contingency</td><td class="ph">~10%</td><td>Buffer for unforeseen technical or legal costs</td></tr>
+    </table>
+    <p>This raise is intended to fund Ticklore through the end of Phase 3 — a working, self-serve platform with one proven pilot event — positioning the company for a larger seed round once organizer traction across multiple event categories is demonstrated.</p>
+  </div>
+
+  <div class="sec nobreak">
+    <h2>Team</h2>
+    <div class="sec-rule"></div>
+    <p><strong>Alex Winfield — Founder &amp; Builder.</strong> Background spanning military service, multi-site operations and distribution management, and early ecommerce entrepreneurship. Currently learning Solidity and smart contract development from the ground up, with this project as the first real build.</p>
+    <p><strong>Pat "Ozzy" Osbourne — Co-Founder.</strong> <em>Bio to be added.</em></p>
+    <p><strong>Allison Allred — Co-Founder.</strong> A mother, entrepreneur, and connector at heart, Allison brings deep experience in business operations, systems, and process optimization, along with a strong background in sales, client retention, and customer service. She's driven by bringing people together and building environments — and businesses — where people can flourish.</p>
+  </div>
+</div>
+
+<!-- ============ APPENDIX DIVIDER ============ -->
+<div class="divider-page">
+  <div class="rule"></div>
+  <h1>Appendix A</h1>
+  <h1 style="font-size:22pt; color:var(--gold-bright); margin-bottom:22px;">How Ticklore Works</h1>
+  <p>A plain-language guide to the technology behind the platform — written for organizers, partners, and anyone who wants to understand what is actually happening under the hood.</p>
+</div>
+
+<!-- ============ APPENDIX ============ -->
+<div class="page">
+  <div class="sec">
+    <h2>What is a blockchain?</h2>
+    <div class="sec-rule"></div>
+    <p>A blockchain is a shared record book.</p>
+    <p>Imagine a ledger that thousands of computers around the world each keep an identical copy of. When something new is written in it, every copy updates at once. Anyone can read it, and once an entry is written it cannot be erased or altered — not by us, not by anyone. Changing a past entry would require simultaneously rewriting thousands of independent copies, which is why the record holds.</p>
+    <p>That permanence is the entire reason Ticklore uses one. A paper ticket can be lost, faked, or thrown out. A record in a company's private database survives only as long as the company does. An entry on a blockchain is durable in a way neither of those is.</p>
+    <div class="callout">
+      <span class="lbl">What this means for Ticklore</span>
+      When a ticket is created, the essential facts — the event, the date, the seat or role, who it was issued to — are written into a permanent public record. Ten years from now that entry still exists and still says the same thing, whether or not Ticklore is still here.
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>What is an NFT?</h2>
+    <div class="sec-rule"></div>
+    <p>An NFT is a one-of-a-kind entry in that record book.</p>
+    <p>The distinction is between things that are interchangeable and things that are not. Any dollar bill is as good as any other dollar bill — swap them and nothing has changed. But the deed to a specific house is not interchangeable with the deed to a different house. It refers to one particular thing.</p>
+    <p>"NFT" stands for <em>non-fungible token</em>, which is a technical way of saying: not interchangeable. One of one.</p>
+    <p>The term carries baggage from a period when NFTs were mostly traded as speculative art. That association is unfortunate, because the underlying technology is far more mundane, and far more useful, than that era suggested. At its core it is a way to establish that a specific digital item belongs to a specific person — the digital equivalent of a titled, registered object.</p>
+    <div class="callout">
+      <span class="lbl">What this means for Ticklore</span>
+      Every ticket is its own distinct record. Not a copy, not a duplicate, not one of a batch of identical PDFs.
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>What is a wallet?</h2>
+    <div class="sec-rule"></div>
+    <p>A wallet is the thing that proves a record belongs to you.</p>
+    <p>It is less like a physical wallet and more like a signature that cannot be forged. It does not hold your ticket the way a billfold holds cash; the ticket lives on the blockchain. The wallet holds the proof that the ticket is yours.</p>
+    <p>Setting one up is the single largest point of friction in consumer blockchain products, and it is where most people give up. So Ticklore does not ask anyone to.</p>
+    <div class="callout">
+      <span class="lbl">What this means for Ticklore</span>
+      A wallet is created silently for each buyer at checkout by specialized third-party infrastructure. Attendees never see it, never set it up, and never have to understand it. For those who want direct control, an export path to a personal wallet is available.
+    </div>
+  </div>
+</div>
+
+<div class="page breaker">
+  <div class="sec">
+    <h2>What is a smart contract?</h2>
+    <div class="sec-rule"></div>
+    <p>A smart contract is a set of rules that enforces itself.</p>
+    <p>An ordinary contract is a document describing what should happen, relying on people and courts to make it so. A smart contract is a program living on the blockchain that simply <em>does</em> what it says, automatically, the same way every time, for everyone.</p>
+    <p>The value is that the rules are not promises. They are not policies a company can quietly revise. They are written into the record itself.</p>
+    <div class="callout">
+      <span class="lbl">What this means for Ticklore</span>
+      "This ticket cannot be used twice." "This ticket cannot be transferred until thirty days after the event." "This ticket can never be transferred at all." These are not terms of service. They are written into the contract itself. We could not break them for you, and we could not break them against you.
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>On-chain and off-chain</h2>
+    <div class="sec-rule"></div>
+    <p>Not everything belongs in a permanent public record. Storing a hundred family photographs directly on a blockchain would be prohibitively expensive, and would make private moments permanently public.</p>
+    <p>So the model is split. The <em>proof</em> lives on-chain; the <em>content</em> lives off-chain.</p>
+    <p>The comparison is a property deed. The deed is filed at the county courthouse — permanent, public, verifiable by anyone. The photo album from the day you moved in is at your house. The deed proves the house is yours. The album is what you actually look at.</p>
+    <div class="callout">
+      <span class="lbl">What this means for Ticklore</span>
+      The ticket's core record is on-chain, permanent and verifiable. Photographs, rosters, and post-event content are stored separately, with a permanent reference on-chain proving they are authentic and unaltered. This keeps costs low, keeps private content private, and still guarantees nothing has been tampered with.
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Putting it together</h2>
+    <div class="sec-rule"></div>
+    <p>Here is what happens when someone buys a Ticklore ticket, in order:</p>
+    <ul>
+      <li><strong>They pay with a card.</strong> Standard checkout. Nothing unfamiliar.</li>
+      <li><strong>A wallet is created for them silently,</strong> managed by specialized infrastructure. They are never asked to set anything up.</li>
+      <li><strong>A smart contract creates their ticket</strong> — a one-of-one record written permanently to the Base network, with the event details and rules built in.</li>
+      <li><strong>The ticket arrives by email.</strong> Viewable, scannable at the door, theirs to keep.</li>
+      <li><strong>The ticket is checked in at the event.</strong> The contract marks it used. It cannot be used again.</li>
+      <li><strong>After the event, the story continues.</strong> The organizer adds photographs, a roster, a closing note. Each addition is timestamped and permanent. Nothing already written can be removed.</li>
+      <li><strong>The ticket unlocks.</strong> After the organizer's chosen window, the holder can keep it, gift it, pass it down, or sell it. It is theirs.</li>
+    </ul>
+    <div class="pull">
+      At no point in that sequence is the buyer required to understand any of the above. That is the design goal.
+    </div>
+    <p>The technology should be as invisible as the payment network behind a credit card swipe — present, essential, and entirely unremarkable to the person using it.</p>
+  </div>
+</div>
+
+</body>
+</html>
