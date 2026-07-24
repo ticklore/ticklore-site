@@ -17,18 +17,25 @@ contract TickloreTicketTest is Test {
         ticklore = new TickloreTicket(boxOffice);
     }
 
+    // normal, transferable ticket
     function _mintPicnic() internal returns (uint256 id) {
         vm.prank(boxOffice);
-        id = ticklore.mintTicket(buyer, "Founders' Day Picnic", EVENT_DATE, "General", 2500, 0, UNLOCK);
+        id = ticklore.mintTicket(buyer, "Founders' Day Picnic", EVENT_DATE, "General", 2500, 0, UNLOCK, false);
+    }
+
+    // sensitive, permanently non-transferable ticket
+    function _mintSensitive() internal returns (uint256 id) {
+        vm.prank(boxOffice);
+        id = ticklore.mintTicket(buyer, "Support Group", EVENT_DATE, "Member", 0, 0, UNLOCK, true);
     }
 
     function _used(uint256 id) internal view returns (bool u) {
-        (,,,,, u,,) = ticklore.tickets(id);
+        (,,,,, u,,,) = ticklore.tickets(id);
     }
 
     function test_MintAndReadBackFirstTicket() public {
         uint256 id = _mintPicnic();
-        (string memory eventName,,,uint256 pricePaid,,bool used,,address originalHolder) = ticklore.tickets(id);
+        (string memory eventName,,,uint256 pricePaid,,bool used,,,address originalHolder) = ticklore.tickets(id);
         assertEq(id, 1);
         assertEq(ticklore.ownerOf(1), buyer);
         assertEq(eventName, "Founders' Day Picnic");
@@ -41,7 +48,7 @@ contract TickloreTicketTest is Test {
     function test_StrangerCannotMint() public {
         vm.prank(buyer);
         vm.expectRevert();
-        ticklore.mintTicket(buyer, "Fake", EVENT_DATE, "General", 0, 0, UNLOCK);
+        ticklore.mintTicket(buyer, "Fake", EVENT_DATE, "General", 0, 0, UNLOCK, false);
     }
 
     function test_TransferBlockedBeforeUnlock() public {
@@ -62,27 +69,24 @@ contract TickloreTicketTest is Test {
 
     function test_CheckIn() public {
         uint256 id = _mintPicnic();
-        assertEq(_used(id), false);           // fresh
+        assertEq(_used(id), false);
         vm.prank(boxOffice);
-        ticklore.checkIn(id);                  // scan at the door
-        assertEq(_used(id), true);             // stamped
-        console2.log("Ticket #1 checked in. used =", _used(id));
+        ticklore.checkIn(id);
+        assertEq(_used(id), true);
     }
 
     function test_CheckInBlocksSecondScan() public {
         uint256 id = _mintPicnic();
         vm.prank(boxOffice);
         ticklore.checkIn(id);
-        // try to sneak the same ticket through again
         vm.prank(boxOffice);
         vm.expectRevert(bytes("Ticklore: ticket already used"));
         ticklore.checkIn(id);
-        console2.log("Second scan correctly REJECTED.");
     }
 
     function test_StrangerCannotCheckIn() public {
         uint256 id = _mintPicnic();
-        vm.prank(buyer);                       // an attendee can't check themselves in
+        vm.prank(buyer);
         vm.expectRevert();
         ticklore.checkIn(id);
     }
@@ -91,5 +95,16 @@ contract TickloreTicketTest is Test {
         vm.prank(boxOffice);
         vm.expectRevert(bytes("Ticklore: no such ticket"));
         ticklore.checkIn(999);
+    }
+
+    function test_NonTransferableBlockedEvenAfterUnlock() public {
+        uint256 id = _mintSensitive();
+        // fast-forward a FULL YEAR past the unlock — still sealed
+        vm.warp(uint256(UNLOCK) + 365 days);
+        vm.prank(buyer);
+        vm.expectRevert(bytes("Ticklore: ticket is permanently non-transferable"));
+        ticklore.transferFrom(buyer, friend, id);
+        assertEq(ticklore.ownerOf(id), buyer);
+        console2.log("Sensitive ticket stays put even a year after unlock. Owner:", ticklore.ownerOf(id));
     }
 }

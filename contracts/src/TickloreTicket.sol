@@ -8,14 +8,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @notice Every ticket is a one-of-one keepsake. This is the foundation.
 contract TickloreTicket is ERC721, Ownable {
     struct TicketData {
-        string  eventName;       // "Founders' Day Picnic"
-        uint64  eventDate;       // when the event happens (unix time)
-        string  tier;            // "General", "VIP", a seat, or a role
-        uint256 pricePaid;       // what this ticket sold for, in cents (0 = free)
-        uint256 donationAmount;  // optional gift to a cause, in cents (0 = none)
-        bool    used;            // has it been checked in at the door?
-        uint64  transferUnlock;  // when the ticket becomes transferable
-        address originalHolder;  // who it was first issued to (permanent provenance)
+        string  eventName;        // "Founders' Day Picnic"
+        uint64  eventDate;        // when the event happens (unix time)
+        string  tier;             // "General", "VIP", a seat, or a role
+        uint256 pricePaid;        // what this ticket sold for, in cents (0 = free)
+        uint256 donationAmount;   // optional gift to a cause, in cents (0 = none)
+        bool    used;             // has it been checked in at the door?
+        uint64  transferUnlock;   // when the ticket becomes transferable
+        bool    nonTransferable;  // if true: NEVER transferable (sensitive events)
+        address originalHolder;   // who it was first issued to (permanent provenance)
     }
 
     mapping(uint256 => TicketData) public tickets;
@@ -37,7 +38,8 @@ contract TickloreTicket is ERC721, Ownable {
         string calldata tier,
         uint256 pricePaid,
         uint256 donationAmount,
-        uint64 transferUnlock
+        uint64 transferUnlock,
+        bool nonTransferable
     ) external onlyOwner returns (uint256) {
         uint256 ticketId = nextTicketId;
         nextTicketId++;
@@ -50,6 +52,7 @@ contract TickloreTicket is ERC721, Ownable {
             donationAmount: donationAmount,
             used: false,
             transferUnlock: transferUnlock,
+            nonTransferable: nonTransferable,
             originalHolder: to
         });
 
@@ -59,13 +62,11 @@ contract TickloreTicket is ERC721, Ownable {
     }
 
     /// @notice Scan a ticket in at the door. Marks it used; a second scan fails.
-    ///         Only the owner (the platform / organizer's system) may do this.
     function checkIn(uint256 ticketId) external onlyOwner {
         require(_ownerOf(ticketId) != address(0), "Ticklore: no such ticket");
         require(!tickets[ticketId].used, "Ticklore: ticket already used");
-
-        tickets[ticketId].used = true;      // flip the stamp permanently
-        emit TicketCheckedIn(ticketId);     // announce the check-in
+        tickets[ticketId].used = true;
+        emit TicketCheckedIn(ticketId);
     }
 
     /// @dev The chokepoint every mint, transfer, and burn flows through.
@@ -76,6 +77,12 @@ contract TickloreTicket is ERC721, Ownable {
     {
         address from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0)) {
+            // Sensitive events: sealed shut, forever.
+            require(
+                !tickets[tokenId].nonTransferable,
+                "Ticklore: ticket is permanently non-transferable"
+            );
+            // Everyone else: locked until the event is far enough behind us.
             require(
                 block.timestamp >= tickets[tokenId].transferUnlock,
                 "Ticklore: ticket is still locked (event not far enough behind us)"
