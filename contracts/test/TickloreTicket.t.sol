@@ -14,8 +14,18 @@ contract TickloreTicketTest is Test {
     uint64 constant EVENT_DATE = 1780142400;         // ~ May 30, 2026 12:00 UTC
     uint64 constant UNLOCK     = EVENT_DATE + 30 days;
 
+    // Cached in setUp. Reading ticklore.MINTER_ROLE() is itself a call, and
+    // vm.prank only applies to the NEXT call — so reading a role inline would
+    // silently consume the prank and the real call would run unpranked.
+    bytes32 MINTER;
+    bytes32 STAFF;
+    bytes32 ADMIN;
+
     function setUp() public {
         ticklore = new TickloreTicket(boxOffice);
+        MINTER = ticklore.MINTER_ROLE();
+        STAFF  = ticklore.STAFF_ROLE();
+        ADMIN  = ticklore.DEFAULT_ADMIN_ROLE();
     }
 
     // normal, transferable ticket
@@ -241,5 +251,103 @@ contract TickloreTicketTest is Test {
         string memory json = _decodedJSON(id);
         assertTrue(_contains(json, "\\u000a"), "newline encoded as \\u000a");
         vm.parseJsonString(json, ".name"); // reverts if malformed
+    }
+
+    // =====================================================================
+    // Roles
+    //
+    // The point of separating these: the minting server lives online and is
+    // the most likely thing to be compromised. If it holds the owner key, a
+    // breach costs the contract. If it holds only MINTER_ROLE, a breach costs
+    // some junk tickets and one revokeRole call.
+    // =====================================================================
+
+    address server = makeAddr("mintServer");
+    address doorStaff = makeAddr("doorStaff");
+
+    /// A fresh deployment must work with no setup — owner holds every role.
+    function test_OwnerStartsWithAllRoles() public view {
+        assertTrue(ticklore.hasRole(ADMIN, boxOffice));
+        assertTrue(ticklore.hasRole(MINTER, boxOffice));
+        assertTrue(ticklore.hasRole(STAFF, boxOffice));
+    }
+
+    function test_GrantedMinterCanMint() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(MINTER, server);
+
+        vm.prank(server);
+        uint256 id = ticklore.mintTicket(buyer, "Server Minted", EVENT_DATE, "General", 2500, 0, UNLOCK, false);
+        assertEq(ticklore.ownerOf(id), buyer);
+    }
+
+    /// The whole point: a minter is not an owner.
+    function test_MinterCannotCheckIn() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(MINTER, server);
+
+        uint256 id = _mintPicnic();
+        vm.prank(server);
+        vm.expectRevert();
+        ticklore.checkIn(id);
+    }
+
+    /// And door staff cannot mint themselves free tickets.
+    function test_StaffCannotMint() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(STAFF, doorStaff);
+
+        vm.prank(doorStaff);
+        vm.expectRevert();
+        ticklore.mintTicket(buyer, "Free For Me", EVENT_DATE, "General", 0, 0, UNLOCK, false);
+    }
+
+    function test_GrantedStaffCanCheckIn() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(STAFF, doorStaff);
+
+        uint256 id = _mintPicnic();
+        vm.prank(doorStaff);
+        ticklore.checkIn(id);
+        assertTrue(_used(id), "staff checked the ticket in");
+    }
+
+    /// The recovery path. This is the test that justifies the whole change:
+    /// a compromised server key is revoked in one transaction, and the
+    /// contract is otherwise untouched.
+    function test_RevokedMinterCannotMint() public {
+        vm.startPrank(boxOffice);
+        ticklore.grantRole(MINTER, server);
+        vm.stopPrank();
+
+        vm.prank(server);
+        ticklore.mintTicket(buyer, "Before Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false);
+
+        vm.prank(boxOffice);
+        ticklore.revokeRole(MINTER, server);
+
+        vm.prank(server);
+        vm.expectRevert();
+        ticklore.mintTicket(buyer, "After Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false);
+
+        // Ownership never moved.
+        assertEq(ticklore.owner(), boxOffice);
+    }
+
+    /// A minter must not be able to hand the role to anyone else.
+    function test_MinterCannotGrantRoles() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(MINTER, server);
+
+        vm.prank(server);
+        vm.expectRevert();
+        ticklore.grantRole(MINTER, buyer);
+    }
+
+    /// Wallets and marketplaces ask the contract what it is.
+    function test_SupportsBothInterfaces() public view {
+        assertTrue(ticklore.supportsInterface(0x80ac58cd), "ERC721");
+        assertTrue(ticklore.supportsInterface(0x7965db0b), "AccessControl");
+        assertFalse(ticklore.supportsInterface(0xffffffff), "sanity check");
     }
 }

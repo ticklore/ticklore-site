@@ -3,12 +3,39 @@ pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// @title  TickloreTicket
 /// @notice Every ticket is a one-of-one keepsake. This is the foundation.
-contract TickloreTicket is ERC721, Ownable {
+contract TickloreTicket is ERC721, Ownable, AccessControl {
+    // -----------------------------------------------------------------------
+    // Roles
+    //
+    // Two jobs need doing day to day, and neither should require the keys to
+    // the whole contract:
+    //
+    //   MINTER_ROLE  the server that mints a ticket once a payment clears.
+    //                It lives online and is therefore the most exposed thing
+    //                we run. If it is compromised, an attacker can mint junk
+    //                tickets — bad, but survivable, because the owner can
+    //                revoke the role and the contract itself is untouched.
+    //
+    //   STAFF_ROLE   a phone at the door scanning tickets. Handing door staff
+    //                the master key so they can mark tickets used would be
+    //                absurd; this is the narrow permission that lets them do
+    //                exactly one thing.
+    //
+    // The owner holds DEFAULT_ADMIN_ROLE and can grant or revoke either at any
+    // time. The distinction that matters: losing a role is an inconvenience,
+    // losing ownership is a catastrophe. Keeping them separate means the thing
+    // most likely to be stolen is the thing that costs least.
+    // -----------------------------------------------------------------------
+
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant STAFF_ROLE  = keccak256("STAFF_ROLE");
+
     struct TicketData {
         string  eventName;
         uint64  eventDate;
@@ -30,7 +57,15 @@ contract TickloreTicket is ERC721, Ownable {
     constructor(address initialOwner)
         ERC721("Ticklore Ticket", "TCKL")
         Ownable(initialOwner)
-    {}
+    {
+        // The owner starts with every role, so a fresh deployment behaves
+        // exactly as before and nothing is unusable out of the box. Delegation
+        // is then a deliberate act: grant MINTER_ROLE to the server wallet,
+        // STAFF_ROLE to the door device, and keep ownership somewhere cold.
+        _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
+        _grantRole(MINTER_ROLE, initialOwner);
+        _grantRole(STAFF_ROLE, initialOwner);
+    }
 
     function mintTicket(
         address to,
@@ -41,7 +76,7 @@ contract TickloreTicket is ERC721, Ownable {
         uint256 donationAmount,
         uint64 transferUnlock,
         bool nonTransferable
-    ) external onlyOwner returns (uint256) {
+    ) external onlyRole(MINTER_ROLE) returns (uint256) {
         uint256 ticketId = nextTicketId;
         nextTicketId++;
 
@@ -62,7 +97,7 @@ contract TickloreTicket is ERC721, Ownable {
         return ticketId;
     }
 
-    function checkIn(uint256 ticketId) external onlyOwner {
+    function checkIn(uint256 ticketId) external onlyRole(STAFF_ROLE) {
         require(_ownerOf(ticketId) != address(0), "Ticklore: no such ticket");
         require(!tickets[ticketId].used, "Ticklore: ticket already used");
         tickets[ticketId].used = true;
@@ -243,6 +278,19 @@ contract TickloreTicket is ERC721, Ownable {
         return v < 10
             ? bytes1(uint8(bytes1("0")) + v)
             : bytes1(uint8(bytes1("a")) + (v - 10));
+    }
+
+    /// @dev Both ERC721 and AccessControl answer this question, so Solidity
+    ///      makes us say explicitly that the answer is "either one is fine."
+    ///      This is how a wallet or marketplace asks the contract what it is:
+    ///      yes, an NFT; yes, role-based permissions.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     /// @dev The chokepoint every mint, transfer, and burn flows through.
