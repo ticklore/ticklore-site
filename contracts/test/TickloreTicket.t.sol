@@ -350,4 +350,85 @@ contract TickloreTicketTest is Test {
         assertTrue(ticklore.supportsInterface(0x7965db0b), "AccessControl");
         assertFalse(ticklore.supportsInterface(0xffffffff), "sanity check");
     }
+
+    // =====================================================================
+    // Emergency stop
+    //
+    // The interesting tests here are the ones asserting what pausing does
+    // NOT do. Freezing the door mid-event would strand paying attendees
+    // outside, and making already-minted keepsakes unreadable would break
+    // the central promise of the product.
+    // =====================================================================
+
+    function test_PauseBlocksMinting() public {
+        vm.prank(boxOffice);
+        ticklore.pause();
+
+        vm.prank(boxOffice);
+        vm.expectRevert();
+        ticklore.mintTicket(buyer, "While Paused", EVENT_DATE, "General", 0, 0, UNLOCK, false);
+    }
+
+    function test_PauseBlocksTransfers() public {
+        uint256 id = _mintPicnic();
+        vm.warp(UNLOCK + 1 days); // past the unlock, so only the pause can stop it
+
+        vm.prank(boxOffice);
+        ticklore.pause();
+
+        vm.prank(buyer);
+        vm.expectRevert(bytes("Ticklore: transfers are paused"));
+        ticklore.transferFrom(buyer, friend, id);
+    }
+
+    /// The deliberate exception. Door staff must keep working during an
+    /// emergency, or a pause strands everyone holding a valid ticket.
+    function test_PauseDoesNotBlockCheckIn() public {
+        uint256 id = _mintPicnic();
+
+        vm.prank(boxOffice);
+        ticklore.pause();
+
+        vm.prank(boxOffice);
+        ticklore.checkIn(id);
+        assertTrue(_used(id), "the door still works while paused");
+    }
+
+    /// A keepsake that vanishes when the company has a bad day is not a
+    /// keepsake. Reading is a view function and can never be paused.
+    function test_PauseDoesNotBlockReadingTickets() public {
+        uint256 id = _mintPicnic();
+
+        vm.prank(boxOffice);
+        ticklore.pause();
+
+        string memory uri = ticklore.tokenURI(id);
+        assertGt(bytes(uri).length, 0, "ticket still renders while paused");
+    }
+
+    function test_UnpauseRestoresMinting() public {
+        vm.startPrank(boxOffice);
+        ticklore.pause();
+        ticklore.unpause();
+        uint256 id = ticklore.mintTicket(buyer, "After Unpause", EVENT_DATE, "General", 0, 0, UNLOCK, false);
+        vm.stopPrank();
+        assertEq(ticklore.ownerOf(id), buyer);
+    }
+
+    function test_StrangerCannotPause() public {
+        vm.prank(buyer);
+        vm.expectRevert();
+        ticklore.pause();
+    }
+
+    /// The minting server holds MINTER_ROLE only. A compromised server must
+    /// not be able to halt the whole platform.
+    function test_MinterCannotPause() public {
+        vm.prank(boxOffice);
+        ticklore.grantRole(MINTER, server);
+
+        vm.prank(server);
+        vm.expectRevert();
+        ticklore.pause();
+    }
 }

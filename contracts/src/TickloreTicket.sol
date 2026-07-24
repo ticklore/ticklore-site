@@ -4,12 +4,13 @@ pragma solidity ^0.8.20;
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// @title  TickloreTicket
 /// @notice Every ticket is a one-of-one keepsake. This is the foundation.
-contract TickloreTicket is ERC721, Ownable, AccessControl {
+contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
     // -----------------------------------------------------------------------
     // Roles
     //
@@ -35,6 +36,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant STAFF_ROLE  = keccak256("STAFF_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     struct TicketData {
         string  eventName;
@@ -65,6 +67,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
         _grantRole(MINTER_ROLE, initialOwner);
         _grantRole(STAFF_ROLE, initialOwner);
+        _grantRole(PAUSER_ROLE, initialOwner);
     }
 
     function mintTicket(
@@ -76,7 +79,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl {
         uint256 donationAmount,
         uint64 transferUnlock,
         bool nonTransferable
-    ) external onlyRole(MINTER_ROLE) returns (uint256) {
+    ) external onlyRole(MINTER_ROLE) whenNotPaused returns (uint256) {
         uint256 ticketId = nextTicketId;
         nextTicketId++;
 
@@ -280,6 +283,41 @@ contract TickloreTicket is ERC721, Ownable, AccessControl {
             : bytes1(uint8(bytes1("a")) + (v - 10));
     }
 
+    // -----------------------------------------------------------------------
+    // Emergency stop
+    //
+    // WHAT PAUSING DOES AND DELIBERATELY DOES NOT DO
+    //
+    // Paused:   minting, and transfers between people.
+    // NOT paused: checkIn.
+    //
+    // That exception is intentional and worth defending. A pause is most
+    // likely to be hit during a live event — that is when things go wrong and
+    // someone is watching. If pausing also froze the door, four hundred people
+    // holding valid tickets would be standing outside a venue they paid to
+    // enter, and the cure would be worse than almost any disease.
+    //
+    // checkIn is also the least dangerous thing this contract does. It flips
+    // one boolean, moves no value, and creates nothing. Stopping mints stops
+    // bad tickets being made; stopping transfers stops them being moved. The
+    // door can stay open.
+    //
+    // Reading tickets is never paused either. tokenURI is a view function, so
+    // even during an emergency every ticket already minted still renders. A
+    // keepsake that disappears when the company has a bad day is not a
+    // keepsake.
+    // -----------------------------------------------------------------------
+
+    /// @notice Halt minting and transfers. Check-in keeps working.
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @notice Resume normal operation.
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
     /// @dev Both ERC721 and AccessControl answer this question, so Solidity
     ///      makes us say explicitly that the answer is "either one is fine."
     ///      This is how a wallet or marketplace asks the contract what it is:
@@ -301,6 +339,8 @@ contract TickloreTicket is ERC721, Ownable, AccessControl {
     {
         address from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0)) {
+            // A real transfer between two people, as opposed to a mint.
+            require(!paused(), "Ticklore: transfers are paused");
             require(!tickets[tokenId].nonTransferable, "Ticklore: ticket is permanently non-transferable");
             require(
                 block.timestamp >= tickets[tokenId].transferUnlock,
