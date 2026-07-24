@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# Secrets — never commit these.
+#
+# A private key in a git repo is public the moment the repo is pushed, and
+# git history remembers it even after you delete the file. Deleting a
+# committed key does not un-leak it. This file is the guardrail.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+.tl_token
+.git-credentials
+
+# Node / tooling
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
