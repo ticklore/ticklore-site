@@ -153,8 +153,9 @@ app.get("/ticket/:id/image", async (req, res) => {
   }
 });
 
-/** A tiny viewer, so a ticket can be looked at without any tooling. */
-app.get("/", (req, res) => {
+/** A tiny viewer, so a ticket can be looked at without any tooling. Lives at
+ *  /viewer now — the storefront owns "/" (the landing page). */
+app.get("/viewer", (req, res) => {
   res.type("html").send(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Ticklore mint service</title>
 <style>

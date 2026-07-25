@@ -229,56 +229,105 @@ function mountStripeRoutes(app, { chain, stripe }) {
     res.json(order);
   });
 
-  app.get("/success", (req, res) => {
-    res.type("html").send(successPage(req.query.session_id || ""));
+  app.get("/success", async (req, res) => {
+    // Demo path: no Stripe session to poll, so mint on the spot and reveal.
+    if (req.query.demo && process.env.ALLOW_DEMO_BUY === "true") {
+      try {
+        const details = getEvent(req.query.demo);
+        if (!details) return res.status(404).type("html").send(successPage({ error: "Unknown event." }));
+        const result = await ticklore.mintTicket(chain.contract, {
+          to: chain.signer.address,
+          eventName: details.name, tier: details.tier,
+          price: details.priceCents, date: details.date,
+        });
+        return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
+      } catch (err) {
+        return res.type("html").send(successPage({ error: err.message }));
+      }
+    }
+    // Stripe path: poll the order store until the webhook mints.
+    res.type("html").send(successPage({ sessionId: req.query.session_id || "" }));
   });
 }
 
-function successPage(sessionId) {
+function successPage(opts) {
+  const { esc: E, head: H, ticketSvg: TS } = require("./ui");
+  const sessionId = opts.sessionId || "";
+  const immediate = opts.immediate ? { ticketId: opts.ticketId, eventName: opts.eventName, custodial: opts.custodial } : null;
+  const errored = opts.error || "";
+
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Your ticket — Ticklore</title>
+<html lang="en"><head>${H("Your ticket — Ticklore")}
 <style>
-  body{background:#0E262B;color:#F1E9DD;font-family:system-ui,sans-serif;margin:0;
-       min-height:100vh;display:flex;align-items:center;justify-content:center}
-  .box{text-align:center;padding:32px;max-width:900px}
-  h1{font-family:Georgia,serif;margin:0 0 6px}
-  .t{font-style:italic;color:#E3C25E;margin-bottom:26px}
-  .status{color:rgba(241,233,221,.7);min-height:1.4em;margin-bottom:20px}
-  img{max-width:100%;border-radius:10px;box-shadow:0 24px 50px -18px rgba(0,0,0,.7)}
-  .note{margin-top:22px;font-size:.9rem;color:rgba(241,233,221,.55)}
-</style></head><body><div class="box">
-<h1>Ticklore</h1><div class="t">Every ticket has a story.</div>
-<div class="status" id="s">Confirming your payment…</div>
-<div id="o"></div>
-<div class="note" id="n"></div>
+  main{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px}
+  .box{text-align:center;max-width:640px;width:100%}
+  .brand{font-family:'Fraunces',serif;font-size:1.6rem;font-weight:600;margin-bottom:2px}
+  .brand em{font-style:italic;color:var(--gold-bright)}
+  .tag{font-family:'Fraunces',serif;font-style:italic;color:var(--gold-bright);font-size:.98rem;margin-bottom:30px}
+  .status{color:rgba(241,233,221,.72);min-height:1.4em;margin-bottom:8px;font-size:1.05rem}
+  .headline{font-family:'Fraunces',serif;font-weight:600;font-size:1.9rem;margin-bottom:20px;
+    opacity:0;transform:translateY(8px);transition:opacity .6s,transform .6s}
+  .headline.show{opacity:1;transform:none}
+  .ticket-wrap{opacity:0;transform:translateY(20px) scale(.96);transition:opacity .8s,transform .8s}
+  .ticket-wrap.show{opacity:1;transform:none}
+  .ticket-wrap svg,.ticket-wrap img{width:100%;max-width:520px;height:auto;border-radius:12px;
+    box-shadow:0 34px 80px -28px rgba(0,0,0,.85)}
+  .sub{margin-top:20px;font-size:.92rem;color:rgba(241,233,221,.6)}
+  .cta{margin-top:26px}
+  .spinner{width:34px;height:34px;border:2px solid var(--line);border-top-color:var(--gold);
+    border-radius:50%;margin:0 auto 20px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style></head>
+<body>
+  <main><div class="box">
+    <div class="brand">Tick<em>lore</em></div>
+    <div class="tag">Every ticket has a story.</div>
+    <div class="spinner" id="spin"></div>
+    <div class="status" id="s"></div>
+    <div class="headline" id="h"></div>
+    <div class="ticket-wrap" id="tw"></div>
+    <div class="sub" id="n"></div>
+    <div class="cta" id="cta"></div>
+  </div></main>
 <script>
-var sid = ${JSON.stringify(sessionId)};
-var tries = 0;
-function poll(){
-  tries++;
-  fetch('/order/'+sid).then(function(r){return r.json()}).then(function(d){
-    if(d.status==='minted'){
-      document.getElementById('s').textContent='Chapter One is written.';
-      var i=new Image(); i.src='/ticket/'+d.ticketId+'/image';
-      document.getElementById('o').appendChild(i);
-      document.getElementById('n').textContent =
-        'Ticket #'+d.ticketId+(d.custodial?' — held for you. No wallet required.':' — sent to your wallet.');
-      return;
-    }
-    if(d.status==='failed'){
-      document.getElementById('s').textContent='Your payment went through, but we hit a snag issuing the ticket. We are on it — nothing is lost.';
-      return;
-    }
-    if(tries>40){
-      document.getElementById('s').textContent='Still working. Your payment is safe; the ticket will appear shortly.';
-      return;
-    }
-    setTimeout(poll, 1500);
-  }).catch(function(){ setTimeout(poll, 2000) });
-}
-if(sid) poll(); else document.getElementById('s').textContent='No order reference found.';
+  var IMMEDIATE = ${immediate ? JSON.stringify(immediate) : "null"};
+  var ERRORED = ${JSON.stringify(errored)};
+  var sid = ${JSON.stringify(sessionId)};
+
+  function reveal(ticketId, custodial){
+    document.getElementById('spin').style.display='none';
+    document.getElementById('s').textContent='';
+    var h=document.getElementById('h'); h.textContent='Chapter One is written.';
+    h.classList.add('show');
+    var tw=document.getElementById('tw');
+    var img=new Image(); img.src='/ticket/'+ticketId+'/image';
+    img.onload=function(){ tw.appendChild(img); requestAnimationFrame(function(){tw.classList.add('show')}); };
+    document.getElementById('n').textContent='Ticket #'+ticketId+(custodial?' — held for you. No wallet required.':' — sent to your wallet.');
+    document.getElementById('cta').innerHTML='<a href="/shop" class="btn btn--ghost">Browse more events</a>';
+  }
+  function fail(msg){
+    document.getElementById('spin').style.display='none';
+    document.getElementById('s').textContent=msg;
+    document.getElementById('cta').innerHTML='<a href="/shop" class="btn btn--ghost">Back to events</a>';
+  }
+
+  if (ERRORED){ fail('Something went wrong: '+ERRORED); }
+  else if (IMMEDIATE){ document.getElementById('s').textContent='Writing your chapter…'; setTimeout(function(){reveal(IMMEDIATE.ticketId, IMMEDIATE.custodial)}, 700); }
+  else if (sid){
+    document.getElementById('s').textContent='Confirming your payment…';
+    var tries=0;
+    (function poll(){
+      tries++;
+      fetch('/order/'+sid).then(function(r){return r.json()}).then(function(d){
+        if(d.status==='minted'){ reveal(d.ticketId, d.custodial); return; }
+        if(d.status==='failed'){ fail('Your payment went through, but issuing the ticket hit a snag. Nothing is lost — we are on it.'); return; }
+        if(tries>40){ document.getElementById('s').textContent='Still working. Your payment is safe; the ticket will appear shortly.'; return; }
+        setTimeout(poll, 1500);
+      }).catch(function(){ setTimeout(poll, 2000); });
+    })();
+  } else { fail('No order reference found.'); }
 </script>
-</div></body></html>`;
+</body></html>`;
 }
 
 module.exports = { mountStripeRoutes, getEvent, listEvents };
