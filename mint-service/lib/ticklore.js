@@ -164,6 +164,20 @@ async function mintTicket(contract, input) {
     } catch { /* not one of ours */ }
   }
 
+  // A mined transaction with no TicketMinted event means the mint did not
+  // actually happen. The usual cause: the address in TICKLORE_CONTRACT has no
+  // contract code on this network, so the transaction ran as a no-op — it
+  // succeeds (status 1, zero logs) and reverts nothing. Fail loudly here rather
+  // than hand back a null id that a caller might present as a real ticket.
+  if (ticketId === null) {
+    throw new Error(
+      `Mint transaction ${tx.hash} was mined in block ${receipt.blockNumber} but ` +
+      `emitted no TicketMinted event. The contract at ${await contract.getAddress()} ` +
+      `is not responding as a TickloreTicket on this network — check TICKLORE_CONTRACT ` +
+      `and RPC_URL (GET /health confirms whether nextTicketId() decodes).`
+    );
+  }
+
   return {
     ticketId: ticketId?.toString() ?? null,
     txHash: tx.hash,
