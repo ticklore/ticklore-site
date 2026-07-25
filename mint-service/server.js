@@ -224,8 +224,16 @@ show();
       console.warn("     Generate one:  openssl rand -hex 32");
     }
 
-    app.listen(PORT, "127.0.0.1", () => {
-      console.log(`\n  listening on http://localhost:${PORT}`);
+    // Bind address:
+    //   Local dev  -> 127.0.0.1, reachable only from this machine (safe default).
+    //   Hosted     -> 0.0.0.0, so the platform (Render, etc.) can route to it.
+    // We treat "RENDER is set, or a HOST override is given" as the hosted case.
+    // Render injects RENDER=true into every service, so this flips automatically
+    // in the showroom without exposing the local dev server.
+    const HOST = process.env.HOST || (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
+
+    app.listen(PORT, HOST, () => {
+      console.log(`\n  listening on ${HOST}:${PORT}`);
       console.log(`  open that in a browser to view tickets\n`);
     });
   } catch (err) {
@@ -238,8 +246,9 @@ show();
  * NOTES — what changes before this faces the public internet
  * ---------------------------------------------------------------------------
  *
- * 1. Bound to 127.0.0.1 on purpose. It is reachable only from this machine.
- *    Do not change that until the items below are done.
+ * 1. Binds to 127.0.0.1 in local dev (reachable only from this machine) and to
+ *    0.0.0.0 when hosted (so Render can route to it). Do not expose the local
+ *    dev server until the items below are done.
  *
  * 2. The password prompt cannot survive automation. Once Stripe calls this
  *    unattended, the key moves to a managed signer — AWS/GCP KMS or Privy
