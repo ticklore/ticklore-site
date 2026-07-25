@@ -134,6 +134,20 @@ function mountStripeRoutes(app, { chain, stripe }) {
       });
 
       console.log(`  ✓ paid ${session.id} → ticket #${result.ticketId} → ${recipient}`);
+
+      // Deliver by email. This is AFTER the mint on purpose: the ticket already
+      // exists on-chain, so a mail failure costs a notification, not a ticket.
+      const buyerEmail = session.customer_details?.email || null;
+      const emailResult = await require("./email").sendTicketEmail({
+        to: buyerEmail,
+        eventName: details.name,
+        ticketId: result.ticketId,
+        viewUrl: `${PUBLIC_URL}/success?session_id=${session.id}`,
+        custodial: !session.metadata?.wallet,
+      });
+      console.log(emailResult.sent
+        ? `  ✉ emailed ${buyerEmail} (${emailResult.id})`
+        : `  ⚠ email not sent: ${emailResult.reason}`);
     } catch (err) {
       console.error(`  ✗ mint failed for ${session.id}: ${err.message}`);
       // Mark failed rather than minted, so a Stripe retry can pick it up.
