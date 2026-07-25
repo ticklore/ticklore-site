@@ -286,8 +286,7 @@ function successPage(opts) {
 </style></head>
 <body>
   <main><div class="box">
-    <div class="brand">Tick<em>lore</em></div>
-    <div class="tag">Every ticket has a story.</div>
+    <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:88px;width:auto;display:inline-block;margin-bottom:26px">
     <div class="spinner" id="spin"></div>
     <div class="status" id="s"></div>
     <div class="headline" id="h"></div>
