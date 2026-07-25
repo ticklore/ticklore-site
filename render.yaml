@@ -12,10 +12,20 @@ services:
   - type: web
     name: ticklore-showroom
     runtime: node
-    plan: free
+    plan: starter            # Starter+ is required for the persistent disk below.
     rootDir: mint-service
     buildCommand: npm install
     startCommand: node server.js
+
+    # Persistent disk so organizer-created events survive redeploys. Without it,
+    # events.json lives on the ephemeral container filesystem and is wiped on
+    # every deploy. Disk-backed services run a single instance, which is fine
+    # for a showroom.
+    disk:
+      name: ticklore-data
+      mountPath: /var/data
+      sizeGB: 1
+
     envVars:
       # Base Sepolia testnet.
       - key: RPC_URL
@@ -24,6 +34,11 @@ services:
       # Turns on the showroom buy button. Demo-buy mints without payment.
       - key: ALLOW_DEMO_BUY
         value: "true"
+
+      # Where organizer-created events are stored. Points at the mounted disk so
+      # they persist across redeploys.
+      - key: EVENT_STORE
+        value: /var/data/events.json
 
       # Render provides PORT automatically; the server already reads it.
 
@@ -39,9 +54,12 @@ services:
       - key: TICKLORE_CONTRACT
         sync: false
 
+      # The shared password that unlocks the /organize console for live demos.
+      - key: ORGANIZER_PASSWORD
+        sync: false
+
       # Deliberately NOT set, so these features stay off in the showroom:
       #   STRIPE_SECRET_KEY      — no payment flow
       #   STRIPE_WEBHOOK_SECRET  — no webhook
       #   RESEND_API_KEY         — no email
-      #   ORGANIZER_PASSWORD     — /organize publish disabled
       #   MINT_API_KEY           — the authenticated /mint route stays closed
