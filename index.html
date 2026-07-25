@@ -174,6 +174,8 @@
   }
   .cta-form button:hover { background: var(--gold-bright); }
   .cta-note { margin-top: 16px; font-size: 0.82rem; color: rgba(241,233,221,0.4); font-family:'IBM Plex Mono',monospace; }
+  .cta-actions { display:flex; justify-content:center; margin: 4px 0; }
+  .cta-actions .btn-solid { font-size: 1rem; padding: 15px 34px; }
 
   footer { padding: 40px 28px; text-align:center; color: rgba(241,233,221,0.4); font-size: 0.84rem; }
 
@@ -199,7 +201,7 @@
     <a href="#story">Why it matters</a>
     <a href="about.html">About</a>
   </div>
-  <a href="#cta" class="btn-ghost">Start your chapter</a>
+  <a href="https://ticklore-site.onrender.com" class="btn-ghost" target="_blank" rel="noopener">Try the demo</a>
 </nav>
 
 <header class="hero">
@@ -222,7 +224,7 @@
   </div>
 
   <div class="hero-cta">
-    <a href="#cta" class="btn-solid">Start your chapter</a>
+    <a href="https://ticklore-site.onrender.com" class="btn-solid" target="_blank" rel="noopener">Try the live demo →</a>
     <a href="#how" class="btn-ghost">See how it works</a>
   </div>
 </header>
@@ -297,14 +299,13 @@
 <div class="wrap"><div class="divider"></div></div>
 
 <section id="cta" class="cta">
-  <span class="eyebrow mono">Let's write your first chapter</span>
-  <h2>Ready to give your event a story worth keeping?</h2>
-  <p>This is a concept preview — join the list and we'll reach out as Ticklore takes shape.</p>
-  <form class="cta-form" onsubmit="event.preventDefault(); this.querySelector('button').textContent='You\'re on the list';">
-    <input type="email" placeholder="you@email.com" required>
-    <button type="submit">Join the waitlist</button>
-  </form>
-  <div class="cta-note">NO WALLET NEEDED · NO CRYPTO EXPERIENCE REQUIRED</div>
+  <span class="eyebrow mono">See it for yourself</span>
+  <h2>This isn't a mockup. It's live.</h2>
+  <p>Buy a real keepsake ticket right now — no wallet, no crypto, no sign-up. Watch it mint and appear in seconds.</p>
+  <div class="cta-actions">
+    <a href="https://ticklore-site.onrender.com" class="btn-solid" target="_blank" rel="noopener">Try the live demo →</a>
+  </div>
+  <div class="cta-note">NO WALLET NEEDED · NO CRYPTO EXPERIENCE REQUIRED · RUNS ON A REAL BLOCKCHAIN</div>
 </section>
 
 <footer>
