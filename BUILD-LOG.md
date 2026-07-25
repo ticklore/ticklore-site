@@ -190,6 +190,20 @@ publishing writes to an event store that `/shop` and `/checkout` read from.
 Verified live end to end: organizer created an event → buyer paid by card →
 ticket minted on Base Sepolia → email delivered. The full two-sided loop works.
 
+### Public showroom deployed — 2026-07-25
+
+The demo is live on the public internet at https://ticklore-site.onrender.com
+(Render, Starter plan so it never sleeps). "Showroom mode": demo-buy only, no
+Stripe, no email, a throwaway wallet (0xE6Bc4936…) that owns nothing but a demo
+contract on Base Sepolia and a little test gas. Rate-limited to 5 mints/min per
+IP so the gas wallet can't be drained. Anyone can open the link and mint a real
+testnet ticket — the thing to hand an advisor or a pre-sell prospect.
+
+Deploy gotcha for next time: the server bound to 127.0.0.1, which Render can't
+route to. Fixed to bind 0.0.0.0 when RENDER is set. render.yaml holds the build
+config; secrets (throwaway key, contract) live in the Render dashboard, never
+in git.
+
 ### Organizer flow — DONE this session
 
 Organizers create their own events. `/organize` (password-gated by
