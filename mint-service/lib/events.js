@@ -88,6 +88,23 @@ function create(input) {
   const nonTransferable = input.nonTransferable === true || input.nonTransferable === "true";
 
   const data = read();
+
+  // Guard against accidental double-submits (double-click, a network retry that
+  // still reached the server, an impatient second tap): if an identical event
+  // was created in the last minute, return that one instead of making a twin.
+  // Older identical events are left alone — legitimately re-creating the same
+  // event another day should still work.
+  const RECENT_MS = 60_000;
+  const nowMs = Date.now();
+  for (const [k, e] of Object.entries(data.events)) {
+    if (e.name === name && e.tier === tier && e.priceCents === priceCents &&
+        e.date === date && e.blurb === blurb && e.unlockDays === unlockDays &&
+        e.nonTransferable === nonTransferable &&
+        nowMs - new Date(e.createdAt).getTime() < RECENT_MS) {
+      return { key: k, duplicate: true };
+    }
+  }
+
   const key = makeKey(name);
   data.events[key] = {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,

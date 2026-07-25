@@ -263,11 +263,17 @@ function organizerPage() {
       headers:{'Content-Type':'application/json','x-organizer-password':PW},
       body: JSON.stringify(body)
     }).then(function(r){return r.json()}).then(function(d){
-      btn.disabled = false; btn.textContent = 'Publish event';
       if (d.ok){
+        // Leave the button DISABLED after a success so a second click can't
+        // publish the same event again. Re-arming only happens via "Create
+        // another", which also clears the form.
+        btn.textContent = 'Published \\u2713';
         out.className = 'result';
-        out.innerHTML = 'Published. Your event is now live at <a href="/shop" target="_blank">the shop</a> — key <span class="mono">'+d.key+'</span>.';
+        out.innerHTML = 'Published. Your event is now live at <a href="/shop" target="_blank">the shop</a> — key <span class="mono">'+d.key+'</span>.'
+          + ' <a href="#" onclick="resetForm();return false;">Create another &rarr;</a>';
       } else {
+        // A real failure — let them fix it and retry.
+        btn.disabled = false; btn.textContent = 'Publish event';
         out.className = 'result err';
         out.textContent = d.error || 'Something went wrong.';
       }
@@ -275,6 +281,19 @@ function organizerPage() {
       btn.disabled = false; btn.textContent = 'Publish event';
       out.className = 'result err'; out.textContent = 'Could not reach the server.';
     });
+  }
+
+  // Clear the form and re-arm Publish, so making a second event is a deliberate
+  // act rather than an accidental double-click.
+  function resetForm(){
+    ['f-name','f-tier','f-price','f-date','f-blurb'].forEach(function(id){
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('f-unlock').value = '30';
+    document.getElementById('f-nontransfer').checked = false;
+    var out = document.getElementById('result'); out.textContent = ''; out.className = 'result';
+    var btn = document.getElementById('publish'); btn.disabled = false; btn.textContent = 'Publish event';
+    draw();
   }
 </script>
 </body></html>`;
