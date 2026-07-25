@@ -13,6 +13,7 @@ const express = require("express");
 const ticklore = require("./ticklore");
 const { getEvent, listEvents } = require("./stripe-routes");
 const { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, BASE_CSS } = require("./ui");
+const { rateLimit } = require("./ratelimit");
 
 function mountStorefront(app, { chain, stripeEnabled }) {
   /** Public list of buyable events. Lives here (not in the Stripe module) so it
@@ -27,7 +28,7 @@ function mountStorefront(app, { chain, stripeEnabled }) {
    * Gated behind ALLOW_DEMO_BUY so it can never be left on in front of real
    * money. It is a showroom, not a checkout.
    */
-  app.post("/demo-buy", express.json(), async (req, res) => {
+  app.post("/demo-buy", rateLimit({ windowMs: 60_000, max: 5 }), express.json(), async (req, res) => {
     if (process.env.ALLOW_DEMO_BUY !== "true") {
       return res.status(403).json({ error: "Demo buying is off. Set ALLOW_DEMO_BUY=true to enable it." });
     }

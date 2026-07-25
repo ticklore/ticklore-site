@@ -1,0 +1,47 @@
+# render.yaml — deploys the Ticklore showroom demo.
+#
+# This runs the mint service in SHOWROOM MODE: demo-buy only, no Stripe, a
+# throwaway wallet that owns nothing but a demo contract and some testnet gas.
+# Safe to expose publicly because there is nothing of value behind it.
+#
+# Render reads this file when you connect the repo. The secret values (the
+# throwaway private key, the contract address) are set in the Render dashboard,
+# NOT here — this file is committed to git and must never hold a key.
+
+services:
+  - type: web
+    name: ticklore-showroom
+    runtime: node
+    plan: free
+    rootDir: mint-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      # Base Sepolia testnet.
+      - key: RPC_URL
+        value: https://sepolia.base.org
+
+      # Turns on the showroom buy button. Demo-buy mints without payment.
+      - key: ALLOW_DEMO_BUY
+        value: "true"
+
+      # Render provides PORT automatically; the server already reads it.
+
+      # --- Set these in the Render dashboard (marked sync:false so they are
+      #     NOT read from this file and NOT committed to git) ---
+
+      # The throwaway showroom wallet's private key. Owns only the demo contract
+      # and a little testnet gas. NEVER a wallet with real funds.
+      - key: MINTER_PRIVATE_KEY
+        sync: false
+
+      # The demo contract this wallet deployed and owns.
+      - key: TICKLORE_CONTRACT
+        sync: false
+
+      # Deliberately NOT set, so these features stay off in the showroom:
+      #   STRIPE_SECRET_KEY      — no payment flow
+      #   STRIPE_WEBHOOK_SECRET  — no webhook
+      #   RESEND_API_KEY         — no email
+      #   ORGANIZER_PASSWORD     — /organize publish disabled
+      #   MINT_API_KEY           — the authenticated /mint route stays closed
