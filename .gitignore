@@ -13,6 +13,10 @@
 secrets.json
 .tl_token
 .git-credentials
+# Showroom minter files — these hold the raw private key (despite the .txt names).
+showroom-key.txt
+showroom-contract.txt
+showroom-*.txt
 
 # Node / tooling
 node_modules/
