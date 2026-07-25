@@ -1,23 +1,48 @@
 # Running the mint service
 
-Three terminals. **Order matters.**
+## The webhook secret — the thing that caused yesterday's grief
 
-## 1. Start the Stripe listener FIRST
+Per Stripe's docs, the CLI signing secret **does not change between restarts** of
+`stripe listen` on the same machine + account. So the `400`s were NOT the secret
+rotating — they were a mismatch introduced by hand: a stray character on paste,
+a duplicated `STRIPE_WEBHOOK_SECRET` line, or the server reading `.env` before
+the value was saved.
+
+The fix is to set the secret ONCE, mechanically, and never hand-type it.
+
+### One-time setup — set the secret without ever copy/pasting it
 
 ```bash
 cd ~/ticklore-site/mint-service
+SECRET=$(stripe listen --print-secret)      # prints the stable secret, no listener
+sed -i '/^STRIPE_WEBHOOK_SECRET/d' .env      # remove any old/duplicate lines
+echo "STRIPE_WEBHOOK_SECRET=$SECRET" >> .env
+grep -c STRIPE_WEBHOOK_SECRET .env           # MUST print exactly 1
+```
+
+`--print-secret` prints the secret and exits. Capturing it into a variable and
+writing it with a script means no stray characters, ever.
+
+### Every session after that
+
+```bash
+# Terminal 1 — listener (leave running)
+cd ~/ticklore-site/mint-service
 stripe listen --forward-to localhost:3000/webhook
+
+# Terminal 2 — server (leave running)
+cd ~/ticklore-site/mint-service
+node server.js
 ```
 
-It prints:
+Order does not matter, because the secret is already correct in `.env` and is
+stable. Restarting the listener does not break it.
 
-```
-> Ready! Your webhook signing secret is whsec_XXXXXXXX
-```
+### If you ever see 400 again
 
-**This secret is regenerated every single time the listener starts.** It is not
-stable. If you restart the listener, the old one in `.env` is dead and every
-webhook will come back `400`. Leave this terminal running.
+1. `grep -c STRIPE_WEBHOOK_SECRET .env` — if it prints 2+, that is the bug.
+   Re-run the one-time setup above to collapse it to one line.
+2. Restart the server (it reads `.env` only at startup).
 
 ## 2. Put that secret in `.env`
 
