@@ -74,6 +74,9 @@ function mountStripeRoutes(app, { chain, stripe }) {
   // Stripe integration fails, and it fails with a confusing error.
   // -------------------------------------------------------------------------
   app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    if (!stripe) {
+      return res.status(503).send("Stripe is not configured on this deployment");
+    }
     if (!WEBHOOK_SECRET) {
       console.error("  ✗ webhook received but STRIPE_WEBHOOK_SECRET is not set");
       return res.status(500).send("Webhook secret not configured");
@@ -174,6 +177,9 @@ function mountStripeRoutes(app, { chain, stripe }) {
 
   /** Start a checkout. Returns a Stripe URL for the browser to go to. */
   app.post("/checkout", express.json(), async (req, res) => {
+    if (!stripe) {
+      return res.status(503).json({ error: "Card checkout isn't configured on this demo." });
+    }
     try {
       const { eventKey, wallet } = req.body;
       const details = getEvent(eventKey);

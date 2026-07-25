@@ -199,10 +199,12 @@ show();
     console.log("─────────────────────");
     chain = await ticklore.connect();
 
-    if (stripe) {
-      // Mounted first so the webhook's express.raw() sees unparsed bytes.
-      require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe });
-    }
+    // Mounted first so the webhook's express.raw() sees unparsed bytes.
+    // Always mounted, even without Stripe: /success and /order don't need it,
+    // and the demo buy path lands on /success?demo=... to mint. The two routes
+    // that truly need Stripe (/webhook, /checkout) guard themselves when it's
+    // null, so a Stripe-less showroom still has a working success page.
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
