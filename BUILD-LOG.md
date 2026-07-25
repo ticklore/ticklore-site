@@ -168,7 +168,57 @@ foundation already supports it (`originalHolder` governs who keeps access).
 
 ---
 
-## Next session
+## Status — 2026-07-25
+
+**The full proof-of-concept works end to end.** A card payment mints a real
+ticket on Base Sepolia and renders it, with the buyer never touching crypto.
+
+Verified live this session:
+
+    card → Stripe Checkout → webhook → mintTicket → on-chain SVG ticket
+
+- Contract deployed to Base Sepolia (`0xFA63…96ed`) and verified on BaseScan.
+- **32 tests passing** — escaping fix, minter/staff/pauser roles separated from
+  ownership, emergency pause with deliberate door/read exceptions.
+- Mint service (`mint-service/`): HTTP API, storefront at `/shop`, Stripe
+  checkout + webhook, double-mint protection, custodial (no-wallet) path.
+- Storefront renders each event as a book chapter; on purchase it shows the
+  actual on-chain art.
+
+### The webhook saga, so it is never repeated
+
+Two days of intermittent `400 signature verification failed`. It was NOT the
+code and NOT (as first assumed) the CLI secret rotating — Stripe's CLI secret
+is stable between restarts. It was a hand-introduced mismatch: a stray
+character on paste, a duplicated `STRIPE_WEBHOOK_SECRET` line, or the server
+reading `.env` before the value was saved.
+
+Fix that finally worked: set the secret mechanically, never by hand.
+
+```bash
+SECRET=$(stripe listen --print-secret)
+sed -i '/^STRIPE_WEBHOOK_SECRET/d' .env
+echo "STRIPE_WEBHOOK_SECRET=$SECRET" >> .env
+grep -c STRIPE_WEBHOOK_SECRET .env   # must be 1
+```
+
+Full runbook in `mint-service/RUNNING.md`.
+
+### Next up
+
+- **Email delivery.** The last missing leg of the POC — deliver the ticket link
+  by email after mint. Resend is the intended tool.
+- **Sponsor name on ticket card** (from the strategy session): a `TicketData`
+  field + SVG render + escaping. The escaping helper already covers it.
+- **Confirm Legacy Vault needs no contract change** — backdated `eventDate`,
+  past `transferUnlock`. Likely works with the existing `mintTicket`.
+- **Roster-CSV minting** — the mint service already takes recipient + event
+  data; a CSV loop on top is small.
+- Before real money: security audit, and move the owner key off the laptop.
+
+---
+
+## Archived — original deployment notes (2026-07-24)
 
 **Deploy to Base Sepolia.** Scripts are written; nothing is on a public network yet.
 Then the app layer (scaffold → Stripe checkout → Privy wallet → email → wire the POC
