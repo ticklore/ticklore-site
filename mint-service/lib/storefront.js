@@ -323,7 +323,7 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
         <span class="amt">${money(e.priceCents)}</span>
         <span class="per">per keepsake ticket</span>
       </div>
-      <button class="btn buy-big" id="buy" onclick="buy(${JSON.stringify(e.key)}, ${JSON.stringify(e.name)}, this)">Begin this chapter</button>
+      <button class="btn buy-big" id="buy" onclick="buy(${esc(JSON.stringify(e.key))}, ${esc(JSON.stringify(e.name))}, this)">Begin this chapter</button>
       <div class="assure">Pay by card. No wallet or crypto required — your ticket is held for you.</div>
     </div>
   </main>
