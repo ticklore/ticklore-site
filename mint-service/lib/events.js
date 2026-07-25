@@ -114,4 +114,15 @@ function create(input) {
   return { key };
 }
 
-module.exports = { list, get, create, PLATFORM_MINIMUM_UNLOCK_DAYS };
+/** Remove an event by key. Returns true if it existed, false if not found.
+ *  Only affects organizer-created events; the seed events live in code and are
+ *  not in this store, so they can't be deleted here. */
+function remove(key) {
+  const data = read();
+  if (!data.events[key]) return false;
+  delete data.events[key];
+  write(data);
+  return true;
+}
+
+module.exports = { list, get, create, remove, PLATFORM_MINIMUM_UNLOCK_DAYS };

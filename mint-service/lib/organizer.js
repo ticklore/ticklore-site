@@ -45,6 +45,16 @@ function mountOrganizer(app, { chain }) {
     res.json({ events: events.list() });
   });
 
+  /** Delete an organizer-created event. Seed events aren't in the store, so
+   *  they can't be removed here — only events an organizer published. */
+  app.post("/organize/delete", express.json(), checkPassword, (req, res) => {
+    const key = (req.body && req.body.key) || "";
+    if (!key) return res.status(400).json({ ok: false, error: "Missing event key." });
+    const removed = events.remove(key);
+    if (!removed) return res.status(404).json({ ok: false, error: "No such event — it may already be deleted." });
+    res.json({ ok: true, key });
+  });
+
   /** The create-event page. The password gate is handled client-side: the page
    *  loads, asks for the password, and holds it only in memory for the session. */
   app.get("/organize", (req, res) => {
@@ -121,6 +131,27 @@ function organizerPage() {
     text-transform:uppercase;color:var(--gold);margin-bottom:14px;text-align:center}
   #preview svg{width:100%;height:auto;border-radius:10px;box-shadow:0 24px 50px -24px rgba(0,0,0,.7)}
   .preview-note{text-align:center;font-size:.8rem;color:rgba(241,233,221,.45);margin-top:14px}
+
+  /* manage existing events */
+  .manage{max-width:1000px;margin:8px auto 64px;padding:0 24px;display:none}
+  .manage__head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    border-top:1px solid var(--line);padding-top:26px;margin-bottom:16px}
+  .manage__head h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.2rem}
+  .manage__head .count{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:var(--sage)}
+  .ev{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:10px;background:var(--field)}
+  .ev__main{flex:1;min-width:0}
+  .ev__name{font-family:'Fraunces',serif;font-size:1.02rem;margin-bottom:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev__meta{font-size:.78rem;color:rgba(241,233,221,.55);font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev__view{font-size:.82rem;color:var(--gold-bright);text-decoration:none;white-space:nowrap}
+  .ev__view:hover{text-decoration:underline}
+  .ev__del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;
+    border-radius:6px;padding:7px 12px;font-size:.82rem;cursor:pointer;white-space:nowrap}
+  .ev__del:hover{background:rgba(227,138,138,.12)}
+  .ev__del:disabled{opacity:.5;cursor:wait}
+  .manage__empty{color:rgba(241,233,221,.45);font-size:.9rem;padding:8px 0}
 </style></head>
 <body>
 
@@ -194,6 +225,14 @@ function organizerPage() {
   </div>
 </div>
 
+<section class="manage" id="manage">
+  <div class="manage__head">
+    <h2>Your events</h2>
+    <span class="count" id="ev-count"></span>
+  </div>
+  <div id="ev-list"></div>
+</section>
+
 <script>
   var PW = "";
 
@@ -202,7 +241,7 @@ function organizerPage() {
     // Validate the password against a protected endpoint before revealing the form.
     fetch('/organize/events', { headers: { 'x-organizer-password': PW } })
       .then(function(r){
-        if (r.ok) { document.getElementById('gate').classList.add('hidden'); draw(); }
+        if (r.ok) { document.getElementById('gate').classList.add('hidden'); draw(); loadEvents(); }
         else { document.getElementById('gate-err').textContent = 'Wrong password.'; }
       })
       .catch(function(){ document.getElementById('gate-err').textContent = 'Could not reach the server.'; });
@@ -271,6 +310,7 @@ function organizerPage() {
         out.className = 'result';
         out.innerHTML = 'Published. Your event is now live at <a href="/shop" target="_blank">the shop</a> — key <span class="mono">'+d.key+'</span>.'
           + ' <a href="#" onclick="resetForm();return false;">Create another &rarr;</a>';
+        loadEvents();
       } else {
         // A real failure — let them fix it and retry.
         btn.disabled = false; btn.textContent = 'Publish event';
@@ -295,6 +335,62 @@ function organizerPage() {
     var btn = document.getElementById('publish'); btn.disabled = false; btn.textContent = 'Publish event';
     draw();
   }
+
+  // ---- Manage existing events (list + delete) --------------------------------
+  function fmtMoney(cents){
+    var n = Number(cents);
+    if (!n || n <= 0) return 'Free';
+    return '$' + (n/100).toFixed(2).replace(/\\.00$/, '');
+  }
+
+  function loadEvents(){
+    var list = document.getElementById('ev-list');
+    var count = document.getElementById('ev-count');
+    fetch('/organize/events', { headers: { 'x-organizer-password': PW } })
+      .then(function(r){ return r.ok ? r.json() : { events: [] }; })
+      .then(function(d){
+        var evs = d.events || [];
+        document.getElementById('manage').style.display = 'block';
+        count.textContent = evs.length + (evs.length === 1 ? ' event' : ' events');
+        if (!evs.length){
+          list.innerHTML = '<div class="manage__empty">No events yet. Publish one above and it shows up here.</div>';
+          return;
+        }
+        // Data goes into escaped data-* attributes; a delegated click handler
+        // reads them, so there is no user text inside an onclick attribute.
+        list.innerHTML = evs.map(function(e){
+          return '<div class="ev" data-key="' + esc(e.key) + '" data-name="' + esc(e.name) + '">'
+            + '<div class="ev__main">'
+            +   '<div class="ev__name">' + esc(e.name) + '</div>'
+            +   '<div class="ev__meta">' + esc(e.date || '') + ' &middot; ' + esc(fmtMoney(e.priceCents)) + ' &middot; ' + esc(e.key) + '</div>'
+            + '</div>'
+            + '<a class="ev__view" href="/event/' + encodeURIComponent(e.key) + '" target="_blank">View &rarr;</a>'
+            + '<button class="ev__del" type="button">Delete</button>'
+            + '</div>';
+        }).join('');
+      })
+      .catch(function(){ /* leave the list as-is on a transient error */ });
+  }
+
+  document.getElementById('ev-list').addEventListener('click', function(ev){
+    var btn = ev.target.closest('.ev__del');
+    if (!btn) return;
+    var row = btn.closest('.ev');
+    var key = row.getAttribute('data-key');
+    var name = row.getAttribute('data-name');
+    if (!confirm('Delete "' + name + '"? It disappears from the shop. Tickets already minted are unaffected.')) return;
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    fetch('/organize/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-organizer-password': PW },
+      body: JSON.stringify({ key: key })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok){ loadEvents(); }
+      else { btn.disabled = false; btn.textContent = 'Delete'; alert(d.error || 'Could not delete.'); }
+    }).catch(function(){
+      btn.disabled = false; btn.textContent = 'Delete'; alert('Could not reach the server.');
+    });
+  });
 </script>
 </body></html>`;
 }

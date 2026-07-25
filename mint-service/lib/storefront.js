@@ -157,7 +157,10 @@ function landingPage(events) {
 <body>
   <nav class="nav">
     <a href="/" class="brand" style="text-decoration:none">Tick<em>lore</em></a>
-    <a href="/shop">Browse events →</a>
+    <span style="display:flex;gap:22px;align-items:center">
+      <a href="/organize">Organizer demo</a>
+      <a href="/shop">Browse events →</a>
+    </span>
   </nav>
 
   <section class="hero">
