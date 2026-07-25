@@ -11,9 +11,15 @@
 
 const express = require("express");
 const ticklore = require("./ticklore");
-const { EVENTS } = require("./stripe-routes");
+const { getEvent, listEvents } = require("./stripe-routes");
 
 function mountStorefront(app, { chain, stripeEnabled }) {
+  /** Public list of buyable events. Lives here (not in the Stripe module) so it
+   *  works whether or not Stripe is configured. */
+  app.get("/events", (req, res) => {
+    res.json(listEvents());
+  });
+
   /**
    * Demo purchase — mints straight away, no payment.
    *
@@ -26,7 +32,7 @@ function mountStorefront(app, { chain, stripeEnabled }) {
     }
     try {
       const { eventKey, wallet } = req.body;
-      const details = EVENTS[eventKey];
+      const details = getEvent(eventKey);
       if (!details) return res.status(400).json({ error: `Unknown event: ${eventKey}` });
 
       const recipient = wallet && require("ethers").isAddress(wallet)
@@ -49,7 +55,7 @@ function mountStorefront(app, { chain, stripeEnabled }) {
 
   /** The storefront itself. */
   app.get("/shop", (req, res) => {
-    const events = Object.entries(EVENTS).map(([key, e]) => ({ key, ...e }));
+    const events = listEvents();
     res.type("html").send(shopPage(events, stripeEnabled, process.env.ALLOW_DEMO_BUY === "true"));
   });
 }

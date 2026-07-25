@@ -28,10 +28,11 @@
 const express = require("express");
 const ticklore = require("./ticklore");
 const store = require("./store");
+const events = require("./events");
 
-// Demo catalogue. A real product reads this from a database of organizer
-// events; the shape is what matters for now.
-const EVENTS = {
+// Seed events — the two demo events, available on a fresh install so /shop is
+// never empty. Organizer-created events (in the event store) are merged on top.
+const SEED_EVENTS = {
   "sullivan-reunion": {
     name: "The Sullivan Family Reunion",
     tier: "General Admission",
@@ -47,6 +48,18 @@ const EVENTS = {
     blurb: "Two hundred donors gathered for one night.",
   },
 };
+
+/** One event by key — organizer events win over seeds if keys ever collide. */
+function getEvent(key) {
+  return events.get(key) || SEED_EVENTS[key] || null;
+}
+
+/** All events, seeds first then organizer-created, newest organizer events last. */
+function listEvents() {
+  const seeded = Object.entries(SEED_EVENTS).map(([key, e]) => ({ key, ...e }));
+  const created = events.list();
+  return [...seeded, ...created];
+}
 
 function mountStripeRoutes(app, { chain, stripe }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
@@ -109,7 +122,7 @@ function mountStripeRoutes(app, { chain, stripe }) {
 
     try {
       const eventKey = session.metadata?.eventKey;
-      const details = EVENTS[eventKey];
+      const details = getEvent(eventKey);
       if (!details) throw new Error(`Unknown event: ${eventKey}`);
 
       // Where does the ticket go? If the buyer supplied a wallet, straight to
@@ -159,16 +172,11 @@ function mountStripeRoutes(app, { chain, stripe }) {
   // Everything below can use parsed JSON.
   // -------------------------------------------------------------------------
 
-  /** The events available to buy. */
-  app.get("/events", (req, res) => {
-    res.json(Object.entries(EVENTS).map(([key, e]) => ({ key, ...e })));
-  });
-
   /** Start a checkout. Returns a Stripe URL for the browser to go to. */
   app.post("/checkout", express.json(), async (req, res) => {
     try {
       const { eventKey, wallet } = req.body;
-      const details = EVENTS[eventKey];
+      const details = getEvent(eventKey);
       if (!details) return res.status(400).json({ error: `Unknown event: ${eventKey}` });
 
       // If a wallet was supplied, sanity-check it now. Discovering it is
@@ -273,4 +281,4 @@ if(sid) poll(); else document.getElementById('s').textContent='No order referenc
 </div></body></html>`;
 }
 
-module.exports = { mountStripeRoutes, EVENTS };
+module.exports = { mountStripeRoutes, getEvent, listEvents };

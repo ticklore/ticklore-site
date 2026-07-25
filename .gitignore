@@ -29,3 +29,4 @@ node_modules/
 package-lock.json
 orders.json
 *.tmp.js
+events.json
