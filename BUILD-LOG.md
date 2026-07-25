@@ -170,12 +170,27 @@ foundation already supports it (`originalHolder` governs who keeps access).
 
 ## Status — 2026-07-25
 
-**The full proof-of-concept works end to end.** A card payment mints a real
-ticket on Base Sepolia and renders it, with the buyer never touching crypto.
+**The full proof-of-concept works end to end, including email.** A card payment
+mints a real ticket on Base Sepolia, renders it, and emails the buyer a link —
+the buyer never touches crypto.
 
 Verified live this session:
 
-    card → Stripe Checkout → webhook → mintTicket → on-chain SVG ticket
+    card → Stripe Checkout → webhook → mintTicket → on-chain SVG → email
+
+The original project goal — card payment, ticket minted, delivered by email —
+is fully met.
+
+### Email (Resend)
+
+- Sends after the mint via Resend, branded teal/gold, "View your ticket" button.
+- Fails safe: email can never break a mint. Verified against no key, no
+  recipient, and a bad key — none throw.
+- From `onboarding@resend.dev` for now. Free tier only delivers to the account's
+  own signup address (`ticklorenft@gmail.com`) until a domain is verified.
+- **Pilot task:** verify `ticklore.com` in Resend (add DNS records), then send
+  from `tickets@ticklore.com` to any buyer. FROM_EMAIL switches with no code
+  change.
 
 - Contract deployed to Base Sepolia (`0xFA63…96ed`) and verified on BaseScan.
 - **32 tests passing** — escaping fix, minter/staff/pauser roles separated from
@@ -206,8 +221,6 @@ Full runbook in `mint-service/RUNNING.md`.
 
 ### Next up
 
-- **Email delivery.** The last missing leg of the POC — deliver the ticket link
-  by email after mint. Resend is the intended tool.
 - **Sponsor name on ticket card** (from the strategy session): a `TicketData`
   field + SVG render + escaping. The escaping helper already covers it.
 - **Confirm Legacy Vault needs no contract change** — backdated `eventDate`,
