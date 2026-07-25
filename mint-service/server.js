@@ -38,6 +38,9 @@ const API_KEY = process.env.MINT_API_KEY;
 
 const app = express();
 
+// Static assets (the logo, etc.). Cached hard — it's an immutable brand file.
+app.use(express.static(__dirname + "/public", { maxAge: "7d" }));
+
 // NOTE ON MIDDLEWARE ORDER
 // Stripe signs the RAW bytes of the webhook body. If express.json() parses it
 // first, the bytes get reassembled slightly differently and the signature no

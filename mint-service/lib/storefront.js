@@ -156,7 +156,9 @@ function landingPage(events) {
 </style></head>
 <body>
   <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none">Tick<em>lore</em></a>
+    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center">
+      <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:58px;width:auto;display:block">
+    </a>
     <span style="display:flex;gap:22px;align-items:center">
       <a href="/organize">Organizer demo</a>
       <a href="/shop">Browse events →</a>
