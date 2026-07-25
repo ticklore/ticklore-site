@@ -181,6 +181,39 @@ Verified live this session:
 The original project goal — card payment, ticket minted, delivered by email —
 is fully met.
 
+### Organizer flow — DONE 2026-07-25
+
+An organizer now creates events themselves, no code. `/organize` is password-gated
+(shared password), shows a live ticket preview that redraws as they type, and
+publishing writes to an event store that `/shop` and `/checkout` read from.
+
+Verified live end to end: organizer created an event → buyer paid by card →
+ticket minted on Base Sepolia → email delivered. The full two-sided loop works.
+
+### Organizer flow — DONE this session
+
+Organizers create their own events. `/organize` (password-gated by
+`ORGANIZER_PASSWORD`) shows a form with a **live ticket preview** that redraws
+as they type — the same chapter-card art the contract renders. Publish writes
+to `events.json`; the event appears on `/shop` and is buyable immediately
+through the same Stripe flow.
+
+Verified live end to end: an event created through the form, published, bought
+with a card, minted on-chain, and emailed — an event that did not exist before
+this session.
+
+- `lib/events.js` — validated event store (price→cents, 30-day unlock floor,
+  hostile names preserved since the contract escapes at render time).
+- `lib/organizer.js` — the create page + timing-safe password gate. Modest by
+  design; becomes real accounts later.
+- `/shop` and `/checkout` read events through `getEvent`/`listEvents`, merging
+  two demo seeds with organizer-created events.
+
+### Status: this is a working product
+
+Organizer creates an event → buyer pays by card → ticket mints on Base →
+email delivered. Every leg works.
+
 ### Email (Resend)
 
 - Sends after the mint via Resend, branded teal/gold, "View your ticket" button.
