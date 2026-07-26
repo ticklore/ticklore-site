@@ -221,7 +221,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
             ? string.concat(_escapeXML(t.sponsorLabel), unicode" · ", _escapeXML(t.sponsorName))
             : _escapeXML(t.sponsorName);
         return string.concat(
-            '<text x="52" y="340" fill="', accent,
+            '<text x="52" y="322" fill="', accent,
             '" font-family="monospace" font-size="15" letter-spacing="2">', credit, '</text>'
         );
     }
@@ -264,20 +264,20 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
             '<text x="52" y="70" fill="', c.bright, '" font-family="monospace" font-size="22" letter-spacing="7">TICKLORE</text>',
             '<line x1="52" y1="90" x2="748" y2="90" stroke="', c.accent, '" stroke-opacity="0.25" stroke-width="1"/>',
             _stamp(t.used, c.bright),
-            '<text x="52" y="205" fill="', c.accent, '" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>'
+            '<text x="52" y="188" fill="', c.accent, '" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>'
         );
 
         string memory story = string.concat(
-            '<text x="52" y="258" fill="', c.ink, '" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
-            '<text x="52" y="296" fill="', c.sub, '" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
+            '<text x="52" y="238" fill="', c.ink, '" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
+            '<text x="52" y="274" fill="', c.sub, '" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
             _sponsorLine(t, c.accent),
             _inscription(t, c.ink, c.sub)
         );
 
         string memory footer = string.concat(
-            '<text x="52" y="446" fill="', c.ink, '" font-family="monospace" font-size="22">', priceStr, '</text>',
-            '<text x="748" y="450" fill="', c.bright, '" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(ticketId), '</text>',
-            '<text x="52" y="472" fill="', c.sub, '" fill-opacity="0.6" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
+            '<text x="52" y="460" fill="', c.ink, '" font-family="monospace" font-size="22">', priceStr, '</text>',
+            '<text x="748" y="462" fill="', c.bright, '" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(ticketId), '</text>',
+            '<text x="52" y="478" fill="', c.sub, '" fill-opacity="0.6" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
             '</svg>'
         );
 
