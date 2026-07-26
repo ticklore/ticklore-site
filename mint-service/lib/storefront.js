@@ -174,6 +174,7 @@ function landingPage(events) {
       <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block">
     </a>
     <span style="display:flex;gap:22px;align-items:center">
+      <a href="/wallet">Wallet</a>
       <a href="/organize">Organizer demo</a>
       <a href="/shop">Browse events →</a>
     </span>
