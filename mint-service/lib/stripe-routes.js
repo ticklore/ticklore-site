@@ -251,6 +251,10 @@ function mountStripeRoutes(app, { chain, stripe }) {
           price: details.priceCents, date: details.date,
           sponsorLabel: details.sponsorLabel, sponsorName: details.sponsorName,
           palette: details.palette, style: details.style,
+          // Only honor a buyer inscription when the organizer enabled it — the
+          // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
+          holderName: details.allowInscription ? req.query.holder : "",
+          message: details.allowInscription ? req.query.msg : "",
         });
         return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
       } catch (err) {

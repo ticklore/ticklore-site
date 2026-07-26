@@ -98,6 +98,10 @@ function create(input) {
   const palette = PALETTES.includes(input.palette) ? input.palette : "teal";
   const style = STYLES.includes(input.style) ? input.style : "classic";
 
+  // Buyer personalization is OFF unless the organizer opts in. When off, the
+  // buy page never shows the name/message fields.
+  const allowInscription = input.allowInscription === true || input.allowInscription === "true";
+
   const data = read();
 
   // Guard against accidental double-submits (double-click, a network retry that
@@ -119,7 +123,7 @@ function create(input) {
   const key = makeKey(name);
   data.events[key] = {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
-    sponsorLabel, sponsorName, palette, style,
+    sponsorLabel, sponsorName, palette, style, allowInscription,
     createdAt: new Date().toISOString(),
   };
   write(data);

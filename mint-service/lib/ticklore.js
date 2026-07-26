@@ -15,12 +15,12 @@ const { ethers } = require("ethers");
 // Only the functions we actually call. Keeping the ABI minimal makes it
 // obvious at a glance what this code is and is not able to do.
 const ABI = [
-  "function mintTicket(address to, string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, uint64 transferUnlock, bool nonTransferable, string sponsorLabel, string sponsorName, uint8 palette, uint8 style) returns (uint256)",
+  "function mintTicket(address to, string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, uint64 transferUnlock, bool nonTransferable, string sponsorLabel, string sponsorName, uint8 palette, uint8 style, string holderName, string message) returns (uint256)",
   "function checkIn(uint256 ticketId)",
   "function nextTicketId() view returns (uint256)",
   "function tokenURI(uint256 ticketId) view returns (string)",
   "function ownerOf(uint256 tokenId) view returns (address)",
-  "function tickets(uint256) view returns (string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, bool used, uint64 transferUnlock, bool nonTransferable, address originalHolder, string sponsorLabel, string sponsorName, uint8 palette, uint8 style)",
+  "function tickets(uint256) view returns (string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, bool used, uint64 transferUnlock, bool nonTransferable, address originalHolder, string sponsorLabel, string sponsorName, uint8 palette, uint8 style, string holderName, string message)",
   "event TicketMinted(uint256 indexed ticketId, address indexed to, string eventName)",
 ];
 
@@ -152,6 +152,8 @@ function buildTicketArgs(input) {
     sponsorName: String(input.sponsorName || "").trim().slice(0, 60),
     palette,
     style,
+    holderName: String(input.holderName || "").trim().slice(0, 40),
+    message: String(input.message || "").trim().slice(0, 60),
   };
 }
 
@@ -162,7 +164,8 @@ async function mintTicket(contract, input) {
   const tx = await contract.mintTicket(
     a.to, a.eventName, a.eventDate, a.tier,
     a.price, a.donation, a.transferUnlock, a.nonTransferable,
-    a.sponsorLabel, a.sponsorName, a.palette, a.style
+    a.sponsorLabel, a.sponsorName, a.palette, a.style,
+    a.holderName, a.message
   );
   const receipt = await tx.wait();
 

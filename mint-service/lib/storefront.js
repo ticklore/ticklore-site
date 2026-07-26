@@ -108,7 +108,17 @@ function purchaseScript(stripeEnabled, demoEnabled) {
         .catch(function(){btn.disabled=false;btn.textContent='Begin this chapter';});
       return;
     }
-    if (DEMO){ window.location = '/success?demo=' + encodeURIComponent(key); return; }
+    if (DEMO){
+      // Carry the buyer's keepsake inscription through to the mint, when the
+      // organizer enabled it (the fields only exist on the page then). These
+      // go on a public ticket, so a query string is fine.
+      var url = '/success?demo=' + encodeURIComponent(key);
+      var hn = document.getElementById('buyer-name');
+      var msg = document.getElementById('buyer-msg');
+      if (hn && hn.value.trim()) url += '&holder=' + encodeURIComponent(hn.value.trim());
+      if (msg && msg.value.trim()) url += '&msg=' + encodeURIComponent(msg.value.trim());
+      window.location = url; return;
+    }
     alert('Buying is not configured yet.');
   }`;
 }
@@ -306,6 +316,14 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
   .price-row .amt{font-family:'Fraunces',serif;font-size:2.2rem;color:var(--gold-bright)}
   .price-row .per{color:rgba(241,233,221,.5);font-size:.9rem}
   .buy-big{width:100%;font-size:1.05rem;padding:16px}
+  .inscribe{margin:2px 0 18px;padding:16px;border:1px solid var(--line);border-radius:10px;background:rgba(241,233,221,.03)}
+  .inscribe__label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:11px}
+  .inscribe__label span{color:rgba(241,233,221,.4)}
+  .inscribe input{width:100%;background:rgba(241,233,221,.05);border:1px solid var(--line);color:var(--parchment);
+    padding:11px 13px;border-radius:6px;font-size:.96rem;margin-bottom:9px;font-family:'Work Sans',sans-serif}
+  .inscribe input:last-of-type{margin-bottom:0}
+  .inscribe input:focus{outline:none;border-color:var(--gold)}
+  .inscribe__hint{font-size:.78rem;color:rgba(241,233,221,.45);margin-top:9px}
   .assure{margin-top:14px;font-size:.85rem;color:rgba(241,233,221,.5);text-align:center}
   .back{display:inline-block;margin-bottom:8px;font-size:.85rem;color:rgba(241,233,221,.6);text-decoration:none}
   .back:hover{color:var(--parchment)}
@@ -332,6 +350,13 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
         <span class="amt">${money(e.priceCents)}</span>
         <span class="per">per keepsake ticket</span>
       </div>
+      ${e.allowInscription ? `
+      <div class="inscribe">
+        <div class="inscribe__label">Make it yours <span>— optional</span></div>
+        <input type="text" id="buyer-name" maxlength="40" placeholder="Your name">
+        <input type="text" id="buyer-msg" maxlength="60" placeholder="A line you'll remember — say something memorable">
+        <div class="inscribe__hint">Engraved on your keepsake, forever. Leave blank to skip.</div>
+      </div>` : ""}
       <button class="btn buy-big" id="buy" onclick="buy(${esc(JSON.stringify(e.key))}, ${esc(JSON.stringify(e.name))}, this)">Begin this chapter</button>
       <div class="assure">Pay by card. No wallet or crypto required — your ticket is held for you.</div>
     </div>

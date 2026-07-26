@@ -247,6 +247,15 @@ function organizerPage() {
       </div>
     </div>
 
+    <div class="section-label">Buyer keepsake</div>
+    <div class="field">
+      <label class="toggle">
+        <input type="checkbox" id="f-allow-inscription">
+        <span>Let buyers add their name + a memorable line to their ticket</span>
+      </label>
+      <div class="hint">Off by default. Great for reunions, galas and benefits; leave it off where it could get out of hand.</div>
+    </div>
+
     <button class="publish" id="publish" onclick="publish()">Publish event</button>
     <div class="result" id="result"></div>
   </div>
@@ -396,7 +405,8 @@ function organizerPage() {
       sponsorLabel: document.getElementById('f-sponsor-label').value,
       sponsorName: document.getElementById('f-sponsor-name').value,
       palette: document.getElementById('f-palette').value,
-      style: document.getElementById('f-style').value
+      style: document.getElementById('f-style').value,
+      allowInscription: document.getElementById('f-allow-inscription').checked
     };
     btn.disabled = true; btn.textContent = 'Publishing…';
     fetch('/organize/publish', {
@@ -433,6 +443,7 @@ function organizerPage() {
     });
     document.getElementById('f-unlock').value = '30';
     document.getElementById('f-nontransfer').checked = false;
+    document.getElementById('f-allow-inscription').checked = false;
     document.getElementById('f-palette').selectedIndex = 0;
     document.getElementById('f-style').selectedIndex = 0;
     var out = document.getElementById('result'); out.textContent = ''; out.className = 'result';
