@@ -212,6 +212,7 @@ show();
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
     require("./lib/organizer").mountOrganizer(app, { chain });
+    require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");
     const balance = await chain.provider.getBalance(chain.signer.address);
