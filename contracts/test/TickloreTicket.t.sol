@@ -31,22 +31,22 @@ contract TickloreTicketTest is Test {
     // normal, transferable ticket
     function _mintPicnic() internal returns (uint256 id) {
         vm.prank(boxOffice);
-        id = ticklore.mintTicket(buyer, "Founders' Day Picnic", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0);
+        id = ticklore.mintTicket(buyer, "Founders' Day Picnic", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0, "", "");
     }
 
     // sensitive, permanently non-transferable ticket
     function _mintSensitive() internal returns (uint256 id) {
         vm.prank(boxOffice);
-        id = ticklore.mintTicket(buyer, "Support Group", EVENT_DATE, "Member", 0, 0, UNLOCK, true, "", "", 0, 0);
+        id = ticklore.mintTicket(buyer, "Support Group", EVENT_DATE, "Member", 0, 0, UNLOCK, true, "", "", 0, 0, "", "");
     }
 
     function _used(uint256 id) internal view returns (bool u) {
-        (,,,,, u,,,,,,,) = ticklore.tickets(id);
+        (,,,,, u,,,,,,,,,) = ticklore.tickets(id);
     }
 
     function test_MintAndReadBackFirstTicket() public {
         uint256 id = _mintPicnic();
-        (string memory eventName,,,uint256 pricePaid,,bool used,,,address originalHolder,,,,) = ticklore.tickets(id);
+        (string memory eventName,,,uint256 pricePaid,,bool used,,,address originalHolder,,,,,,) = ticklore.tickets(id);
         assertEq(id, 1);
         assertEq(ticklore.ownerOf(1), buyer);
         assertEq(eventName, "Founders' Day Picnic");
@@ -59,7 +59,7 @@ contract TickloreTicketTest is Test {
     function test_StrangerCannotMint() public {
         vm.prank(buyer);
         vm.expectRevert();
-        ticklore.mintTicket(buyer, "Fake", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        ticklore.mintTicket(buyer, "Fake", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
     }
 
     function test_TransferBlockedBeforeUnlock() public {
@@ -151,7 +151,7 @@ contract TickloreTicketTest is Test {
 
     function _mintNasty() internal returns (uint256 id) {
         vm.prank(boxOffice);
-        id = ticklore.mintTicket(buyer, NASTY, EVENT_DATE, unicode"VIP & Guest", 2500, 0, UNLOCK, false, "", "", 0, 0);
+        id = ticklore.mintTicket(buyer, NASTY, EVENT_DATE, unicode"VIP & Guest", 2500, 0, UNLOCK, false, "", "", 0, 0, "", "");
     }
 
     /// Strip a known prefix off a string and return the rest.
@@ -239,7 +239,7 @@ contract TickloreTicketTest is Test {
     /// should be invisible when there's nothing to escape.
     function test_OrdinaryNameUnchanged() public {
         vm.prank(boxOffice);
-        uint256 id = ticklore.mintTicket(buyer, "Sullivan Family Reunion", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0);
+        uint256 id = ticklore.mintTicket(buyer, "Sullivan Family Reunion", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0, "", "");
         string memory svg = _decodedSVG(id);
         assertTrue(_contains(svg, "Sullivan Family Reunion"), "clean name passes through untouched");
     }
@@ -247,7 +247,7 @@ contract TickloreTicketTest is Test {
     /// Control characters are illegal raw inside JSON strings.
     function test_NewlineInNameIsEscaped() public {
         vm.prank(boxOffice);
-        uint256 id = ticklore.mintTicket(buyer, "Line One\nLine Two", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        uint256 id = ticklore.mintTicket(buyer, "Line One\nLine Two", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
         string memory json = _decodedJSON(id);
         assertTrue(_contains(json, "\\u000a"), "newline encoded as \\u000a");
         vm.parseJsonString(json, ".name"); // reverts if malformed
@@ -263,7 +263,7 @@ contract TickloreTicketTest is Test {
         vm.prank(boxOffice);
         uint256 id = ticklore.mintTicket(
             buyer, "Charity Gala", EVENT_DATE, "Patron", 15000, 0, UNLOCK, false,
-            "In honor of", "Margaret Ellis", 2 /* burgundy */, 0
+            "In honor of", "Margaret Ellis", 2 /* burgundy */, 0, "", ""
         );
 
         string memory svg = _decodedSVG(id);
@@ -291,10 +291,33 @@ contract TickloreTicketTest is Test {
         vm.prank(boxOffice);
         uint256 id = ticklore.mintTicket(
             buyer, "Gala", EVENT_DATE, "Patron", 0, 0, UNLOCK, false,
-            "Presented by", unicode"Ben & Jerry's", 0, 0
+            "Presented by", unicode"Ben & Jerry's", 0, 0, "", ""
         );
         string memory svg = _decodedSVG(id);
         assertTrue(_contains(svg, "Ben &amp; Jerry&apos;s"), "sponsor name escaped for XML");
+    }
+
+    /// The buyer's keepsake inscription — name + memorable line — renders,
+    /// carries a "Held by" trait, and escapes hostile characters.
+    function test_BuyerInscriptionRenders() public {
+        vm.prank(boxOffice);
+        uint256 id = ticklore.mintTicket(
+            buyer, "Night to Remember", EVENT_DATE, "General", 2500, 0, UNLOCK, false,
+            "", "", 0, 0, unicode"Dave & Priya", unicode"Where it all began <3"
+        );
+        string memory svg = _decodedSVG(id);
+        assertTrue(_contains(svg, "Where it all began &lt;3"), "message renders + escapes");
+        assertTrue(_contains(svg, "Dave &amp; Priya"),         "holder name renders + escapes");
+
+        string memory json = _decodedJSON(id);
+        assertTrue(_contains(json, "\"trait_type\":\"Held by\""), "Held by trait present");
+    }
+
+    /// No inscription -> no line, no "Held by" trait.
+    function test_NoInscriptionIsClean() public {
+        uint256 id = _mintPicnic();
+        string memory json = _decodedJSON(id);
+        assertFalse(_contains(json, "\"trait_type\":\"Held by\""), "no blank Held by trait");
     }
 
     // =====================================================================
@@ -321,7 +344,7 @@ contract TickloreTicketTest is Test {
         ticklore.grantRole(MINTER, server);
 
         vm.prank(server);
-        uint256 id = ticklore.mintTicket(buyer, "Server Minted", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0);
+        uint256 id = ticklore.mintTicket(buyer, "Server Minted", EVENT_DATE, "General", 2500, 0, UNLOCK, false, "", "", 0, 0, "", "");
         assertEq(ticklore.ownerOf(id), buyer);
     }
 
@@ -343,7 +366,7 @@ contract TickloreTicketTest is Test {
 
         vm.prank(doorStaff);
         vm.expectRevert();
-        ticklore.mintTicket(buyer, "Free For Me", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        ticklore.mintTicket(buyer, "Free For Me", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
     }
 
     function test_GrantedStaffCanCheckIn() public {
@@ -365,14 +388,14 @@ contract TickloreTicketTest is Test {
         vm.stopPrank();
 
         vm.prank(server);
-        ticklore.mintTicket(buyer, "Before Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        ticklore.mintTicket(buyer, "Before Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
 
         vm.prank(boxOffice);
         ticklore.revokeRole(MINTER, server);
 
         vm.prank(server);
         vm.expectRevert();
-        ticklore.mintTicket(buyer, "After Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        ticklore.mintTicket(buyer, "After Revoke", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
 
         // Ownership never moved.
         assertEq(ticklore.owner(), boxOffice);
@@ -410,7 +433,7 @@ contract TickloreTicketTest is Test {
 
         vm.prank(boxOffice);
         vm.expectRevert();
-        ticklore.mintTicket(buyer, "While Paused", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        ticklore.mintTicket(buyer, "While Paused", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
     }
 
     function test_PauseBlocksTransfers() public {
@@ -454,7 +477,7 @@ contract TickloreTicketTest is Test {
         vm.startPrank(boxOffice);
         ticklore.pause();
         ticklore.unpause();
-        uint256 id = ticklore.mintTicket(buyer, "After Unpause", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0);
+        uint256 id = ticklore.mintTicket(buyer, "After Unpause", EVENT_DATE, "General", 0, 0, UNLOCK, false, "", "", 0, 0, "", "");
         vm.stopPrank();
         assertEq(ticklore.ownerOf(id), buyer);
     }

@@ -55,7 +55,9 @@ contract MintDemo is Script {
             "Supported by",       // sponsor lead-in
             "The Ticklore Fund",  // sponsor name
             0,                    // palette: 0 = Teal & Gold
-            0                     // style:   0 = Classic (only layout rendered so far)
+            0,                    // style:   0 = Classic (only layout rendered so far)
+            "Alex Winfield",      // buyer name
+            "The one that started it all"  // memorable line
         );
 
         vm.stopBroadcast();

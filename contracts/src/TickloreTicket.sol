@@ -60,6 +60,10 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         string  sponsorName;
         uint8   palette;
         uint8   style;
+        // The buyer's own keepsake touch: their name and one memorable line,
+        // set at purchase. This is the ticket-to-person memory — the whole point.
+        string  holderName;
+        string  message;
     }
 
     mapping(uint256 => TicketData) public tickets;
@@ -94,7 +98,9 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         string calldata sponsorLabel,
         string calldata sponsorName,
         uint8 palette,
-        uint8 style
+        uint8 style,
+        string calldata holderName,
+        string calldata message
     ) external onlyRole(MINTER_ROLE) whenNotPaused returns (uint256) {
         uint256 ticketId = nextTicketId;
         nextTicketId++;
@@ -115,6 +121,8 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         d.sponsorName     = sponsorName;
         d.palette         = palette;
         d.style           = style;
+        d.holderName      = holderName;
+        d.message         = message;
 
         _safeMint(to, ticketId);
         emit TicketMinted(ticketId, to, eventName);
@@ -146,6 +154,10 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         string memory sponsorAttr = bytes(t.sponsorName).length > 0
             ? string.concat('{"trait_type":"Sponsor","value":"', _escapeJSON(t.sponsorName), '"},')
             : "";
+        // Likewise a "Held by" trait for the buyer's name, only when set.
+        string memory holderAttr = bytes(t.holderName).length > 0
+            ? string.concat('{"trait_type":"Held by","value":"', _escapeJSON(t.holderName), '"},')
+            : "";
 
         string memory json = string.concat(
             '{"name":"Ticklore #', Strings.toString(ticketId), unicode" — ", nameJSON, '",',
@@ -155,6 +167,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
                 '{"trait_type":"Event","value":"', nameJSON, '"},',
                 '{"trait_type":"Tier","value":"', tierJSON, '"},',
                 sponsorAttr,
+                holderAttr,
                 '{"trait_type":"Price","value":"', priceStr, '"},',
                 '{"trait_type":"Donation","value":"', donationStr, '"},',
                 '{"trait_type":"Checked In","value":"', usedStr, '"}',
@@ -213,6 +226,27 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         );
     }
 
+    /// @dev The buyer's keepsake inscription: a memorable line in italic, signed
+    ///      with their name. Either part is optional; both are escaped.
+    function _inscription(TicketData memory t, string memory ink, string memory sub) internal pure returns (string memory) {
+        string memory out = "";
+        if (bytes(t.message).length > 0) {
+            out = string.concat(
+                '<text x="52" y="384" fill="', ink,
+                '" font-family="Georgia, serif" font-style="italic" font-size="21">',
+                unicode"“", _escapeXML(t.message), unicode"”", '</text>'
+            );
+        }
+        if (bytes(t.holderName).length > 0) {
+            out = string.concat(out,
+                '<text x="52" y="412" fill="', sub,
+                '" font-family="monospace" font-size="15" letter-spacing="1">',
+                unicode"— ", _escapeXML(t.holderName), '</text>'
+            );
+        }
+        return out;
+    }
+
     function _buildSVG(uint256 ticketId, TicketData memory t) internal pure returns (string memory) {
         Palette memory c = _palette(t.palette);
         string memory priceStr = t.pricePaid == 0 ? "Free" : _formatMoney(t.pricePaid);
@@ -236,7 +270,8 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         string memory story = string.concat(
             '<text x="52" y="258" fill="', c.ink, '" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
             '<text x="52" y="296" fill="', c.sub, '" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
-            _sponsorLine(t, c.accent)
+            _sponsorLine(t, c.accent),
+            _inscription(t, c.ink, c.sub)
         );
 
         string memory footer = string.concat(
