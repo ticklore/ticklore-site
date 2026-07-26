@@ -353,9 +353,9 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
       ${e.allowInscription ? `
       <div class="inscribe">
         <div class="inscribe__label">Make it yours <span>— optional</span></div>
-        <input type="text" id="buyer-name" maxlength="40" placeholder="Your name">
-        <input type="text" id="buyer-msg" maxlength="60" placeholder="A line you'll remember — say something memorable">
-        <div class="inscribe__hint">Engraved on your keepsake, forever. Leave blank to skip.</div>
+        <input type="text" id="buyer-name" maxlength="32" placeholder="Your name">
+        <input type="text" id="buyer-msg" maxlength="42" placeholder="One line you'll remember">
+        <div class="inscribe__hint">Engraved on your keepsake, forever. Keep it short and memorable — leave blank to skip.</div>
       </div>` : ""}
       <button class="btn buy-big" id="buy" onclick="buy(${esc(JSON.stringify(e.key))}, ${esc(JSON.stringify(e.name))}, this)">Begin this chapter</button>
       <div class="assure">Pay by card. No wallet or crypto required — your ticket is held for you.</div>

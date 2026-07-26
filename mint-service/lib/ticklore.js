@@ -152,8 +152,8 @@ function buildTicketArgs(input) {
     sponsorName: String(input.sponsorName || "").trim().slice(0, 60),
     palette,
     style,
-    holderName: String(input.holderName || "").trim().slice(0, 40),
-    message: String(input.message || "").trim().slice(0, 60),
+    holderName: String(input.holderName || "").trim().slice(0, 32),
+    message: String(input.message || "").trim().slice(0, 42),
   };
 }
 
