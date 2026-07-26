@@ -87,6 +87,17 @@ function create(input) {
 
   const nonTransferable = input.nonTransferable === true || input.nonTransferable === "true";
 
+  // Sponsor credit (optional) — one graceful line: lead-in + name. Stored raw;
+  // escaped at render time (like eventName/tier), never stripped.
+  const sponsorLabel = String(input.sponsorLabel || "").trim().slice(0, 40);
+  const sponsorName = String(input.sponsorName || "").trim().slice(0, 60);
+
+  // Ticket design — whitelisted so a bad value can't reach the renderer.
+  const PALETTES = ["teal", "midnight", "burgundy", "forest", "plum"];
+  const STYLES = ["classic", "modern", "elegant"];
+  const palette = PALETTES.includes(input.palette) ? input.palette : "teal";
+  const style = STYLES.includes(input.style) ? input.style : "classic";
+
   const data = read();
 
   // Guard against accidental double-submits (double-click, a network retry that
@@ -108,6 +119,7 @@ function create(input) {
   const key = makeKey(name);
   data.events[key] = {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
+    sponsorLabel, sponsorName, palette, style,
     createdAt: new Date().toISOString(),
   };
   write(data);

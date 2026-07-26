@@ -110,6 +110,13 @@ function organizerPage() {
     padding:11px 14px;border-radius:6px;font-size:.98rem;font-family:'Work Sans',sans-serif}
   input:focus,textarea:focus{outline:none;border-color:var(--gold)}
   textarea{resize:vertical;min-height:64px}
+  select{width:100%;background:var(--field);border:1px solid var(--line);color:var(--parchment);
+    padding:11px 14px;border-radius:6px;font-size:.98rem;font-family:'Work Sans',sans-serif;cursor:pointer}
+  select:focus{outline:none;border-color:var(--gold)}
+  select option{background:#0b1c20;color:var(--parchment)}
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold);margin:26px 0 12px;padding-top:18px;
+    border-top:1px solid var(--line)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .hint{font-size:.78rem;color:rgba(241,233,221,.45);margin-top:5px}
 
@@ -214,6 +221,32 @@ function organizerPage() {
       </label>
     </div>
 
+    <div class="section-label">Sponsor credit — optional</div>
+    <div class="row">
+      <div class="field">
+        <label for="f-sponsor-label">Lead-in</label>
+        <input type="text" id="f-sponsor-label" placeholder="Supported by" maxlength="40" oninput="draw()">
+        <div class="hint">e.g. "Supported by", "In honor of", "Brought to you by".</div>
+      </div>
+      <div class="field">
+        <label for="f-sponsor-name">Sponsor name</label>
+        <input type="text" id="f-sponsor-name" placeholder="The Acme Foundation" maxlength="60" oninput="draw()">
+        <div class="hint">Leave both blank for no credit line.</div>
+      </div>
+    </div>
+
+    <div class="section-label">Ticket design</div>
+    <div class="row">
+      <div class="field">
+        <label for="f-palette">Color</label>
+        <select id="f-palette" onchange="draw()"></select>
+      </div>
+      <div class="field">
+        <label for="f-style">Style</label>
+        <select id="f-style" onchange="draw()"></select>
+      </div>
+    </div>
+
     <button class="publish" id="publish" onclick="publish()">Publish event</button>
     <div class="result" id="result"></div>
   </div>
@@ -221,7 +254,7 @@ function organizerPage() {
   <div class="preview-col">
     <div class="preview-label">Live preview</div>
     <div id="preview"></div>
-    <div class="preview-note">This is the exact keepsake your guests receive.</div>
+    <div class="preview-note">A live preview of your ticket — color, style and sponsor line update as you type.</div>
   </div>
 </div>
 
@@ -257,30 +290,95 @@ function organizerPage() {
     return '$' + n.toFixed(2).replace(/\\.00$/, '');
   }
 
-  // A preview SVG that mirrors the on-chain art closely enough that what the
-  // organizer sees is what the contract will draw.
+  // Curated color palettes. Kept to generic font families (serif / monospace /
+  // sans-serif) on purpose: that is what the on-chain SVG can render, so the
+  // preview stays honest about the eventual keepsake.
+  var PALETTES = {
+    teal:     { label:'Teal & Gold',       bg:['#123138','#0d262c','#0a1e23'], accent:'#C9A227', bright:'#E3C25E', ink:'#F1E9DD', sub:'#7FB3A6' },
+    midnight: { label:'Midnight & Silver',  bg:['#20283a','#161c2b','#0e121c'], accent:'#8fa3c0', bright:'#d3ddec', ink:'#F2F4F8', sub:'#8b98ac' },
+    burgundy: { label:'Burgundy & Gold',    bg:['#3c1622','#290d17','#1b070d'], accent:'#C9A227', bright:'#E9C558', ink:'#F6EAE0', sub:'#c48f99' },
+    forest:   { label:'Forest & Cream',     bg:['#173a2d','#0f2a1f','#0a2017'], accent:'#cdba8c', bright:'#ecdfbe', ink:'#F3EEE1', sub:'#93b4a0' },
+    plum:     { label:'Plum & Rose',        bg:['#2b1a3a','#1e1129','#140b1c'], accent:'#c58fb0', bright:'#e6b9d2', ink:'#F3ECF3', sub:'#a58fb8' }
+  };
+  var STYLES = {
+    classic: { label:'Classic — serif' },
+    modern:  { label:'Modern — sans' },
+    elegant: { label:'Elegant — serif italic' }
+  };
+
+  // Populate the color/style selectors from the data above.
+  (function initControls(){
+    var ps = document.getElementById('f-palette');
+    for (var k in PALETTES){ var o = document.createElement('option'); o.value = k; o.textContent = PALETTES[k].label; ps.appendChild(o); }
+    var ss = document.getElementById('f-style');
+    for (var k2 in STYLES){ var o2 = document.createElement('option'); o2.value = k2; o2.textContent = STYLES[k2].label; ss.appendChild(o2); }
+  })();
+
+  // Parametric ticket art. Mirrors the on-chain layout closely; three layouts,
+  // any palette, plus an optional single graceful sponsor credit line.
+  function ticketPreviewSVG(o){
+    var P = PALETTES[o.palette] || PALETTES.teal;
+    var rawName = o.name || 'Your event name';
+    var rawTier = o.tier || 'General Admission';
+    var name = esc(rawName);
+    var tier = esc(rawTier);
+    var price = esc(money(o.price));
+    var sponsor = '';
+    if (o.sponsorName){
+      var raw = (o.sponsorLabel ? o.sponsorLabel + ' \\u00b7 ' : '') + o.sponsorName;
+      sponsor = esc(raw.toUpperCase());
+    }
+    var defs = '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
+      + '<stop offset="0" stop-color="' + P.bg[0] + '"/><stop offset="0.6" stop-color="' + P.bg[1] + '"/>'
+      + '<stop offset="1" stop-color="' + P.bg[2] + '"/></linearGradient>'
+      + '<linearGradient id="spine" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop offset="0" stop-color="' + P.bright + '"/><stop offset="1" stop-color="' + P.accent + '"/></linearGradient></defs>';
+    var base = '<rect width="800" height="500" rx="18" fill="url(#bg)"/>';
+    var body;
+    if (o.style === 'modern'){
+      body = '<rect x="0" y="0" width="800" height="8" fill="url(#spine)"/>'
+        + '<rect x="26" y="26" width="748" height="448" rx="10" fill="none" stroke="' + P.accent + '" stroke-opacity="0.28"/>'
+        + '<text x="56" y="90" fill="' + P.bright + '" font-family="sans-serif" font-weight="700" font-size="20" letter-spacing="10">TICKLORE</text>'
+        + '<text x="56" y="252" fill="' + P.sub + '" font-family="sans-serif" font-size="16" letter-spacing="6">' + esc(rawTier.toUpperCase()) + '</text>'
+        + '<text x="56" y="304" fill="' + P.ink + '" font-family="sans-serif" font-weight="700" font-size="52">' + name + '</text>'
+        + (sponsor ? '<text x="56" y="402" fill="' + P.accent + '" font-family="sans-serif" font-size="15" letter-spacing="3">' + sponsor + '</text>' : '')
+        + '<text x="56" y="452" fill="' + P.ink + '" font-family="sans-serif" font-weight="700" font-size="26">' + price + '</text>'
+        + '<text x="744" y="452" fill="' + P.bright + '" font-family="sans-serif" font-weight="700" font-size="34" text-anchor="end">#—</text>';
+    } else if (o.style === 'elegant'){
+      body = '<rect x="18" y="18" width="764" height="464" rx="12" fill="none" stroke="' + P.accent + '" stroke-opacity="0.4"/>'
+        + '<rect x="27" y="27" width="746" height="446" rx="9" fill="none" stroke="' + P.accent + '" stroke-opacity="0.18"/>'
+        + '<text x="400" y="82" fill="' + P.bright + '" font-family="serif" font-size="20" letter-spacing="8" text-anchor="middle">TICKLORE</text>'
+        + '<line x1="310" y1="102" x2="490" y2="102" stroke="' + P.accent + '" stroke-opacity="0.5"/>'
+        + '<text x="400" y="252" fill="' + P.ink + '" font-family="serif" font-style="italic" font-size="52" text-anchor="middle">' + name + '</text>'
+        + '<text x="400" y="294" fill="' + P.sub + '" font-family="serif" font-size="18" letter-spacing="3" text-anchor="middle">' + tier + '</text>'
+        + (sponsor ? '<text x="400" y="362" fill="' + P.accent + '" font-family="serif" font-size="15" letter-spacing="2" text-anchor="middle">' + sponsor + '</text>' : '')
+        + '<text x="400" y="452" fill="' + P.ink + '" font-family="serif" font-size="26" text-anchor="middle">' + price + '</text>';
+    } else {
+      body = '<rect x="0" y="0" width="10" height="500" rx="5" fill="url(#spine)"/>'
+        + '<rect x="20" y="20" width="760" height="460" rx="12" fill="none" stroke="' + P.accent + '" stroke-opacity="0.45"/>'
+        + '<text x="56" y="76" fill="' + P.bright + '" font-family="monospace" font-size="22" letter-spacing="9">TICKLORE</text>'
+        + '<line x1="56" y1="96" x2="744" y2="96" stroke="' + P.accent + '" stroke-opacity="0.35"/>'
+        + '<text x="56" y="222" fill="' + P.accent + '" font-family="monospace" font-size="17" letter-spacing="5">CHAPTER</text>'
+        + '<text x="56" y="262" fill="' + P.ink + '" font-family="Georgia, serif" font-size="46">' + name + '</text>'
+        + '<text x="56" y="298" fill="' + P.sub + '" font-family="monospace" font-size="17" letter-spacing="1">' + tier + '</text>'
+        + (sponsor ? '<text x="56" y="400" fill="' + P.accent + '" font-family="monospace" font-size="14" letter-spacing="3">' + sponsor + '</text>' : '')
+        + '<text x="56" y="452" fill="' + P.ink + '" font-family="monospace" font-size="26">' + price + '</text>'
+        + '<text x="744" y="452" fill="' + P.bright + '" font-family="Georgia, serif" font-size="40" text-anchor="end">#—</text>';
+    }
+    var footer = '<text x="400" y="482" fill="' + P.sub + '" font-family="monospace" font-size="11" letter-spacing="3" text-anchor="middle" opacity="0.55">EVERY TICKET HAS A STORY</text>';
+    return '<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">' + defs + base + body + footer + '</svg>';
+  }
+
   function draw(){
-    var name = document.getElementById('f-name').value || 'Your event name';
-    var tier = document.getElementById('f-tier').value || 'General Admission';
-    var price = document.getElementById('f-price').value;
-    var used = false;
-    var svg =
-      '<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">'
-      + '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
-      + '<stop offset="0" stop-color="#123138"/><stop offset="0.6" stop-color="#0d262c"/>'
-      + '<stop offset="1" stop-color="#0a1e23"/></linearGradient></defs>'
-      + '<rect width="800" height="500" rx="18" fill="url(#bg)"/>'
-      + '<rect x="16" y="16" width="768" height="468" rx="12" fill="none" stroke="#C9A227" stroke-opacity="0.5"/>'
-      + '<text x="52" y="72" fill="#E3C25E" font-family="monospace" font-size="24" letter-spacing="8">TICKLORE</text>'
-      + '<line x1="52" y1="92" x2="748" y2="92" stroke="#C9A227" stroke-opacity="0.4"/>'
-      + '<text x="52" y="228" fill="#C9A227" font-family="monospace" font-size="18" letter-spacing="4">CHAPTER</text>'
-      + '<text x="52" y="258" fill="#F1E9DD" font-family="Georgia, serif" font-size="46">' + esc(name) + '</text>'
-      + '<text x="52" y="296" fill="#7FB3A6" font-family="monospace" font-size="18" letter-spacing="1">' + esc(tier) + '</text>'
-      + '<text x="52" y="452" fill="#F1E9DD" font-family="monospace" font-size="26">' + esc(money(price)) + '</text>'
-      + '<text x="748" y="452" fill="#E3C25E" font-family="Georgia, serif" font-size="40" text-anchor="end">#—</text>'
-      + '<text x="52" y="476" fill="#7FB3A6" font-family="monospace" font-size="12" letter-spacing="3" opacity="0.7">EVERY TICKET HAS A STORY</text>'
-      + '</svg>';
-    document.getElementById('preview').innerHTML = svg;
+    document.getElementById('preview').innerHTML = ticketPreviewSVG({
+      name: document.getElementById('f-name').value,
+      tier: document.getElementById('f-tier').value,
+      price: document.getElementById('f-price').value,
+      sponsorLabel: document.getElementById('f-sponsor-label').value,
+      sponsorName: document.getElementById('f-sponsor-name').value,
+      palette: document.getElementById('f-palette').value,
+      style: document.getElementById('f-style').value
+    });
   }
 
   function publish(){
@@ -294,7 +392,11 @@ function organizerPage() {
       date: document.getElementById('f-date').value,
       unlockDays: document.getElementById('f-unlock').value || 30,
       blurb: document.getElementById('f-blurb').value,
-      nonTransferable: document.getElementById('f-nontransfer').checked
+      nonTransferable: document.getElementById('f-nontransfer').checked,
+      sponsorLabel: document.getElementById('f-sponsor-label').value,
+      sponsorName: document.getElementById('f-sponsor-name').value,
+      palette: document.getElementById('f-palette').value,
+      style: document.getElementById('f-style').value
     };
     btn.disabled = true; btn.textContent = 'Publishing…';
     fetch('/organize/publish', {
@@ -326,11 +428,13 @@ function organizerPage() {
   // Clear the form and re-arm Publish, so making a second event is a deliberate
   // act rather than an accidental double-click.
   function resetForm(){
-    ['f-name','f-tier','f-price','f-date','f-blurb'].forEach(function(id){
+    ['f-name','f-tier','f-price','f-date','f-blurb','f-sponsor-label','f-sponsor-name'].forEach(function(id){
       document.getElementById(id).value = '';
     });
     document.getElementById('f-unlock').value = '30';
     document.getElementById('f-nontransfer').checked = false;
+    document.getElementById('f-palette').selectedIndex = 0;
+    document.getElementById('f-style').selectedIndex = 0;
     var out = document.getElementById('result'); out.textContent = ''; out.className = 'result';
     var btn = document.getElementById('publish'); btn.disabled = false; btn.textContent = 'Publish event';
     draw();
