@@ -47,6 +47,10 @@ function mountStorefront(app, { chain, stripeEnabled }) {
         tier: details.tier,
         price: details.priceCents,
         date: details.date,
+        sponsorLabel: details.sponsorLabel,
+        sponsorName: details.sponsorName,
+        palette: details.palette,
+        style: details.style,
       });
 
       res.json({ ok: true, ticketId: result.ticketId, txHash: result.txHash, custodial: !wallet });

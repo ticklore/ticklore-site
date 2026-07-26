@@ -140,6 +140,10 @@ function mountStripeRoutes(app, { chain, stripe }) {
         tier: details.tier,
         price: session.amount_total,
         date: details.date,
+        sponsorLabel: details.sponsorLabel,
+        sponsorName: details.sponsorName,
+        palette: details.palette,
+        style: details.style,
       });
 
       store.completeSession(session.id, {
@@ -245,6 +249,8 @@ function mountStripeRoutes(app, { chain, stripe }) {
           to: chain.signer.address,
           eventName: details.name, tier: details.tier,
           price: details.priceCents, date: details.date,
+          sponsorLabel: details.sponsorLabel, sponsorName: details.sponsorName,
+          palette: details.palette, style: details.style,
         });
         return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
       } catch (err) {

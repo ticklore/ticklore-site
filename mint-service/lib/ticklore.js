@@ -15,12 +15,12 @@ const { ethers } = require("ethers");
 // Only the functions we actually call. Keeping the ABI minimal makes it
 // obvious at a glance what this code is and is not able to do.
 const ABI = [
-  "function mintTicket(address to, string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, uint64 transferUnlock, bool nonTransferable) returns (uint256)",
+  "function mintTicket(address to, string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, uint64 transferUnlock, bool nonTransferable, string sponsorLabel, string sponsorName, uint8 palette, uint8 style) returns (uint256)",
   "function checkIn(uint256 ticketId)",
   "function nextTicketId() view returns (uint256)",
   "function tokenURI(uint256 ticketId) view returns (string)",
   "function ownerOf(uint256 tokenId) view returns (address)",
-  "function tickets(uint256) view returns (string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, bool used, uint64 transferUnlock, bool nonTransferable, address originalHolder)",
+  "function tickets(uint256) view returns (string eventName, uint64 eventDate, string tier, uint256 pricePaid, uint256 donationAmount, bool used, uint64 transferUnlock, bool nonTransferable, address originalHolder, string sponsorLabel, string sponsorName, uint8 palette, uint8 style)",
   "event TicketMinted(uint256 indexed ticketId, address indexed to, string eventName)",
 ];
 
@@ -132,6 +132,13 @@ function buildTicketArgs(input) {
   const unlockDays = Math.max(requestedDays, PLATFORM_MINIMUM_UNLOCK_DAYS);
   const transferUnlock = eventDate + unlockDays * 86400;
 
+  // Design choices. The organizer stores palette/style as names ("burgundy",
+  // "elegant"); the contract wants small integers. Map here, default to 0.
+  const PALETTES = { teal: 0, midnight: 1, burgundy: 2, forest: 3, plum: 4 };
+  const STYLES = { classic: 0, modern: 1, elegant: 2 };
+  const palette = typeof input.palette === "number" ? input.palette : (PALETTES[input.palette] ?? 0);
+  const style = typeof input.style === "number" ? input.style : (STYLES[input.style] ?? 0);
+
   return {
     to,
     eventName: eventName.trim(),
@@ -141,6 +148,10 @@ function buildTicketArgs(input) {
     donation,
     transferUnlock,
     nonTransferable: input.nonTransferable === true || input.nonTransferable === "true",
+    sponsorLabel: String(input.sponsorLabel || "").trim().slice(0, 40),
+    sponsorName: String(input.sponsorName || "").trim().slice(0, 60),
+    palette,
+    style,
   };
 }
 
@@ -150,7 +161,8 @@ async function mintTicket(contract, input) {
 
   const tx = await contract.mintTicket(
     a.to, a.eventName, a.eventDate, a.tier,
-    a.price, a.donation, a.transferUnlock, a.nonTransferable
+    a.price, a.donation, a.transferUnlock, a.nonTransferable,
+    a.sponsorLabel, a.sponsorName, a.palette, a.style
   );
   const receipt = await tx.wait();
 
