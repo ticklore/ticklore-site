@@ -48,6 +48,18 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         uint64  transferUnlock;
         bool    nonTransferable;
         address originalHolder;
+        // Organizer design choices, engraved with the ticket.
+        //   sponsorLabel + sponsorName  render as one graceful credit line.
+        //   palette                     selects the color scheme (0 = the
+        //                               original teal, so existing art is
+        //                               unchanged).
+        //   style                       layout variant — stored now, rendered
+        //                               in a later pass, so adding it costs no
+        //                               change to how this contract is called.
+        string  sponsorLabel;
+        string  sponsorName;
+        uint8   palette;
+        uint8   style;
     }
 
     mapping(uint256 => TicketData) public tickets;
@@ -78,22 +90,31 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         uint256 pricePaid,
         uint256 donationAmount,
         uint64 transferUnlock,
-        bool nonTransferable
+        bool nonTransferable,
+        string calldata sponsorLabel,
+        string calldata sponsorName,
+        uint8 palette,
+        uint8 style
     ) external onlyRole(MINTER_ROLE) whenNotPaused returns (uint256) {
         uint256 ticketId = nextTicketId;
         nextTicketId++;
 
-        tickets[ticketId] = TicketData({
-            eventName: eventName,
-            eventDate: eventDate,
-            tier: tier,
-            pricePaid: pricePaid,
-            donationAmount: donationAmount,
-            used: false,
-            transferUnlock: transferUnlock,
-            nonTransferable: nonTransferable,
-            originalHolder: to
-        });
+        // Write straight to storage field-by-field. A `TicketData({...})` literal
+        // would need all twelve values live on the stack at once — past the EVM's
+        // 16-slot limit with this many parameters. `used` stays its default false.
+        TicketData storage d = tickets[ticketId];
+        d.eventName       = eventName;
+        d.eventDate       = eventDate;
+        d.tier            = tier;
+        d.pricePaid       = pricePaid;
+        d.donationAmount  = donationAmount;
+        d.transferUnlock  = transferUnlock;
+        d.nonTransferable = nonTransferable;
+        d.originalHolder  = to;
+        d.sponsorLabel    = sponsorLabel;
+        d.sponsorName     = sponsorName;
+        d.palette         = palette;
+        d.style           = style;
 
         _safeMint(to, ticketId);
         emit TicketMinted(ticketId, to, eventName);
@@ -121,6 +142,11 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         string memory nameJSON = _escapeJSON(t.eventName);
         string memory tierJSON = _escapeJSON(t.tier);
 
+        // A Sponsor trait, only when there is one — no blank attributes.
+        string memory sponsorAttr = bytes(t.sponsorName).length > 0
+            ? string.concat('{"trait_type":"Sponsor","value":"', _escapeJSON(t.sponsorName), '"},')
+            : "";
+
         string memory json = string.concat(
             '{"name":"Ticklore #', Strings.toString(ticketId), unicode" — ", nameJSON, '",',
             '"description":"A one-of-one keepsake ticket on Ticklore. Every ticket has a story.",',
@@ -128,6 +154,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
             '"attributes":[',
                 '{"trait_type":"Event","value":"', nameJSON, '"},',
                 '{"trait_type":"Tier","value":"', tierJSON, '"},',
+                sponsorAttr,
                 '{"trait_type":"Price","value":"', priceStr, '"},',
                 '{"trait_type":"Donation","value":"', donationStr, '"},',
                 '{"trait_type":"Checked In","value":"', usedStr, '"}',
@@ -145,30 +172,81 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
         );
     }
 
-    function _buildSVG(uint256 ticketId, TicketData memory t) internal pure returns (string memory) {
-        string memory priceStr = t.pricePaid == 0 ? "Free" : _formatMoney(t.pricePaid);
-        string memory stamp = t.used
-            ? '<text x="400" y="280" fill="#E3C25E" fill-opacity="0.14" font-family="Georgia, serif" font-style="italic" font-size="130" text-anchor="middle" transform="rotate(-16 400 260)">ADMITTED</text>'
-            : "";
+    /// @dev The curated color schemes. Seven colors describe a whole ticket.
+    ///      Index 0 is the original teal, so a ticket minted with no palette set
+    ///      renders exactly as it always did.
+    struct Palette {
+        string bg0; string bg1; string bg2;   // background gradient (top → bottom)
+        string accent;                          // border, rules, section labels
+        string bright;                          // wordmark, ticket number, stamp
+        string ink;                             // event name, price
+        string sub;                             // tier, footer
+    }
 
+    function _palette(uint8 p) internal pure returns (Palette memory) {
+        if (p == 1) return Palette("#20283a", "#161c2b", "#0e121c", "#8fa3c0", "#d3ddec", "#F2F4F8", "#8b98ac"); // Midnight & Silver
+        if (p == 2) return Palette("#3c1622", "#290d17", "#1b070d", "#C9A227", "#E9C558", "#F6EAE0", "#c48f99"); // Burgundy & Gold
+        if (p == 3) return Palette("#173a2d", "#0f2a1f", "#0a2017", "#cdba8c", "#ecdfbe", "#F3EEE1", "#93b4a0"); // Forest & Cream
+        if (p == 4) return Palette("#2b1a3a", "#1e1129", "#140b1c", "#c58fb0", "#e6b9d2", "#F3ECF3", "#a58fb8"); // Plum & Rose
+        return Palette("#123138", "#0B2024", "#081619", "#C9A227", "#E3C25E", "#F1E9DD", "#7FB3A6");             // Teal & Gold (default)
+    }
+
+    /// @dev The "ADMITTED" watermark, only after check-in.
+    function _stamp(bool used, string memory bright) internal pure returns (string memory) {
+        if (!used) return "";
         return string.concat(
+            '<text x="400" y="280" fill="', bright,
+            '" fill-opacity="0.14" font-family="Georgia, serif" font-style="italic" font-size="130" text-anchor="middle" transform="rotate(-16 400 260)">ADMITTED</text>'
+        );
+    }
+
+    /// @dev One graceful sponsor credit line, only when a sponsor name is set.
+    ///      Both parts are escaped — a sponsor called  Ben & Jerry's  is safe.
+    function _sponsorLine(TicketData memory t, string memory accent) internal pure returns (string memory) {
+        if (bytes(t.sponsorName).length == 0) return "";
+        string memory credit = bytes(t.sponsorLabel).length > 0
+            ? string.concat(_escapeXML(t.sponsorLabel), unicode" · ", _escapeXML(t.sponsorName))
+            : _escapeXML(t.sponsorName);
+        return string.concat(
+            '<text x="52" y="340" fill="', accent,
+            '" font-family="monospace" font-size="15" letter-spacing="2">', credit, '</text>'
+        );
+    }
+
+    function _buildSVG(uint256 ticketId, TicketData memory t) internal pure returns (string memory) {
+        Palette memory c = _palette(t.palette);
+        string memory priceStr = t.pricePaid == 0 ? "Free" : _formatMoney(t.pricePaid);
+
+        string memory frame = string.concat(
             '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">',
             '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">',
-            '<stop offset="0" stop-color="#123138"/><stop offset="0.55" stop-color="#0B2024"/><stop offset="1" stop-color="#081619"/>',
+            '<stop offset="0" stop-color="', c.bg0, '"/><stop offset="0.55" stop-color="', c.bg1, '"/><stop offset="1" stop-color="', c.bg2, '"/>',
             '</linearGradient></defs>',
             '<rect width="800" height="500" fill="url(#bg)"/>',
-            '<rect x="18" y="18" width="764" height="464" rx="18" fill="none" stroke="#C9A227" stroke-opacity="0.55" stroke-width="1.5"/>',
-            '<text x="52" y="70" fill="#E3C25E" font-family="monospace" font-size="22" letter-spacing="7">TICKLORE</text>',
-            '<line x1="52" y1="90" x2="748" y2="90" stroke="#C9A227" stroke-opacity="0.25" stroke-width="1"/>',
-            stamp,
-            '<text x="52" y="205" fill="#C9A227" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>',
-            '<text x="52" y="258" fill="#F1E9DD" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
-            '<text x="52" y="296" fill="#7FB3A6" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
-            '<text x="52" y="446" fill="#F1E9DD" font-family="monospace" font-size="22">', priceStr, '</text>',
-            '<text x="748" y="450" fill="#E3C25E" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(ticketId), '</text>',
-            '<text x="52" y="472" fill="#5F817A" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
+            '<rect x="18" y="18" width="764" height="464" rx="18" fill="none" stroke="', c.accent, '" stroke-opacity="0.55" stroke-width="1.5"/>'
+        );
+
+        string memory masthead = string.concat(
+            '<text x="52" y="70" fill="', c.bright, '" font-family="monospace" font-size="22" letter-spacing="7">TICKLORE</text>',
+            '<line x1="52" y1="90" x2="748" y2="90" stroke="', c.accent, '" stroke-opacity="0.25" stroke-width="1"/>',
+            _stamp(t.used, c.bright),
+            '<text x="52" y="205" fill="', c.accent, '" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>'
+        );
+
+        string memory story = string.concat(
+            '<text x="52" y="258" fill="', c.ink, '" font-family="Georgia, serif" font-size="46">', _escapeXML(t.eventName), '</text>',
+            '<text x="52" y="296" fill="', c.sub, '" font-family="monospace" font-size="18" letter-spacing="1">', _escapeXML(t.tier), '</text>',
+            _sponsorLine(t, c.accent)
+        );
+
+        string memory footer = string.concat(
+            '<text x="52" y="446" fill="', c.ink, '" font-family="monospace" font-size="22">', priceStr, '</text>',
+            '<text x="748" y="450" fill="', c.bright, '" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(ticketId), '</text>',
+            '<text x="52" y="472" fill="', c.sub, '" fill-opacity="0.6" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
             '</svg>'
         );
+
+        return string.concat(frame, masthead, story, footer);
     }
 
     /// @dev Turn whole cents into "$25.00". Solidity has no decimals, so we do it by hand.

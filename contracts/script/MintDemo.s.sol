@@ -51,7 +51,11 @@ contract MintDemo is Script {
             pricePaid,
             donation,
             transferUnlock,
-            nonTransferable
+            nonTransferable,
+            "Supported by",       // sponsor lead-in
+            "The Ticklore Fund",  // sponsor name
+            0,                    // palette: 0 = Teal & Gold
+            0                     // style:   0 = Classic (only layout rendered so far)
         );
 
         vm.stopBroadcast();
