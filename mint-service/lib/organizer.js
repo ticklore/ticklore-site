@@ -367,7 +367,7 @@ function organizerPage() {
         + '<rect x="20" y="20" width="760" height="460" rx="12" fill="none" stroke="' + P.accent + '" stroke-opacity="0.45"/>'
         + '<text x="56" y="76" fill="' + P.bright + '" font-family="monospace" font-size="22" letter-spacing="9">TICKLORE</text>'
         + '<line x1="56" y1="96" x2="744" y2="96" stroke="' + P.accent + '" stroke-opacity="0.35"/>'
-        + '<text x="56" y="222" fill="' + P.accent + '" font-family="monospace" font-size="17" letter-spacing="5">CHAPTER</text>'
+        + '<text x="56" y="222" fill="' + P.accent + '" font-family="monospace" font-size="17" letter-spacing="5">THE STORY</text>'
         + '<text x="56" y="262" fill="' + P.ink + '" font-family="Georgia, serif" font-size="46">' + name + '</text>'
         + '<text x="56" y="298" fill="' + P.sub + '" font-family="monospace" font-size="17" letter-spacing="1">' + tier + '</text>'
         + (sponsor ? '<text x="56" y="400" fill="' + P.accent + '" font-family="monospace" font-size="14" letter-spacing="3">' + sponsor + '</text>' : '')

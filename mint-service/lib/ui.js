@@ -59,7 +59,7 @@ function ticketSvg({ name, tier, priceCents, number = "—", chapterLabel = "I",
   <rect x="20" y="20" width="760" height="460" rx="12" fill="none" stroke="#C9A227" stroke-opacity="0.45"/>
   <text x="56" y="76" fill="#E3C25E" font-family="monospace" font-size="22" letter-spacing="9">TICKLORE</text>
   <line x1="56" y1="96" x2="744" y2="96" stroke="#C9A227" stroke-opacity="0.35"/>
-  <text x="56" y="222" fill="#C9A227" font-family="monospace" font-size="17" letter-spacing="5">CHAPTER ${esc(chapterLabel)}</text>
+  <text x="56" y="222" fill="#C9A227" font-family="monospace" font-size="17" letter-spacing="5">THE STORY</text>
   <text x="56" y="262" fill="#F1E9DD" font-family="Georgia, serif" font-size="44">${esc(name)}</text>
   <text x="56" y="298" fill="#7FB3A6" font-family="monospace" font-size="17" letter-spacing="1">${esc(tier)}</text>
   <text x="56" y="452" fill="#F1E9DD" font-family="monospace" font-size="26">${esc(money(priceCents))}</text>

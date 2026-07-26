@@ -264,7 +264,7 @@ contract TickloreTicket is ERC721, Ownable, AccessControl, Pausable {
             '<text x="52" y="70" fill="', c.bright, '" font-family="monospace" font-size="22" letter-spacing="7">TICKLORE</text>',
             '<line x1="52" y1="90" x2="748" y2="90" stroke="', c.accent, '" stroke-opacity="0.25" stroke-width="1"/>',
             _stamp(t.used, c.bright),
-            '<text x="52" y="188" fill="', c.accent, '" font-family="monospace" font-size="16" letter-spacing="5">CHAPTER</text>'
+            '<text x="52" y="188" fill="', c.accent, '" font-family="monospace" font-size="16" letter-spacing="5">THE STORY</text>'
         );
 
         string memory story = string.concat(
