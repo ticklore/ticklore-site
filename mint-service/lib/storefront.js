@@ -157,7 +157,7 @@ function landingPage(events) {
 <body>
   <nav class="nav">
     <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center">
-      <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:58px;width:auto;display:block">
+      <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block">
     </a>
     <span style="display:flex;gap:22px;align-items:center">
       <a href="/organize">Organizer demo</a>
@@ -259,7 +259,7 @@ function shopPage(events, stripeEnabled, demoEnabled) {
 </style></head>
 <body>
   <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:58px;width:auto;display:block"></a>
+    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a>
     <a href="/shop">All events</a>
   </nav>
   <main>
@@ -308,7 +308,7 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
 </style></head>
 <body>
   <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:58px;width:auto;display:block"></a>
+    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a>
     <a href="/shop">← All events</a>
   </nav>
   <main>
@@ -343,7 +343,7 @@ function notFoundPage() {
   return `<!doctype html>
 <html lang="en"><head>${head("Ticklore — Not found")}</head>
 <body>
-  <nav class="nav"><a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:58px;width:auto;display:block"></a><a href="/shop">All events</a></nav>
+  <nav class="nav"><a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a><a href="/shop">All events</a></nav>
   <div style="position:relative;z-index:1;text-align:center;padding:120px 24px">
     <div style="font-family:'Fraunces',serif;font-style:italic;font-size:1.6rem;color:var(--gold-bright);margin-bottom:12px">This chapter hasn't been written.</div>
     <p style="color:rgba(241,233,221,.6);margin-bottom:26px">We couldn't find that event.</p>

@@ -166,7 +166,7 @@ function organizerPage() {
 </div>
 
 <header>
-  <a href="/" style="display:inline-block"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:76px;width:auto;display:inline-block"></a>
+  <a href="/" style="display:inline-block"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:96px;width:auto;display:inline-block"></a>
   <div class="sub">Create an event — see the ticket your guests will keep, then publish.</div>
 </header>
 
