@@ -18,9 +18,10 @@ contract TickloreTicketV2Test is Test {
         tk = new TickloreTicketV2(deployer);
     }
 
+    // inscriptions per arg; not soulbound
     function _createEvent(bool inscriptions) internal returns (uint256 id) {
         vm.prank(organizer);
-        id = tk.createEvent("The Sullivan Reunion", "Lynchburg, VA", DATE, "Supported by", "The Acme Fund", 2, inscriptions);
+        id = tk.createEvent("The Sullivan Reunion", "Lynchburg, VA", DATE, "Supported by", "The Acme Fund", 2, inscriptions, false);
     }
 
     function test_CreateEventRecordsOrganizer() public {
@@ -32,7 +33,7 @@ contract TickloreTicketV2Test is Test {
     function test_OrganizerCanMint() public {
         uint256 id = _createEvent(true);
         vm.prank(organizer);
-        uint256 tokenId = tk.mintTicket(id, buyer, "Dave Chen", "First of many chapters");
+        uint256 tokenId = tk.mintTicket(id, buyer, 2500, "Dave Chen", "First of many chapters");
         assertEq(tk.ownerOf(tokenId), buyer);
         assertEq(tk.eventIdOf(tokenId), id);
     }
@@ -40,7 +41,7 @@ contract TickloreTicketV2Test is Test {
     function test_MintNonexistentEventReverts() public {
         vm.prank(organizer);
         vm.expectRevert(bytes("no such event"));
-        tk.mintTicket(999, buyer, "", "");
+        tk.mintTicket(999, buyer, 0, "", "");
     }
 
     function test_AgentCanMintThenRevoked() public {
@@ -49,14 +50,14 @@ contract TickloreTicketV2Test is Test {
         tk.setAgent(id, agent, true);
 
         vm.prank(agent);
-        uint256 tokenId = tk.mintTicket(id, buyer, "Agent Minted", "hi");
+        uint256 tokenId = tk.mintTicket(id, buyer, 2500, "Agent Minted", "hi");
         assertEq(tk.ownerOf(tokenId), buyer);
 
         vm.prank(organizer);
         tk.setAgent(id, agent, false);
         vm.prank(agent);
         vm.expectRevert(bytes("not organizer/agent"));
-        tk.mintTicket(id, buyer, "", "");
+        tk.mintTicket(id, buyer, 0, "", "");
     }
 
     function test_StrangerCannotSetAgent() public {
@@ -70,37 +71,34 @@ contract TickloreTicketV2Test is Test {
         uint256 id = _createEvent(true);
         vm.prank(stranger);
         vm.expectRevert(bytes("not organizer/agent"));
-        tk.mintTicket(id, buyer, "", "");
+        tk.mintTicket(id, buyer, 0, "", "");
     }
 
     function test_InscriptionBlockedWhenOff() public {
         uint256 id = _createEvent(false);
         vm.prank(organizer);
         vm.expectRevert(bytes("inscriptions off for this event"));
-        tk.mintTicket(id, buyer, "Dave", "hi");
-        // a plain ticket (no name/inscription) still mints
+        tk.mintTicket(id, buyer, 2500, "Dave", "hi");
         vm.prank(organizer);
-        uint256 tokenId = tk.mintTicket(id, buyer, "", "");
+        uint256 tokenId = tk.mintTicket(id, buyer, 2500, "", "");
         assertEq(tk.ownerOf(tokenId), buyer);
     }
 
     function test_LockOnFirstMint() public {
         uint256 id = _createEvent(true);
-        // editable while unsold
         vm.prank(organizer);
-        tk.updateEvent(id, "New Name", "New Venue", DATE, "", "", 0, true);
-        // first mint locks it
+        tk.updateEvent(id, "New Name", "New Venue", DATE, "", "", 0, true, false);
         vm.prank(organizer);
-        tk.mintTicket(id, buyer, "", "");
+        tk.mintTicket(id, buyer, 0, "", "");
         vm.prank(organizer);
         vm.expectRevert(bytes("event locked (tickets minted)"));
-        tk.updateEvent(id, "Cannot", "Change", DATE, "", "", 0, true);
+        tk.updateEvent(id, "Cannot", "Change", DATE, "", "", 0, true, false);
     }
 
     function test_RedeemFlagFlipsOnce() public {
         uint256 id = _createEvent(true);
         vm.prank(organizer);
-        uint256 tokenId = tk.mintTicket(id, buyer, "", "");
+        uint256 tokenId = tk.mintTicket(id, buyer, 2500, "", "");
         vm.prank(organizer);
         tk.redeem(tokenId);
         (, TickloreTicketV2.Ticket memory t) = tk.ticketData(tokenId);
@@ -110,21 +108,41 @@ contract TickloreTicketV2Test is Test {
         tk.redeem(tokenId);
     }
 
-    function test_FreeTransfer() public {
+    // --- anti-scalp: 10-day time lock, then free ---
+    function test_TransferLockedThenFree() public {
         uint256 id = _createEvent(true);
         vm.prank(organizer);
-        uint256 tokenId = tk.mintTicket(id, buyer, "", "");
-        // rev 3: transfer is free from day one — no unlock window
+        uint256 tokenId = tk.mintTicket(id, buyer, 2500, "", "");
+
+        vm.prank(buyer);
+        vm.expectRevert(bytes("locked until 10 days after the event"));
+        tk.transferFrom(buyer, stranger, tokenId);
+
+        vm.warp(uint256(DATE) + 10 days + 1);
         vm.prank(buyer);
         tk.transferFrom(buyer, stranger, tokenId);
         assertEq(tk.ownerOf(tokenId), stranger);
     }
 
+    // --- soulbound: permanently non-transferable ---
+    function test_SoulboundNeverTransfers() public {
+        vm.prank(organizer);
+        uint256 id = tk.createEvent("Sensitive", "Private", DATE, "", "", 0, false, true);
+        vm.prank(organizer);
+        uint256 tokenId = tk.mintTicket(id, buyer, 0, "", "");
+
+        vm.warp(uint256(DATE) + 365 days); // even a year later
+        vm.prank(buyer);
+        vm.expectRevert(bytes("ticket is permanently non-transferable"));
+        tk.transferFrom(buyer, stranger, tokenId);
+        assertEq(tk.ownerOf(tokenId), buyer);
+    }
+
     function test_TokenURIRendersAndEscapes() public {
         vm.prank(organizer);
-        uint256 id = tk.createEvent(unicode"Mom & Dad's \"50th\"", "Home", DATE, "In honor of", unicode"Ben & Jerry's", 3, true);
+        uint256 id = tk.createEvent(unicode"Mom & Dad's \"50th\"", "Home", DATE, "In honor of", unicode"Ben & Jerry's", 3, true, false);
         vm.prank(organizer);
-        uint256 tokenId = tk.mintTicket(id, buyer, "Dave & Priya", unicode"Where it began <3");
+        uint256 tokenId = tk.mintTicket(id, buyer, 8500, "Dave & Priya", unicode"Where it began <3");
 
         string memory uri = tk.tokenURI(tokenId);
         assertGt(bytes(uri).length, 0);
@@ -135,6 +153,7 @@ contract TickloreTicketV2Test is Test {
         assertTrue(_contains(svg, "Mom &amp; Dad&apos;s &quot;50th&quot;"), "event name escaped");
         assertTrue(_contains(svg, "Ben &amp; Jerry&apos;s"), "sponsor escaped");
         assertTrue(_contains(svg, "Where it began &lt;3"), "inscription escaped");
+        assertTrue(_contains(svg, "$85.00"), "price renders");
         assertTrue(_contains(svg, "THE STORY"), "eyebrow present");
         assertFalse(_contains(svg, "<script"), "no injection");
     }

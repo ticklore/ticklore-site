@@ -30,16 +30,23 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         string  sponsorName;
         uint8   palette;
         bool    inscriptionsAllowed;  // organizer opt-in, default false
+        bool    soulbound;            // organizer opt-in: permanently non-transferable, forever
         bool    locked;               // set true on first mint — the keepsake can't change under a holder
         bool    exists;
     }
 
     struct Ticket {
         uint256 eventId;
+        uint256 pricePaid;    // whole cents; shown on the keepsake ("we paid WHAT?!")
         string  buyerName;
         string  inscription;
         bool    redeemed;
     }
+
+    /// Anti-scalp: a ticket can't be transferred until this long after its event,
+    /// so it can't be flipped during the run-up or the event itself. After that it
+    /// moves freely as a keepsake.
+    uint256 public constant TRANSFER_UNLOCK_WINDOW = 10 days;
 
     mapping(uint256 => Event) private eventsById;
     mapping(uint256 => Ticket) private ticketsById;                     // tokenId → ticket
@@ -69,7 +76,8 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         string calldata sponsorLeadIn,
         string calldata sponsorName,
         uint8 palette,
-        bool inscriptionsAllowed
+        bool inscriptionsAllowed,
+        bool soulbound
     ) external returns (uint256 eventId) {
         eventId = nextEventId++;
         Event storage e = eventsById[eventId];
@@ -81,6 +89,7 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         e.sponsorName = sponsorName;
         e.palette = palette;
         e.inscriptionsAllowed = inscriptionsAllowed;
+        e.soulbound = soulbound;
         e.exists = true;
         emit EventCreated(eventId, msg.sender, name);
     }
@@ -96,7 +105,8 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         string calldata sponsorLeadIn,
         string calldata sponsorName,
         uint8 palette,
-        bool inscriptionsAllowed
+        bool inscriptionsAllowed,
+        bool soulbound
     ) external {
         Event storage e = eventsById[eventId];
         require(e.exists, "no such event");
@@ -109,6 +119,7 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         e.sponsorName = sponsorName;
         e.palette = palette;
         e.inscriptionsAllowed = inscriptionsAllowed;
+        e.soulbound = soulbound;
         emit EventUpdated(eventId);
     }
 
@@ -147,6 +158,7 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
     function mintTicket(
         uint256 eventId,
         address to,
+        uint256 price,
         string calldata buyerName,
         string calldata inscription
     ) external whenNotPaused returns (uint256 tokenId) {
@@ -164,6 +176,7 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         tokenId = nextTokenId++;
         Ticket storage t = ticketsById[tokenId];
         t.eventId = eventId;
+        t.pricePaid = price;
         t.buyerName = buyerName;
         t.inscription = inscription;
 
@@ -308,7 +321,9 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
             _inscription(t, c.ink, c.sub)
         );
 
+        string memory priceStr = t.pricePaid == 0 ? "Free" : _formatMoney(t.pricePaid);
         string memory footer = string.concat(
+            '<text x="52" y="462" fill="', c.ink, '" font-family="monospace" font-size="22">', priceStr, '</text>',
             '<text x="748" y="462" fill="', c.bright, '" font-family="Georgia, serif" font-size="44" text-anchor="end">#', Strings.toString(tokenId), '</text>',
             '<text x="52" y="478" fill="', c.sub, '" fill-opacity="0.6" font-family="monospace" font-size="12" letter-spacing="3">EVERY TICKET HAS A STORY</text>',
             '</svg>'
@@ -365,6 +380,14 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
         return v < 10 ? bytes1(uint8(bytes1("0")) + v) : bytes1(uint8(bytes1("a")) + (v - 10));
     }
 
+    /// @dev Whole cents → "$25.00".
+    function _formatMoney(uint256 cents) internal pure returns (string memory) {
+        uint256 dollars = cents / 100;
+        uint256 rem = cents % 100;
+        string memory remStr = rem < 10 ? string.concat("0", Strings.toString(rem)) : Strings.toString(rem);
+        return string.concat("$", Strings.toString(dollars), ".", remStr);
+    }
+
     // -----------------------------------------------------------------------
     // Emergency stop — mints + transfers pause; reads never do.
     // -----------------------------------------------------------------------
@@ -373,11 +396,14 @@ contract TickloreTicketV2 is ERC721, Ownable, Pausable {
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = _ownerOf(tokenId);
-        // Free transfer by design (rev 3). Only the emergency pause blocks a real
-        // transfer between two people; mints are allowed while paused? No — pause
-        // blocks mint via whenNotPaused on mintTicket. Here we only guard transfers.
+        // Real transfer between two people (mints have from == address(0) and are
+        // always allowed). Blocked while paused, and blocked until the anti-scalp
+        // window has passed — 10 days after the event.
         if (from != address(0) && to != address(0)) {
             require(!paused(), "transfers paused");
+            Event storage e = eventsById[ticketsById[tokenId].eventId];
+            require(!e.soulbound, "ticket is permanently non-transferable");
+            require(block.timestamp >= uint256(e.date) + TRANSFER_UNLOCK_WINDOW, "locked until 10 days after the event");
         }
         return super._update(to, tokenId, auth);
     }
