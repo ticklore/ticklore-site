@@ -219,7 +219,7 @@ show();
     // and the demo buy path lands on /success?demo=... to mint. The two routes
     // that truly need Stripe (/webhook, /checkout) guard themselves when it's
     // null, so a Stripe-less showroom still has a working success page.
-    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe });
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2 });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });

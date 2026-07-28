@@ -27,6 +27,7 @@
 
 const express = require("express");
 const ticklore = require("./ticklore");
+const ticklorev2 = require("./ticklore-v2");
 const store = require("./store");
 const events = require("./events");
 
@@ -61,7 +62,7 @@ function listEvents() {
   return [...seeded, ...created];
 }
 
-function mountStripeRoutes(app, { chain, stripe }) {
+function mountStripeRoutes(app, { chain, stripe, chainV2 }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
   const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -245,16 +246,31 @@ function mountStripeRoutes(app, { chain, stripe }) {
       try {
         const details = getEvent(req.query.demo);
         if (!details) return res.status(404).type("html").send(successPage({ error: "Unknown event." }));
+        // Only honor a buyer inscription when the organizer enabled it — the
+        // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
+        const holderName = details.allowInscription ? (req.query.holder || "") : "";
+        const message = details.allowInscription ? (req.query.msg || "") : "";
+
+        // V2 path: the event lives on-chain → mint the event-model ticket.
+        if (chainV2 && details.onChainEventId) {
+          const r = await ticklorev2.mintTicket(chainV2.contract, {
+            eventId: details.onChainEventId,
+            to: chainV2.signer.address,
+            price: details.priceCents,
+            buyerName: holderName,
+            inscription: message,
+          });
+          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true }));
+        }
+
+        // V1 path (current demo).
         const result = await ticklore.mintTicket(chain.contract, {
           to: chain.signer.address,
           eventName: details.name, tier: details.tier,
           price: details.priceCents, date: details.date,
           sponsorLabel: details.sponsorLabel, sponsorName: details.sponsorName,
           palette: details.palette, style: details.style,
-          // Only honor a buyer inscription when the organizer enabled it — the
-          // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
-          holderName: details.allowInscription ? req.query.holder : "",
-          message: details.allowInscription ? req.query.msg : "",
+          holderName, message,
         });
         return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
       } catch (err) {
