@@ -37,6 +37,7 @@ const SEED_EVENTS = {
   "sullivan-reunion": {
     name: "The Sullivan Family Reunion",
     tier: "General Admission",
+    venue: "Lynchburg, VA",
     priceCents: 2500,
     date: "2026-07-22",
     blurb: "Forty-two Sullivans, one warm July afternoon in Lynchburg.",
@@ -44,6 +45,7 @@ const SEED_EVENTS = {
   "riverbend-gala": {
     name: "The Riverbend Recovery Gala",
     tier: "Patron",
+    venue: "Riverbend Hall",
     priceCents: 15000,
     date: "2026-09-14",
     blurb: "Two hundred donors gathered for one night.",

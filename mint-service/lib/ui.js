@@ -39,7 +39,7 @@ function chapter(i) {
  * a preview. `used` stamps ADMITTED. This is intentionally close to the
  * contract's on-chain render.
  */
-function ticketSvg({ name, tier, priceCents, number = "—", chapterLabel = "I", used = false }) {
+function ticketSvg({ name, venue, priceCents, number = "—", used = false }) {
   const stamp = used
     ? `<g transform="rotate(-14 400 250)">
          <rect x="250" y="215" width="300" height="70" rx="8" fill="none" stroke="#7FB3A6" stroke-width="3" opacity="0.85"/>
@@ -61,7 +61,7 @@ function ticketSvg({ name, tier, priceCents, number = "—", chapterLabel = "I",
   <line x1="56" y1="96" x2="744" y2="96" stroke="#C9A227" stroke-opacity="0.35"/>
   <text x="56" y="222" fill="#C9A227" font-family="monospace" font-size="17" letter-spacing="5">THE STORY</text>
   <text x="56" y="262" fill="#F1E9DD" font-family="Georgia, serif" font-size="44">${esc(name)}</text>
-  <text x="56" y="298" fill="#7FB3A6" font-family="monospace" font-size="17" letter-spacing="1">${esc(tier)}</text>
+  ${venue ? `<text x="56" y="298" fill="#7FB3A6" font-family="monospace" font-size="17" letter-spacing="1">${esc(venue)}</text>` : ""}
   <text x="56" y="452" fill="#F1E9DD" font-family="monospace" font-size="26">${esc(money(priceCents))}</text>
   <text x="744" y="452" fill="#E3C25E" font-family="Georgia, serif" font-size="38" text-anchor="end">#${esc(number)}</text>
   <text x="56" y="476" fill="#7FB3A6" font-family="monospace" font-size="11" letter-spacing="3" opacity="0.65">EVERY TICKET HAS A STORY</text>

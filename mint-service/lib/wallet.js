@@ -69,7 +69,7 @@ self.addEventListener('fetch', function(e){
 function walletPage(events) {
   const cards = events.map((e, i) => `
     <a class="keep" href="/vault/${esc(e.key)}">
-      <div class="keep__art">${ticketSvg({ name: e.name, tier: e.tier, priceCents: e.priceCents, number: String(i + 1).padStart(3, "0") })}</div>
+      <div class="keep__art">${ticketSvg({ name: e.name, venue: e.venue, priceCents: e.priceCents, number: String(i + 1).padStart(3, "0") })}</div>
       <div class="keep__foot">
         <div class="keep__meta">
           <div class="keep__name">${esc(e.name)}</div>

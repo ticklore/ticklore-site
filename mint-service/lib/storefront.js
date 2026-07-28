@@ -129,8 +129,8 @@ function purchaseScript(stripeEnabled, demoEnabled) {
 function landingPage(events) {
   const featured = events[0];
   const heroTicket = featured
-    ? ticketSvg({ name: featured.name, tier: featured.tier, priceCents: featured.priceCents, number: "001", chapterLabel: "I" })
-    : ticketSvg({ name: "The Sullivan Family Reunion", tier: "General Admission", priceCents: 2500, number: "001" });
+    ? ticketSvg({ name: featured.name, venue: featured.venue, priceCents: featured.priceCents, number: "001" })
+    : ticketSvg({ name: "The Sullivan Family Reunion", venue: "Lynchburg, VA", priceCents: 2500, number: "001" });
 
   return `<!doctype html>
 <html lang="en"><head>${head("Ticklore — Every ticket has a story")}
@@ -294,7 +294,7 @@ function shopPage(events, stripeEnabled, demoEnabled) {
 // Event page — the story, the full ticket, then buy.
 // ===========================================================================
 function eventPage(e, idx, stripeEnabled, demoEnabled) {
-  const art = ticketSvg({ name: e.name, tier: e.tier, priceCents: e.priceCents, number: "001", chapterLabel: chapter(idx) });
+  const art = ticketSvg({ name: e.name, venue: e.venue, priceCents: e.priceCents, number: "001" });
   return `<!doctype html>
 <html lang="en"><head>${head("Ticklore — " + e.name)}
 <style>

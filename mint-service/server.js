@@ -32,6 +32,7 @@ require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const ticklore = require("./lib/ticklore");
+const ticklorev2 = require("./lib/ticklore-v2");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
@@ -58,6 +59,7 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 // Set at startup, used by every request.
 let chain = null;
+let chainV2 = null;   // set at startup when TICKLORE_CONTRACT_V2 is configured
 
 /**
  * Anything that can mint tickets is, in a real sense, a money printer. This
@@ -131,8 +133,10 @@ app.post("/mint", express.json(), requireApiKey, async (req, res) => {
 /** The decoded metadata for a ticket, straight from the contract. */
 app.get("/ticket/:id", async (req, res) => {
   try {
-    const { metadata } = await ticklore.getTicket(chain.contract, req.params.id);
-    const owner = await chain.contract.ownerOf(req.params.id);
+    const src = chainV2 || chain;
+    const lib = chainV2 ? ticklorev2 : ticklore;
+    const { metadata } = await lib.getTicket(src.contract, req.params.id);
+    const owner = await src.contract.ownerOf(req.params.id);
     res.json({ ticketId: req.params.id, owner, metadata });
   } catch (err) {
     res.status(404).json({ error: `No such ticket: ${req.params.id}` });
@@ -148,7 +152,9 @@ app.get("/ticket/:id", async (req, res) => {
  */
 app.get("/ticket/:id/image", async (req, res) => {
   try {
-    const { svg } = await ticklore.getTicket(chain.contract, req.params.id);
+    const src = chainV2 || chain;
+    const lib = chainV2 ? ticklorev2 : ticklore;
+    const { svg } = await lib.getTicket(src.contract, req.params.id);
     if (!svg) return res.status(404).send("No SVG in metadata");
     res.type("image/svg+xml").send(svg);
   } catch (err) {
@@ -204,10 +210,9 @@ show();
 
     // Optional V2 (event-model) connection. Only when TICKLORE_CONTRACT_V2 is set,
     // so the current V1 demo is untouched until we deliberately turn it on.
-    let chainV2 = null;
     if (process.env.TICKLORE_CONTRACT_V2) {
       try {
-        chainV2 = await require("./lib/ticklore-v2").connect();
+        chainV2 = await ticklorev2.connect();
         console.log("  V2 model : connected", chainV2.address);
       } catch (e) {
         console.warn("  ⚠ V2 connect failed:", e.message);
