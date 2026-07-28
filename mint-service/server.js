@@ -202,6 +202,18 @@ show();
     console.log("─────────────────────");
     chain = await ticklore.connect();
 
+    // Optional V2 (event-model) connection. Only when TICKLORE_CONTRACT_V2 is set,
+    // so the current V1 demo is untouched until we deliberately turn it on.
+    let chainV2 = null;
+    if (process.env.TICKLORE_CONTRACT_V2) {
+      try {
+        chainV2 = await require("./lib/ticklore-v2").connect();
+        console.log("  V2 model : connected", chainV2.address);
+      } catch (e) {
+        console.warn("  ⚠ V2 connect failed:", e.message);
+      }
+    }
+
     // Mounted first so the webhook's express.raw() sees unparsed bytes.
     // Always mounted, even without Stripe: /success and /order don't need it,
     // and the demo buy path lands on /success?demo=... to mint. The two routes
@@ -211,7 +223,7 @@ show();
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
-    require("./lib/organizer").mountOrganizer(app, { chain });
+    require("./lib/organizer").mountOrganizer(app, { chain, chainV2 });
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");

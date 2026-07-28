@@ -12,8 +12,9 @@
 const express = require("express");
 const crypto = require("crypto");
 const events = require("./events");
+const ticklorev2 = require("./ticklore-v2");
 
-function mountOrganizer(app, { chain }) {
+function mountOrganizer(app, { chain, chainV2 }) {
   const PASSWORD = process.env.ORGANIZER_PASSWORD;
 
   /** Timing-safe password check. The password rides in a header set by the
@@ -30,11 +31,19 @@ function mountOrganizer(app, { chain }) {
     next();
   }
 
-  /** Publish a new event. */
-  app.post("/organize/publish", express.json(), checkPassword, (req, res) => {
+  /** Publish a new event. When the V2 contract is configured, the event is
+   *  created ON-CHAIN first (the organizer/minter becomes its on-chain organizer)
+   *  and the returned eventId is stored on the event record. Without V2 configured
+   *  (the current V1 demo), this is unchanged — a local event only. */
+  app.post("/organize/publish", express.json(), checkPassword, async (req, res) => {
     try {
-      const { key } = events.create(req.body);
-      res.json({ ok: true, key });
+      let onChainEventId = null;
+      if (chainV2) {
+        const ev = await ticklorev2.createEvent(chainV2.contract, req.body);
+        onChainEventId = ev.eventId;
+      }
+      const { key } = events.create({ ...req.body, onChainEventId });
+      res.json({ ok: true, key, eventId: onChainEventId });
     } catch (err) {
       res.status(400).json({ ok: false, error: err.message });
     }
@@ -185,6 +194,12 @@ function organizerPage() {
       <div class="hint">This appears on every ticket. Ampersands and apostrophes are fine — "Mom &amp; Dad's 50th" works.</div>
     </div>
 
+    <div class="field">
+      <label for="f-venue">Venue</label>
+      <input type="text" id="f-venue" placeholder="Lynchburg, VA" maxlength="60" oninput="draw()">
+      <div class="hint">Where it happened. Appears on the keepsake.</div>
+    </div>
+
     <div class="row">
       <div class="field">
         <label for="f-tier">Tier / role</label>
@@ -254,6 +269,15 @@ function organizerPage() {
         <span>Let buyers add their name + a memorable line to their ticket</span>
       </label>
       <div class="hint">Off by default. Great for reunions, galas and benefits; leave it off where it could get out of hand.</div>
+    </div>
+
+    <div class="section-label">Transfer</div>
+    <div class="field">
+      <label class="toggle">
+        <input type="checkbox" id="f-soulbound">
+        <span>Permanently non-transferable (soulbound)</span>
+      </label>
+      <div class="hint">Off = standard 10-day anti-scalp lock, then free to move as a keepsake. On = bound to the buyer forever.</div>
     </div>
 
     <button class="publish" id="publish" onclick="publish()">Publish event</button>
@@ -406,7 +430,9 @@ function organizerPage() {
       sponsorName: document.getElementById('f-sponsor-name').value,
       palette: document.getElementById('f-palette').value,
       style: document.getElementById('f-style').value,
-      allowInscription: document.getElementById('f-allow-inscription').checked
+      allowInscription: document.getElementById('f-allow-inscription').checked,
+      venue: document.getElementById('f-venue').value,
+      soulbound: document.getElementById('f-soulbound').checked
     };
     btn.disabled = true; btn.textContent = 'Publishing…';
     fetch('/organize/publish', {
@@ -438,12 +464,13 @@ function organizerPage() {
   // Clear the form and re-arm Publish, so making a second event is a deliberate
   // act rather than an accidental double-click.
   function resetForm(){
-    ['f-name','f-tier','f-price','f-date','f-blurb','f-sponsor-label','f-sponsor-name'].forEach(function(id){
+    ['f-name','f-venue','f-tier','f-price','f-date','f-blurb','f-sponsor-label','f-sponsor-name'].forEach(function(id){
       document.getElementById(id).value = '';
     });
     document.getElementById('f-unlock').value = '30';
     document.getElementById('f-nontransfer').checked = false;
     document.getElementById('f-allow-inscription').checked = false;
+    document.getElementById('f-soulbound').checked = false;
     document.getElementById('f-palette').selectedIndex = 0;
     document.getElementById('f-style').selectedIndex = 0;
     var out = document.getElementById('result'); out.textContent = ''; out.className = 'result';

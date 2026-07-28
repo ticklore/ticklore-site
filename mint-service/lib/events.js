@@ -102,6 +102,12 @@ function create(input) {
   // buy page never shows the name/message fields.
   const allowInscription = input.allowInscription === true || input.allowInscription === "true";
 
+  // V2 event-model fields.
+  const venue = String(input.venue || "").trim().slice(0, 60);
+  const soulbound = input.soulbound === true || input.soulbound === "true";
+  // The on-chain event id, set once the event is created on the V2 contract.
+  const onChainEventId = input.onChainEventId != null ? String(input.onChainEventId) : null;
+
   const data = read();
 
   // Guard against accidental double-submits (double-click, a network retry that
@@ -124,6 +130,7 @@ function create(input) {
   data.events[key] = {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
     sponsorLabel, sponsorName, palette, style, allowInscription,
+    venue, soulbound, onChainEventId,
     createdAt: new Date().toISOString(),
   };
   write(data);
