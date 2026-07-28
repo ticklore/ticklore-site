@@ -106,7 +106,24 @@ async function mintTicket(contract, input) {
   const buyerName = String(input.buyerName || "").trim().slice(0, 32);
   const inscription = String(input.inscription ?? input.message ?? "").trim().slice(0, 42);
 
-  const tx = await contract.mintTicket(eventId, to, price, buyerName, inscription);
+  // On a public RPC the createEvent may not have propagated to the node that
+  // estimates gas for this mint yet — which reverts as "no such event". The
+  // failure is at estimate time (no tx broadcast), so retrying with backoff is
+  // safe: there is no half-sent transaction to duplicate.
+  let tx;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    try {
+      tx = await contract.mintTicket(eventId, to, price, buyerName, inscription);
+      break;
+    } catch (err) {
+      const msg = String(err?.shortMessage || err?.reason || err?.message || "");
+      if (/no such event/i.test(msg) && attempt < 6) {
+        await new Promise((r) => setTimeout(r, 1200 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
   const receipt = await tx.wait();
 
   let tokenId = null;
@@ -129,7 +146,20 @@ async function mintTicket(contract, input) {
 
 /** Read a ticket's metadata back out of the contract and decode it. */
 async function getTicket(contract, tokenId) {
-  const uri = await contract.tokenURI(tokenId);
+  // A just-minted token may not be visible on the reading node yet (RPC lag),
+  // which reverts as "no such ticket". Retry the read a few times.
+  let uri;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try { uri = await contract.tokenURI(tokenId); break; }
+    catch (err) {
+      const msg = String(err?.shortMessage || err?.reason || err?.message || "");
+      if (/no such ticket/i.test(msg) && attempt < 5) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
   const json = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
   const svg = json.image?.startsWith("data:image/svg+xml;base64,")
     ? Buffer.from(json.image.split(",")[1], "base64").toString()
