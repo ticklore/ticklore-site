@@ -248,6 +248,9 @@ show();
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
     require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3 });
+    // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs V3
+    // for the on-chain sponsor list; its routes report clearly if it isn't set.
+    require("./lib/concierge").mountConcierge(app, { chainV3 });
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");

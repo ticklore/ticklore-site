@@ -139,15 +139,6 @@ function organizerPage() {
   .toggle input{width:auto}
   .toggle span{font-size:.9rem;color:rgba(241,233,221,.8)}
 
-  .sponsor-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:10px;margin-bottom:10px;align-items:start}
-  .sponsor-row input{width:100%}
-  .sp-del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;
-    padding:0 12px;height:42px;cursor:pointer;font-size:1rem;line-height:1}
-  .sp-del:hover{background:rgba(227,138,138,.12)}
-  .add-sponsor{background:transparent;border:1px dashed var(--line);color:var(--gold-bright);
-    border-radius:6px;padding:9px 14px;font-size:.86rem;cursor:pointer;font-family:'IBM Plex Mono',monospace}
-  .add-sponsor:hover{border-color:var(--gold)}
-
   .publish{width:100%;background:var(--gold);color:var(--ink-deep);border:0;border-radius:6px;
     padding:14px;font-weight:600;font-size:1rem;cursor:pointer;margin-top:8px;transition:background .18s}
   .publish:hover{background:var(--gold-bright)}
@@ -251,11 +242,6 @@ function organizerPage() {
       </label>
     </div>
 
-    <div class="section-label">Sponsor credits — optional</div>
-    <div id="sponsor-list"></div>
-    <button type="button" class="add-sponsor" id="add-sponsor" onclick="addSponsor()">+ Add a sponsor</button>
-    <div class="hint">Each ticket carries ONE sponsor; across the run they rotate through this list, so different keepsakes credit different sponsors. Leave empty for no credit line.</div>
-
     <div class="section-label">Ticket design</div>
     <div class="row">
       <div class="field">
@@ -293,8 +279,7 @@ function organizerPage() {
   <div class="preview-col">
     <div class="preview-label">Live preview</div>
     <div id="preview"></div>
-    <div class="preview-note">A live preview of your ticket — color, style and sponsor line update as you type.</div>
-    <div class="preview-note" id="preview-rotate" style="color:var(--gold-bright)"></div>
+    <div class="preview-note">A live preview of your ticket — color and style update as you type.</div>
   </div>
 </div>
 
@@ -409,59 +394,20 @@ function organizerPage() {
     return '<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">' + defs + base + body + footer + '</svg>';
   }
 
-  // ---- Sponsor list (V3: many sponsors; tickets rotate through them) ---------
-  // Values are set via .value (not baked into the HTML) so sponsor text can
-  // never break out of an attribute — the on-chain contract escapes it too.
-  function addSponsor(leadIn, name){
-    var row = document.createElement('div');
-    row.className = 'sponsor-row';
-    row.innerHTML =
-      '<input type="text" class="sp-lead" placeholder="Supported by" maxlength="28" oninput="draw()">' +
-      '<input type="text" class="sp-name" placeholder="The Acme Foundation" maxlength="44" oninput="draw()">' +
-      '<button type="button" class="sp-del" title="Remove sponsor" onclick="removeSponsor(this)">&#10005;</button>';
-    document.getElementById('sponsor-list').appendChild(row);
-    if (leadIn) row.querySelector('.sp-lead').value = leadIn;
-    if (name) row.querySelector('.sp-name').value = name;
-    draw();
-  }
-  function removeSponsor(btn){
-    var row = btn.closest('.sponsor-row');
-    if (row) row.remove();
-    draw();
-  }
-  function collectSponsors(){
-    var rows = document.querySelectorAll('#sponsor-list .sponsor-row');
-    var out = [];
-    for (var i = 0; i < rows.length; i++){
-      var leadIn = rows[i].querySelector('.sp-lead').value.trim();
-      var name = rows[i].querySelector('.sp-name').value.trim();
-      if (name) out.push({ leadIn: leadIn, name: name });
-    }
-    return out;
-  }
-
   function draw(){
-    var sp = collectSponsors();
     document.getElementById('preview').innerHTML = ticketPreviewSVG({
       name: document.getElementById('f-name').value,
       tier: document.getElementById('f-tier').value,
       price: document.getElementById('f-price').value,
-      sponsorLabel: sp[0] ? sp[0].leadIn : '',
-      sponsorName: sp[0] ? sp[0].name : '',
       palette: document.getElementById('f-palette').value,
       style: document.getElementById('f-style').value
     });
-    var note = document.getElementById('preview-rotate');
-    if (note) note.textContent = sp.length > 1
-      ? 'Preview shows sponsor 1 of ' + sp.length + ' — tickets rotate through all ' + sp.length + '.'
-      : '';
   }
 
   function publish(){
     var btn = document.getElementById('publish');
     var out = document.getElementById('result');
     out.className = 'result'; out.textContent = '';
-    var sponsors = collectSponsors();
     var body = {
       name: document.getElementById('f-name').value,
       tier: document.getElementById('f-tier').value,
@@ -470,9 +416,6 @@ function organizerPage() {
       unlockDays: document.getElementById('f-unlock').value || 30,
       blurb: document.getElementById('f-blurb').value,
       nonTransferable: document.getElementById('f-nontransfer').checked,
-      sponsors: sponsors,
-      sponsorLabel: sponsors[0] ? sponsors[0].leadIn : '',
-      sponsorName: sponsors[0] ? sponsors[0].name : '',
       palette: document.getElementById('f-palette').value,
       style: document.getElementById('f-style').value,
       allowInscription: document.getElementById('f-allow-inscription').checked,
@@ -512,7 +455,6 @@ function organizerPage() {
     ['f-name','f-venue','f-tier','f-price','f-date','f-blurb'].forEach(function(id){
       document.getElementById(id).value = '';
     });
-    document.getElementById('sponsor-list').innerHTML = '';
     document.getElementById('f-unlock').value = '30';
     document.getElementById('f-nontransfer').checked = false;
     document.getElementById('f-allow-inscription').checked = false;

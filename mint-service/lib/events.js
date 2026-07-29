@@ -107,6 +107,18 @@ function create(input) {
   const sponsorLabel = sponsors[0]?.leadIn || "";
   const sponsorName = sponsors[0]?.name || "";
 
+  // Lane: "standard" (public, self-serve) or "sponsor" (concierge, admin-only,
+  // claim-distributed). Sponsor events also carry their blocks — how many
+  // tickets each sponsor backs — which drives claim-code generation.
+  const mode = input.mode === "sponsor" ? "sponsor" : "standard";
+  const blocks = Array.isArray(input.blocks)
+    ? input.blocks.map((b) => ({
+        sponsorRef: Number(b.sponsorRef) || 0,
+        count: Math.max(0, Math.floor(Number(b.count) || 0)),
+        sponsorName: String(b.sponsorName || "").slice(0, 44),
+      }))
+    : [];
+
   // Ticket design — whitelisted so a bad value can't reach the renderer.
   const PALETTES = ["teal", "midnight", "burgundy", "forest", "plum"];
   const STYLES = ["classic", "modern", "elegant"];
@@ -149,6 +161,7 @@ function create(input) {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
+    mode, blocks,
     createdAt: new Date().toISOString(),
   };
   write(data);

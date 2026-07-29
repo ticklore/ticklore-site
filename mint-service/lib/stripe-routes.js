@@ -59,10 +59,11 @@ function getEvent(key) {
   return events.get(key) || SEED_EVENTS[key] || null;
 }
 
-/** All events, seeds first then organizer-created, newest organizer events last. */
+/** All PUBLIC events, seeds first then organizer-created, newest last. Sponsor
+ *  (Lane B) events are concierge/claim-only, so they never appear in the shop. */
 function listEvents() {
   const seeded = Object.entries(SEED_EVENTS).map(([key, e]) => ({ key, ...e }));
-  const created = events.list();
+  const created = events.list().filter((e) => e.mode !== "sponsor");
   return [...seeded, ...created];
 }
 
@@ -249,6 +250,10 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
     if (req.query.demo && process.env.ALLOW_DEMO_BUY === "true") {
       const details = getEvent(req.query.demo);
       if (!details) return res.status(404).type("html").send(successPage({ error: "Unknown event." }));
+      // Sponsor (Lane B) events aren't bought here — they're claimed via a code.
+      if (details.mode === "sponsor") {
+        return res.status(404).type("html").send(successPage({ error: "This is a sponsor keepsake event — it's distributed by claim code, not bought here." }));
+      }
       // Only honor a buyer inscription when the organizer enabled it — the
       // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
       const holderName = details.allowInscription ? (req.query.holder || "") : "";
