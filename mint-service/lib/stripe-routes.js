@@ -30,6 +30,7 @@ const ticklore = require("./ticklore");
 const ticklorev2 = require("./ticklore-v2");
 const store = require("./store");
 const events = require("./events");
+const mintCap = require("./mint-cap");
 
 // Seed events — the two demo events, available on a fresh install so /shop is
 // never empty. Organizer-created events (in the event store) are merged on top.
@@ -245,14 +246,22 @@ function mountStripeRoutes(app, { chain, stripe, chainV2 }) {
   app.get("/success", async (req, res) => {
     // Demo path: no Stripe session to poll, so mint on the spot and reveal.
     if (req.query.demo && process.env.ALLOW_DEMO_BUY === "true") {
-      try {
-        const details = getEvent(req.query.demo);
-        if (!details) return res.status(404).type("html").send(successPage({ error: "Unknown event." }));
-        // Only honor a buyer inscription when the organizer enabled it — the
-        // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
-        const holderName = details.allowInscription ? (req.query.holder || "") : "";
-        const message = details.allowInscription ? (req.query.msg || "") : "";
+      const details = getEvent(req.query.demo);
+      if (!details) return res.status(404).type("html").send(successPage({ error: "Unknown event." }));
+      // Only honor a buyer inscription when the organizer enabled it — the
+      // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
+      const holderName = details.allowInscription ? (req.query.holder || "") : "";
+      const message = details.allowInscription ? (req.query.msg || "") : "";
 
+      // Daily ceiling: this mints real testnet gas from one throwaway wallet over
+      // a public link. Claim a slot before minting; on a mint failure below we
+      // give it back, so only mints that actually spend gas count against the day.
+      const slot = mintCap.tryReserveMint();
+      if (!slot.ok) {
+        return res.status(429).type("html").send(successPage({ capped: true, cap: slot.cap }));
+      }
+
+      try {
         // V2 path: the event lives on-chain → mint the event-model ticket.
         if (chainV2 && details.onChainEventId) {
           const r = await ticklorev2.mintTicket(chainV2.contract, {
@@ -276,6 +285,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2 }) {
         });
         return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
       } catch (err) {
+        mintCap.releaseMint(); // the mint never landed — don't burn the slot
         return res.type("html").send(successPage({ error: err.message }));
       }
     }
@@ -289,6 +299,7 @@ function successPage(opts) {
   const sessionId = opts.sessionId || "";
   const immediate = opts.immediate ? { ticketId: opts.ticketId, eventName: opts.eventName, custodial: opts.custodial } : null;
   const errored = opts.error || "";
+  const capped = opts.capped ? { cap: opts.cap || 20 } : null;
 
   return `<!doctype html>
 <html lang="en"><head>${H("Your ticket — Ticklore")}
@@ -325,6 +336,7 @@ function successPage(opts) {
 <script>
   var IMMEDIATE = ${immediate ? JSON.stringify(immediate) : "null"};
   var ERRORED = ${JSON.stringify(errored)};
+  var CAPPED = ${capped ? JSON.stringify(capped) : "null"};
   var sid = ${JSON.stringify(sessionId)};
 
   function reveal(ticketId, custodial){
@@ -343,8 +355,17 @@ function successPage(opts) {
     document.getElementById('s').textContent=msg;
     document.getElementById('cta').innerHTML='<a href="/shop" class="btn btn--ghost">Back to events</a>';
   }
+  function capNotice(cap){
+    document.getElementById('spin').style.display='none';
+    document.getElementById('s').textContent='';
+    var h=document.getElementById('h'); h.textContent="Today's batch is full.";
+    h.classList.add('show');
+    document.getElementById('n').textContent='This showroom mints real keepsakes on-chain, so we release a limited number each day ('+cap+'). They reset tomorrow — come write your chapter then.';
+    document.getElementById('cta').innerHTML='<a href="/shop" class="btn btn--ghost">Back to events</a>';
+  }
 
-  if (ERRORED){ fail('Something went wrong: '+ERRORED); }
+  if (CAPPED){ capNotice(CAPPED.cap); }
+  else if (ERRORED){ fail('Something went wrong: '+ERRORED); }
   else if (IMMEDIATE){ document.getElementById('s').textContent='Writing your chapter…'; setTimeout(function(){reveal(IMMEDIATE.ticketId, IMMEDIATE.custodial)}, 700); }
   else if (sid){
     document.getElementById('s').textContent='Confirming your payment…';
