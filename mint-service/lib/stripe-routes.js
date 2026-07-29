@@ -28,6 +28,7 @@
 const express = require("express");
 const ticklore = require("./ticklore");
 const ticklorev2 = require("./ticklore-v2");
+const ticklorev3 = require("./ticklore-v3");
 const store = require("./store");
 const events = require("./events");
 const mintCap = require("./mint-cap");
@@ -65,7 +66,7 @@ function listEvents() {
   return [...seeded, ...created];
 }
 
-function mountStripeRoutes(app, { chain, stripe, chainV2 }) {
+function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
   const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -262,8 +263,26 @@ function mountStripeRoutes(app, { chain, stripe, chainV2 }) {
       }
 
       try {
+        // V3 path: multi-sponsor event lives on-chain. Assign this ticket its
+        // sponsor by rotating through the event's list (ticket 1 → sponsor 1,
+        // 2 → sponsor 2, wrap), so different keepsakes credit different sponsors.
+        if (chainV3 && details.onChainEventId && details.onChainVersion === 3) {
+          const sponsors = Array.isArray(details.sponsors) ? details.sponsors : [];
+          const n = events.recordMint(req.query.demo); // 1-based mint index for this event
+          const sponsorRef = sponsors.length ? (((n - 1) % sponsors.length) + 1) : 0;
+          const r = await ticklorev3.mintTicket(chainV3.contract, {
+            eventId: details.onChainEventId,
+            to: chainV3.signer.address,
+            price: details.priceCents,
+            buyerName: holderName,
+            inscription: message,
+            sponsorRef,
+          });
+          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true }));
+        }
+
         // V2 path: the event lives on-chain → mint the event-model ticket.
-        if (chainV2 && details.onChainEventId) {
+        if (chainV2 && details.onChainEventId && details.onChainVersion !== 3) {
           const r = await ticklorev2.mintTicket(chainV2.contract, {
             eventId: details.onChainEventId,
             to: chainV2.signer.address,

@@ -87,10 +87,25 @@ function create(input) {
 
   const nonTransferable = input.nonTransferable === true || input.nonTransferable === "true";
 
-  // Sponsor credit (optional) — one graceful line: lead-in + name. Stored raw;
-  // escaped at render time (like eventName/tier), never stripped.
-  const sponsorLabel = String(input.sponsorLabel || "").trim().slice(0, 40);
-  const sponsorName = String(input.sponsorName || "").trim().slice(0, 60);
+  // Sponsor credits (optional) — V3 allows a LIST; each ticket carries one and
+  // they rotate across the run. Backward compatible with the old single
+  // sponsorLabel/sponsorName pair. Stored raw; escaped at render time.
+  let sponsors = Array.isArray(input.sponsors) ? input.sponsors : null;
+  if (!sponsors) {
+    const nm = String(input.sponsorName || "").trim();
+    sponsors = nm ? [{ leadIn: String(input.sponsorLabel || "").trim(), name: nm }] : [];
+  }
+  sponsors = sponsors
+    .map((s) => ({
+      leadIn: String(s.leadIn ?? s.sponsorLabel ?? "").trim().slice(0, 28),
+      name: String(s.name ?? s.sponsorName ?? "").trim().slice(0, 44),
+    }))
+    .filter((s) => s.name.length > 0)
+    .slice(0, 128);
+  // A single lead-in/name mirror (the first sponsor) so the V2 render path and
+  // any preview that still reads the single pair keep working.
+  const sponsorLabel = sponsors[0]?.leadIn || "";
+  const sponsorName = sponsors[0]?.name || "";
 
   // Ticket design — whitelisted so a bad value can't reach the renderer.
   const PALETTES = ["teal", "midnight", "burgundy", "forest", "plum"];
@@ -105,8 +120,11 @@ function create(input) {
   // V2 event-model fields.
   const venue = String(input.venue || "").trim().slice(0, 60);
   const soulbound = input.soulbound === true || input.soulbound === "true";
-  // The on-chain event id, set once the event is created on the V2 contract.
+  // The on-chain event id, set once the event is created on-chain, plus which
+  // contract version created it (2 or 3) so a later buy mints on the matching
+  // one across a flip. Undefined version = a legacy V2 event.
   const onChainEventId = input.onChainEventId != null ? String(input.onChainEventId) : null;
+  const onChainVersion = input.onChainVersion != null ? Number(input.onChainVersion) : null;
 
   const data = read();
 
@@ -129,12 +147,24 @@ function create(input) {
   const key = makeKey(name);
   data.events[key] = {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
-    sponsorLabel, sponsorName, palette, style, allowInscription,
-    venue, soulbound, onChainEventId,
+    sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
+    venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     createdAt: new Date().toISOString(),
   };
   write(data);
   return { key };
+}
+
+/** Count one more mint against an event and return the new running total
+ *  (1-based). Used to rotate ticket sponsor assignments across the run. Returns
+ *  0 for an unknown key (e.g. a seed event, which isn't in this store). */
+function recordMint(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return 0;
+  e.mintedCount = (e.mintedCount || 0) + 1;
+  write(data);
+  return e.mintedCount;
 }
 
 /** Remove an event by key. Returns true if it existed, false if not found.
@@ -148,4 +178,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, PLATFORM_MINIMUM_UNLOCK_DAYS };

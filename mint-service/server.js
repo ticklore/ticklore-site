@@ -33,6 +33,7 @@ const express = require("express");
 const crypto = require("crypto");
 const ticklore = require("./lib/ticklore");
 const ticklorev2 = require("./lib/ticklore-v2");
+const ticklorev3 = require("./lib/ticklore-v3");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
@@ -60,6 +61,15 @@ if (process.env.STRIPE_SECRET_KEY) {
 // Set at startup, used by every request.
 let chain = null;
 let chainV2 = null;   // set at startup when TICKLORE_CONTRACT_V2 is configured
+let chainV3 = null;   // set at startup when TICKLORE_CONTRACT_V3 is configured
+
+/** The event-model source to read tickets from — the newest configured wins,
+ *  so turning on TICKLORE_CONTRACT_V3 flips reads to V3 without touching code. */
+function ticketSource() {
+  if (chainV3) return { src: chainV3, lib: ticklorev3 };
+  if (chainV2) return { src: chainV2, lib: ticklorev2 };
+  return { src: chain, lib: ticklore };
+}
 
 /**
  * Anything that can mint tickets is, in a real sense, a money printer. This
@@ -133,8 +143,7 @@ app.post("/mint", express.json(), requireApiKey, async (req, res) => {
 /** The decoded metadata for a ticket, straight from the contract. */
 app.get("/ticket/:id", async (req, res) => {
   try {
-    const src = chainV2 || chain;
-    const lib = chainV2 ? ticklorev2 : ticklore;
+    const { src, lib } = ticketSource();
     const { metadata } = await lib.getTicket(src.contract, req.params.id);
     const owner = await src.contract.ownerOf(req.params.id);
     res.json({ ticketId: req.params.id, owner, metadata });
@@ -152,8 +161,7 @@ app.get("/ticket/:id", async (req, res) => {
  */
 app.get("/ticket/:id/image", async (req, res) => {
   try {
-    const src = chainV2 || chain;
-    const lib = chainV2 ? ticklorev2 : ticklore;
+    const { src, lib } = ticketSource();
     const { svg } = await lib.getTicket(src.contract, req.params.id);
     if (!svg) return res.status(404).send("No SVG in metadata");
     res.type("image/svg+xml").send(svg);
@@ -219,16 +227,27 @@ show();
       }
     }
 
+    // Optional V3 (multi-sponsor) connection — same gate, newest of the three.
+    // When set, reads/publish/buy prefer V3 over V2 over V1.
+    if (process.env.TICKLORE_CONTRACT_V3) {
+      try {
+        chainV3 = await ticklorev3.connect();
+        console.log("  V3 model : connected", chainV3.address);
+      } catch (e) {
+        console.warn("  ⚠ V3 connect failed:", e.message);
+      }
+    }
+
     // Mounted first so the webhook's express.raw() sees unparsed bytes.
     // Always mounted, even without Stripe: /success and /order don't need it,
     // and the demo buy path lands on /success?demo=... to mint. The two routes
     // that truly need Stripe (/webhook, /checkout) guard themselves when it's
     // null, so a Stripe-less showroom still has a working success page.
-    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2 });
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
-    require("./lib/organizer").mountOrganizer(app, { chain, chainV2 });
+    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3 });
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");
