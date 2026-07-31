@@ -39,8 +39,11 @@ keeping. Never compete feature-for-feature on box-office plumbing. Filter for ev
   `weldingcrypto/ticklore-site`).
 - **Two deploys, two branches — one push does NOT update both:**
   - `main` → Netlify → **ticklore.com** (password-gated marketing site; browser basic-auth popup).
-  - `feature/ticket-contract` → Render → **ticklore-site.onrender.com** (the actual app: `/shop`,
-    `/organize`, `/admin`, `/claim/...`, mint-service).
+  - `feature/ticket-contract` → Render → **https://app.ticklore.com** (the actual app: `/shop`,
+    `/organize`, `/admin`, `/claim/...`, mint-service). Custom domain live 2026-07-31 (GoDaddy CNAME
+    `app` → `ticklore-site.onrender.com`; the onrender URL still works forever, old QR sheets stay
+    valid; `PUBLIC_URL=https://app.ticklore.com` so all NEW QRs/links/emails use the real name;
+    `app.ticklore.com` added to Privy's Domains tab). 8-point sweep green on the new domain.
 - **Dev toolchain:** full env in **WSL2 Ubuntu** (Node 22 + Foundry 1.7.1), repo at
   `/home/alex/ticklore-site`. OneDrive clone has **no** `node_modules` (npm only in WSL). Drive WSL
   from PowerShell via a **script file** (`wsl -e bash -lic "bash /mnt/c/…/script.sh"`) — inline bash
