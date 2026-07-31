@@ -18,43 +18,19 @@ const QRCode = require("qrcode");
 const events = require("./events");
 const claims = require("./claims");
 const ticklorev3 = require("./ticklore-v3");
+const privyLib = require("./privy");
 
 function mountConcierge(app, { chainV3 }) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
 
-  // Privy (optional, env-gated like every other flip). When configured, the
-  // claim flow upgrades: email OTP proves the claimant owns the address, and
-  // the keepsake mints straight into THEIR embedded wallet — real ownership,
-  // no seed phrase, no crypto vocabulary. Without the env vars, claims keep
-  // the current custodial email flow, so the live demo is untouched until the
-  // deliberate flip.
-  // All three vars or nothing — a half-configured Privy would show the wallet
-  // UI while the server still runs custodial, which is worse than either mode.
-  const PRIVY =
-    process.env.PRIVY_APP_ID && process.env.PRIVY_CLIENT_ID && process.env.PRIVY_APP_SECRET
-      ? { appId: process.env.PRIVY_APP_ID, clientId: process.env.PRIVY_CLIENT_ID }
-      : null;
-  let privyClient = null;
-  if (PRIVY) {
-    const { PrivyClient } = require("@privy-io/server-auth");
-    privyClient = new PrivyClient(PRIVY.appId, process.env.PRIVY_APP_SECRET);
-  }
-
-  /** The attendee's embedded EVM wallet address from a verified Privy token.
-   *  The address comes from Privy's server API — never from the client — so a
-   *  claimant can only ever mint to the wallet their login actually owns. */
-  async function privyWalletFromToken(token) {
-    const claims = await privyClient.verifyAuthToken(token);
-    const user = await privyClient.getUserById(claims.userId);
-    const accounts = user.linkedAccounts || [];
-    const wallet =
-      accounts.find((a) => a.type === "wallet" && a.walletClientType === "privy" && a.chainType === "ethereum") ||
-      (user.wallet && user.wallet.address ? user.wallet : null);
-    const email = accounts.find((a) => a.type === "email");
-    if (!wallet || !wallet.address) throw new Error("Your login has no wallet yet — refresh and try again.");
-    return { address: wallet.address, email: email ? email.address : null };
-  }
+  // Privy (optional, env-gated like every other flip — see lib/privy.js).
+  // When configured, the claim flow upgrades: email OTP proves the claimant
+  // owns the address, and the keepsake mints straight into THEIR embedded
+  // wallet. Without the env vars, claims keep the custodial email flow.
+  const PRIVY = privyLib.config;
+  const privyClient = !!PRIVY;
+  const privyWalletFromToken = privyLib.walletFromToken;
 
   function checkPassword(req, res, next) {
     if (!PASSWORD) {

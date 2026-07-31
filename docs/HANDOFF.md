@@ -276,10 +276,18 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   allowlisted; three vars in Render) and ran the first real OTP claim — **ticket #23 (event 17) minted
   into HIS embedded wallet `0x34F66783403C927608F75fFE0acE691BA130F9ea`**, confirmed on-chain
   (`ownerOf` ≠ minter). First truly attendee-owned keepsake in the product's history. OTP bonus:
-  claimants now prove email ownership. **Remaining:** `/wallet` PWA login (list YOUR keepsakes —
-  weekend work); note dashboard gotchas learned: secret fields are display-masked (use the copy
-  button); Render masks too (verify via the eye icon). **Organizer authority via Privy waits for the
-  final contract pass** (needs authority reassignment, not in V3).
+  claimants now prove email ownership. Dashboard gotchas learned: secret fields are display-masked
+  (use the copy button); Render masks too (verify via the eye icon).
+  **`/wallet` PWA login — BUILT (2026-07-31):** shared server verify extracted to `lib/privy.js`
+  (all-three-or-nothing gate; used by concierge + wallet); `claims.listByOwner` matches by wallet
+  address (OWNED, minted to their Privy wallet) or email (custodial "held for you");
+  `POST /wallet/tickets` verifies the token server-side and returns the person's keepsakes; the
+  wallet page signs in with the same email OTP (session-aware — returning visitors skip the gate),
+  renders REAL on-chain art with Yours / Held-for-you / Admitted badges, links each card to its
+  event vault (vault route fixed to resolve sponsor events). Privy env is live on Render, so this
+  deploy makes `/wallet` real immediately (sample page remains the fallback when unconfigured).
+  **Organizer authority via Privy waits for the final contract pass** (needs authority
+  reassignment, not in V3).
 - **Phase-2 vault** (after freeze; read ADR-001 rev 3 first).
 
 ## Guardrails (persist these)

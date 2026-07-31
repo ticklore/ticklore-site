@@ -133,6 +133,29 @@ function release(code) {
   }
 }
 
+/** Everything a person has claimed — matched by wallet address (tickets they
+ *  OWN, minted into their Privy wallet) or by email (older custodial claims,
+ *  held for them). Newest first. Powers the attendee wallet. */
+function listByOwner({ email, address }) {
+  const e = (email || "").toLowerCase();
+  const a = (address || "").toLowerCase();
+  return Object.values(read().codes)
+    .filter((c) => c.status === "claimed" && c.tokenId != null)
+    .filter((c) =>
+      (a && c.address && c.address.toLowerCase() === a) ||
+      (e && c.email && c.email.toLowerCase() === e))
+    .map((c) => ({
+      tokenId: c.tokenId,
+      eventKey: c.eventKey,
+      sponsorName: c.sponsorName || "",
+      priceCents: c.priceCents || 0,
+      owned: !!(a && c.address && c.address.toLowerCase() === a),
+      redeemedAt: c.redeemedAt || null,
+      claimedAt: c.claimedAt,
+    }))
+    .sort((x, y) => (x.claimedAt < y.claimedAt ? 1 : -1));
+}
+
 /** Mirror a door redemption onto the code record, so pages can show "Admitted"
  *  without a chain read. The chain's redeem flag is the truth; this is a cache. */
 function markRedeemed(code) {
@@ -155,4 +178,4 @@ function removeByEvent(eventKey) {
   return n;
 }
 
-module.exports = { generate, get, listByEvent, statsByEvent, reserve, finalize, release, markRedeemed, removeByEvent };
+module.exports = { generate, get, listByEvent, statsByEvent, listByOwner, reserve, finalize, release, markRedeemed, removeByEvent };
