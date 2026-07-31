@@ -272,11 +272,14 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   POST requires the token and mints **to the attendee's own embedded wallet** (`owned:true`,
   address recorded on the claim record); without env, custodial flow is untouched (regression-tested).
   **Gate = ALL THREE env vars or nothing:** `PRIVY_APP_ID`, `PRIVY_CLIENT_ID`, `PRIVY_APP_SECRET`.
-  **Remaining:** Alex creates the Privy app (dashboard.privy.io: email login ON, embedded wallets
-  auto-create on login, chain Base Sepolia) + sets the three Render vars; then a REAL OTP round-trip
-  test; then `/wallet` PWA login (list your keepsakes); OTP bonus = claimants now prove email
-  ownership. **Organizer authority via Privy waits for the final contract pass** (needs authority
-  reassignment, not in V3).
+  **LIVE + VERIFIED (2026-07-31):** Alex created the Privy app (client `ticklore-web`; domain
+  allowlisted; three vars in Render) and ran the first real OTP claim — **ticket #23 (event 17) minted
+  into HIS embedded wallet `0x34F66783403C927608F75fFE0acE691BA130F9ea`**, confirmed on-chain
+  (`ownerOf` ≠ minter). First truly attendee-owned keepsake in the product's history. OTP bonus:
+  claimants now prove email ownership. **Remaining:** `/wallet` PWA login (list YOUR keepsakes —
+  weekend work); note dashboard gotchas learned: secret fields are display-masked (use the copy
+  button); Render masks too (verify via the eye icon). **Organizer authority via Privy waits for the
+  final contract pass** (needs authority reassignment, not in V3).
 - **Phase-2 vault** (after freeze; read ADR-001 rev 3 first).
 
 ## Guardrails (persist these)
