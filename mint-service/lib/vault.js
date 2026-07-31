@@ -166,6 +166,15 @@ function vaultPage(e, entries) {
   .empty p{color:rgba(241,233,221,.6);line-height:1.6;font-size:.98rem}
   .vfoot{text-align:center;margin-top:60px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;
     letter-spacing:.24em;text-transform:uppercase;color:rgba(241,233,221,.35)}
+  .ph img{cursor:zoom-in}
+  .lb{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;align-items:center;
+    justify-content:center;padding:26px;background:rgba(8,22,25,.95);backdrop-filter:blur(6px);cursor:zoom-out}
+  .lb.on{display:flex}
+  .lb img{max-width:94vw;max-height:80vh;border-radius:10px;box-shadow:0 40px 90px -30px rgba(0,0,0,.9)}
+  .lb__cap{margin-top:16px;font-family:'Fraunces',serif;font-size:1rem;color:rgba(241,233,221,.85);text-align:center}
+  .lb__cap span{font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:var(--sage)}
+  .lb__hint{margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:.64rem;letter-spacing:.18em;
+    text-transform:uppercase;color:rgba(241,233,221,.35)}
 </style></head>
 <body>
   <nav class="vnav"><a href="/wallet">← Your keepsakes</a></nav>
@@ -188,6 +197,30 @@ function vaultPage(e, entries) {
 
     <div class="vfoot">Every ticket has a story</div>
   </main>
+
+  <div class="lb" id="lb">
+    <img id="lb-img" alt="">
+    <div class="lb__cap" id="lb-cap"></div>
+    <div class="lb__hint">Click anywhere or press Esc to close</div>
+  </div>
+  <script>
+    (function(){
+      var lb = document.getElementById('lb'), lbImg = document.getElementById('lb-img'), lbCap = document.getElementById('lb-cap');
+      document.querySelectorAll('.ph').forEach(function(fig){
+        var img = fig.querySelector('img');
+        if (!img) return;
+        img.addEventListener('click', function(){
+          lbImg.src = img.src;
+          lbImg.alt = img.alt || '';
+          var cap = fig.querySelector('figcaption');
+          lbCap.innerHTML = cap ? cap.innerHTML : '';
+          lb.classList.add('on');
+        });
+      });
+      lb.addEventListener('click', function(){ lb.classList.remove('on'); });
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') lb.classList.remove('on'); });
+    })();
+  </script>
 </body></html>`;
 }
 
