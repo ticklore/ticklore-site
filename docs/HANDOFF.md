@@ -95,9 +95,21 @@ keeps — whatever contract mints it is de facto the forever contract; (2) deplo
 either happens, iterate contracts freely on testnet. **Hard line: never run a real pilot on a contract
 already slated for replacement.** Everything off-chain (mint-service, UI, claim flow, pricing) plus all
 per-event data (palette, sponsors, blocks, soulbound) stays flexible forever regardless.
-**The deployed V3 is NOT the final contract.** Discipline kept from the 2026-07-29 review: whenever the
-contract is next touched, **batch everything known into ONE design pass** — no dribbled patches. Known
-items for that pass:
+**THE DESIGN PASS IS DONE — V4 IS THE STANDING FREEZE CANDIDATE (2026-07-31).**
+`contracts/src/TickloreTicketV4.sol`, deployed to Base Sepolia at
+**`0x31DFbEC3A80700078BDB53403D5ef79e4dC07049`** (owner = minter). **23 forge tests green**;
+live-smoked: one event with 2 sponsors + 2 sections + price hidden, two mints each carrying exactly
+their own sponsor+section pair, authority handed off and recovered on-chain. Alex's four calls, all
+built: (1) per-event `showPrice` (OFF renders nothing — not "$0", not "Free"); (2) **sections
+on-chain** (`string[] sections` + per-ticket `sectionRef`, engraved in the old tier slot y=298 —
+"Table 7" as memory; seat maps remain not-our-fight); (3) **`transferOrganizer(eventId, new)`** —
+organizer primary, owner (Ticklore) recovery fallback, reassign-only, `OrganizerTransferred` event,
+agent grants persist; (4) lock-on-first-mint CONFIRMED permanent. `mintTicket` is now 7 args
+(`…, sponsorRef, sectionRef`). **NOT wired — the demo still runs V3**; wiring (ticklore-v4.js, admin
+sections/price-toggle UI, claim sectionRef) is the next build. This also unblocks
+organizer-authority-via-Privy at the contract level. Scripts: `DeployV4.s.sol`, `SmokeV4.s.sol`.
+Remaining pre-freeze item: **Arweave cost** (research, not contract code).
+The original batched items, for the record:
 1. **Price-display option (REVISED decision):** price shows when it tells a true story; the organizer
    can **OMIT** it (sponsor-funded/free events shouldn't stamp "$0" forever; gifts shouldn't brag a
    price). Decide mechanism (per-event flag vs per-ticket) in the pass.
