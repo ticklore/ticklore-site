@@ -60,6 +60,9 @@ function generate(eventKey, blocks) {
         // What the buyer pays the ORGANIZER for this ticket (engraved at mint).
         // 0 renders "Free". Ticklore never handles this money.
         priceCents: Math.max(0, Math.round(Number(b.priceCents) || 0)),
+        // The named section this block belongs to ("Table 7"); 0/"" = none.
+        sectionRef: Number(b.sectionRef) || 0,
+        section: b.section || "",
         status: "unclaimed", // unclaimed → claiming → claimed
         email: null,
         tokenId: null,

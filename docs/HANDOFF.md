@@ -105,9 +105,21 @@ on-chain** (`string[] sections` + per-ticket `sectionRef`, engraved in the old t
 "Table 7" as memory; seat maps remain not-our-fight); (3) **`transferOrganizer(eventId, new)`** —
 organizer primary, owner (Ticklore) recovery fallback, reassign-only, `OrganizerTransferred` event,
 agent grants persist; (4) lock-on-first-mint CONFIRMED permanent. `mintTicket` is now 7 args
-(`…, sponsorRef, sectionRef`). **NOT wired — the demo still runs V3**; wiring (ticklore-v4.js, admin
-sections/price-toggle UI, claim sectionRef) is the next build. This also unblocks
-organizer-authority-via-Privy at the contract level. Scripts: `DeployV4.s.sol`, `SmokeV4.s.sol`.
+(`…, sponsorRef, sectionRef`). This also unblocks organizer-authority-via-Privy at the contract
+level. Scripts: `DeployV4.s.sol`, `SmokeV4.s.sol`.
+**V4 WIRING — DONE + PUSHED DORMANT (2026-07-31, same session).** `lib/ticklore-v4.js` (9-arg
+createEvent, 7-arg mint, `transferOrganizer`, `normalizeSections`, retries); server prefers
+V4>V3>V2>V1; Lane A form gains a **"show the price on the keepsake"** toggle (default ON); concierge
+block rows gain a **Section** field (blocks naming the same section share one on-chain entry — dedup
+server-side) + a batch-level price-display toggle; claim codes carry `sectionRef`/`section` and the
+sheet groups by sponsor+section+price; claims/redeems mint on the event's OWN contract version.
+**Flip-survival:** `/ticket/:id` now probes newest→oldest (`ownerOf`) so keepsakes keep rendering
+across flips, and because token ids COLLIDE across versions, every page that knows a token's home
+pins it with `?v=N` (wallet cards, claim/door/success pages — threaded end to end). All verified vs
+deployed V4: Lane A price-hidden buy, sectioned batch claims (Table 7/Acme/$25 vs VIP/Free), and
+V3-token-#1 vs V4-token-#1 resolving correctly by pin. **THE FLIP (Alex's Render action, not done):
+ADD `TICKLORE_CONTRACT_V4 = 0x31DFbEC3A80700078BDB53403D5ef79e4dC07049`** (keep all earlier vars;
+added, never replaced). Old V3 keepsakes (incl. Alex's owned #23) survive the flip via the version pin.
 Remaining pre-freeze item: **Arweave cost** (research, not contract code).
 The original batched items, for the record:
 1. **Price-display option (REVISED decision):** price shows when it tells a true story; the organizer

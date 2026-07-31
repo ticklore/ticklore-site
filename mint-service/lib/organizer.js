@@ -14,8 +14,9 @@ const crypto = require("crypto");
 const events = require("./events");
 const ticklorev2 = require("./ticklore-v2");
 const ticklorev3 = require("./ticklore-v3");
+const ticklorev4 = require("./ticklore-v4");
 
-function mountOrganizer(app, { chain, chainV2, chainV3 }) {
+function mountOrganizer(app, { chain, chainV2, chainV3, chainV4 }) {
   const PASSWORD = process.env.ORGANIZER_PASSWORD;
 
   /** Timing-safe password check. The password rides in a header set by the
@@ -39,11 +40,11 @@ function mountOrganizer(app, { chain, chainV2, chainV3 }) {
   app.post("/organize/publish", express.json(), checkPassword, async (req, res) => {
     try {
       let onChainEventId = null;
-      // Prefer the newest configured event-model contract. V3 records the whole
-      // sponsor list on-chain; V2 (single sponsor) is the fallback until flip.
-      const activeChain = chainV3 || chainV2;
-      const activeLib = chainV3 ? ticklorev3 : ticklorev2;
-      const onChainVersion = chainV3 ? 3 : (chainV2 ? 2 : null);
+      // Prefer the newest configured event-model contract; older versions are
+      // the fallback chain until the next flip.
+      const activeChain = chainV4 || chainV3 || chainV2;
+      const activeLib = chainV4 ? ticklorev4 : (chainV3 ? ticklorev3 : ticklorev2);
+      const onChainVersion = chainV4 ? 4 : (chainV3 ? 3 : (chainV2 ? 2 : null));
       if (activeChain) {
         const ev = await activeLib.createEvent(activeChain.contract, req.body);
         onChainEventId = ev.eventId;
@@ -215,6 +216,11 @@ function organizerPage() {
         <label for="f-price">Price (USD)</label>
         <input type="number" id="f-price" placeholder="25" min="0" step="1" oninput="draw()">
         <div class="hint">Enter 0 for a free event.</div>
+        <label class="toggle" style="margin-top:10px">
+          <input type="checkbox" id="f-showprice" checked>
+          <span>Show the price on the keepsake</span>
+        </label>
+        <div class="hint">On: the true price ($25 / Free) is part of the memory. Off: no price appears — right for gifts and sponsored seats.</div>
       </div>
     </div>
 
@@ -420,7 +426,8 @@ function organizerPage() {
       style: document.getElementById('f-style').value,
       allowInscription: document.getElementById('f-allow-inscription').checked,
       venue: document.getElementById('f-venue').value,
-      soulbound: document.getElementById('f-soulbound').checked
+      soulbound: document.getElementById('f-soulbound').checked,
+      showPrice: document.getElementById('f-showprice').checked
     };
     btn.disabled = true; btn.textContent = 'Publishing…';
     fetch('/organize/publish', {
@@ -459,6 +466,7 @@ function organizerPage() {
     document.getElementById('f-nontransfer').checked = false;
     document.getElementById('f-allow-inscription').checked = false;
     document.getElementById('f-soulbound').checked = false;
+    document.getElementById('f-showprice').checked = true;
     document.getElementById('f-palette').selectedIndex = 0;
     document.getElementById('f-style').selectedIndex = 0;
     var out = document.getElementById('result'); out.textContent = ''; out.className = 'result';

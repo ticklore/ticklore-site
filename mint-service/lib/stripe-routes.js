@@ -29,6 +29,7 @@ const express = require("express");
 const ticklore = require("./ticklore");
 const ticklorev2 = require("./ticklore-v2");
 const ticklorev3 = require("./ticklore-v3");
+const ticklorev4 = require("./ticklore-v4");
 const store = require("./store");
 const events = require("./events");
 const mintCap = require("./mint-cap");
@@ -68,7 +69,7 @@ function listEvents() {
   return [...seeded, ...created];
 }
 
-function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
+function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
   const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -276,6 +277,21 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
       }
 
       try {
+        // V4 path: the final-design event model (sections, price display). A
+        // standard (Lane A) event has no sponsor/section blocks, so refs are 0.
+        if (chainV4 && details.onChainEventId && details.onChainVersion === 4) {
+          const r = await ticklorev4.mintTicket(chainV4.contract, {
+            eventId: details.onChainEventId,
+            to: chainV4.signer.address,
+            price: details.priceCents,
+            buyerName: holderName,
+            inscription: message,
+            sponsorRef: 0,
+            sectionRef: 0,
+          });
+          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true, version: 4 }));
+        }
+
         // V3 path: multi-sponsor event lives on-chain. Assign this ticket its
         // sponsor by rotating through the event's list (ticket 1 → sponsor 1,
         // 2 → sponsor 2, wrap), so different keepsakes credit different sponsors.
@@ -291,11 +307,11 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
             inscription: message,
             sponsorRef,
           });
-          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true }));
+          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true, version: 3 }));
         }
 
         // V2 path: the event lives on-chain → mint the event-model ticket.
-        if (chainV2 && details.onChainEventId && details.onChainVersion !== 3) {
+        if (chainV2 && details.onChainEventId && details.onChainVersion !== 3 && details.onChainVersion !== 4) {
           const r = await ticklorev2.mintTicket(chainV2.contract, {
             eventId: details.onChainEventId,
             to: chainV2.signer.address,
@@ -329,7 +345,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
 function successPage(opts) {
   const { esc: E, head: H, ticketSvg: TS } = require("./ui");
   const sessionId = opts.sessionId || "";
-  const immediate = opts.immediate ? { ticketId: opts.ticketId, eventName: opts.eventName, custodial: opts.custodial } : null;
+  const immediate = opts.immediate ? { ticketId: opts.ticketId, eventName: opts.eventName, custodial: opts.custodial, version: opts.version || 0 } : null;
   const errored = opts.error || "";
   const capped = opts.capped ? { cap: opts.cap || 20 } : null;
 
@@ -371,13 +387,13 @@ function successPage(opts) {
   var CAPPED = ${capped ? JSON.stringify(capped) : "null"};
   var sid = ${JSON.stringify(sessionId)};
 
-  function reveal(ticketId, custodial){
+  function reveal(ticketId, custodial, version){
     document.getElementById('spin').style.display='none';
     document.getElementById('s').textContent='';
     var h=document.getElementById('h'); h.textContent='Chapter One is written.';
     h.classList.add('show');
     var tw=document.getElementById('tw');
-    var img=new Image(); img.src='/ticket/'+ticketId+'/image';
+    var img=new Image(); img.src='/ticket/'+ticketId+'/image'+(version?'?v='+version:'');
     img.onload=function(){ tw.appendChild(img); requestAnimationFrame(function(){tw.classList.add('show')}); };
     document.getElementById('n').textContent='Ticket #'+ticketId+(custodial?' — held for you. No wallet required.':' — sent to your wallet.');
     document.getElementById('cta').innerHTML='<a href="/shop" class="btn btn--ghost">Browse more events</a>';
@@ -398,7 +414,7 @@ function successPage(opts) {
 
   if (CAPPED){ capNotice(CAPPED.cap); }
   else if (ERRORED){ fail('Something went wrong: '+ERRORED); }
-  else if (IMMEDIATE){ document.getElementById('s').textContent='Writing your chapter…'; setTimeout(function(){reveal(IMMEDIATE.ticketId, IMMEDIATE.custodial)}, 700); }
+  else if (IMMEDIATE){ document.getElementById('s').textContent='Writing your chapter…'; setTimeout(function(){reveal(IMMEDIATE.ticketId, IMMEDIATE.custodial, IMMEDIATE.version)}, 700); }
   else if (sid){
     document.getElementById('s').textContent='Confirming your payment…';
     var tries=0;

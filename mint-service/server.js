@@ -34,6 +34,7 @@ const crypto = require("crypto");
 const ticklore = require("./lib/ticklore");
 const ticklorev2 = require("./lib/ticklore-v2");
 const ticklorev3 = require("./lib/ticklore-v3");
+const ticklorev4 = require("./lib/ticklore-v4");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
@@ -62,13 +63,43 @@ if (process.env.STRIPE_SECRET_KEY) {
 let chain = null;
 let chainV2 = null;   // set at startup when TICKLORE_CONTRACT_V2 is configured
 let chainV3 = null;   // set at startup when TICKLORE_CONTRACT_V3 is configured
+let chainV4 = null;   // set at startup when TICKLORE_CONTRACT_V4 is configured
 
-/** The event-model source to read tickets from — the newest configured wins,
- *  so turning on TICKLORE_CONTRACT_V3 flips reads to V3 without touching code. */
-function ticketSource() {
-  if (chainV3) return { src: chainV3, lib: ticklorev3 };
-  if (chainV2) return { src: chainV2, lib: ticklorev2 };
-  return { src: chain, lib: ticklore };
+/** Every configured event-model source, newest first. */
+function ticketSources() {
+  const list = [];
+  if (chainV4) list.push({ src: chainV4, lib: ticklorev4 });
+  if (chainV3) list.push({ src: chainV3, lib: ticklorev3 });
+  if (chainV2) list.push({ src: chainV2, lib: ticklorev2 });
+  if (!list.length) list.push({ src: chain, lib: ticklore });
+  return list;
+}
+
+/** Find which contract a token actually lives on — newest first, probing with
+ *  a cheap ownerOf. Keepsakes must survive contract flips: a V3 ticket someone
+ *  OWNS (in their wallet) keeps rendering after the demo moves to V4. The
+ *  outer retry covers RPC lag on a just-minted token.
+ *
+ *  Token ids COLLIDE across contracts (every version has a #1), so callers
+ *  that know a token's home version pin it with ?v= — the probe is only the
+ *  fallback for unqualified links. */
+async function findTicket(id, versionPin) {
+  if (versionPin) {
+    const byVersion = { 4: chainV4 && { src: chainV4, lib: ticklorev4 },
+                       3: chainV3 && { src: chainV3, lib: ticklorev3 },
+                       2: chainV2 && { src: chainV2, lib: ticklorev2 } };
+    return byVersion[versionPin] || null;
+  }
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    for (const cand of ticketSources()) {
+      try {
+        await cand.src.contract.ownerOf(id);
+        return cand;
+      } catch { /* not on this contract (or not yet visible) — keep looking */ }
+    }
+    await new Promise((r) => setTimeout(r, 1000 * attempt));
+  }
+  return null;
 }
 
 /**
@@ -143,9 +174,10 @@ app.post("/mint", express.json(), requireApiKey, async (req, res) => {
 /** The decoded metadata for a ticket, straight from the contract. */
 app.get("/ticket/:id", async (req, res) => {
   try {
-    const { src, lib } = ticketSource();
-    const { metadata } = await lib.getTicket(src.contract, req.params.id);
-    const owner = await src.contract.ownerOf(req.params.id);
+    const found = await findTicket(req.params.id, Number(req.query.v) || 0);
+    if (!found) return res.status(404).json({ error: `No such ticket: ${req.params.id}` });
+    const { metadata } = await found.lib.getTicket(found.src.contract, req.params.id);
+    const owner = await found.src.contract.ownerOf(req.params.id);
     res.json({ ticketId: req.params.id, owner, metadata });
   } catch (err) {
     res.status(404).json({ error: `No such ticket: ${req.params.id}` });
@@ -161,8 +193,9 @@ app.get("/ticket/:id", async (req, res) => {
  */
 app.get("/ticket/:id/image", async (req, res) => {
   try {
-    const { src, lib } = ticketSource();
-    const { svg } = await lib.getTicket(src.contract, req.params.id);
+    const found = await findTicket(req.params.id, Number(req.query.v) || 0);
+    if (!found) return res.status(404).send(`No such ticket: ${req.params.id}`);
+    const { svg } = await found.lib.getTicket(found.src.contract, req.params.id);
     if (!svg) return res.status(404).send("No SVG in metadata");
     res.type("image/svg+xml").send(svg);
   } catch (err) {
@@ -238,19 +271,30 @@ show();
       }
     }
 
+    // Optional V4 (final design pass: sections, price display, authority
+    // handoff) — same gate again. Newest configured version always wins.
+    if (process.env.TICKLORE_CONTRACT_V4) {
+      try {
+        chainV4 = await ticklorev4.connect();
+        console.log("  V4 model : connected", chainV4.address);
+      } catch (e) {
+        console.warn("  ⚠ V4 connect failed:", e.message);
+      }
+    }
+
     // Mounted first so the webhook's express.raw() sees unparsed bytes.
     // Always mounted, even without Stripe: /success and /order don't need it,
     // and the demo buy path lands on /success?demo=... to mint. The two routes
     // that truly need Stripe (/webhook, /checkout) guard themselves when it's
     // null, so a Stripe-less showroom still has a working success page.
-    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 });
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
-    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3 });
-    // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs V3
-    // for the on-chain sponsor list; its routes report clearly if it isn't set.
-    require("./lib/concierge").mountConcierge(app, { chainV3 });
+    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3, chainV4 });
+    // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs
+    // V3+ for the on-chain sponsor list; prefers V4 (sections, price display).
+    require("./lib/concierge").mountConcierge(app, { chainV3, chainV4 });
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");

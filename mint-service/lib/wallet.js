@@ -55,6 +55,9 @@ function mountWallet(app, { chain }) {
           sponsorName: t.sponsorName,
           owned: t.owned,
           redeemed: !!t.redeemedAt,
+          // Which contract version this token lives on — token ids collide
+          // across versions, so the art URL pins it (?v=N).
+          version: e.onChainVersion || null,
         };
       });
       res.json({ ok: true, address: who.address, email: who.email, tickets });
@@ -280,8 +283,9 @@ function walletPrivyPage(privy) {
     cards.innerHTML = d.tickets.map(function(t){
       var badges = (t.owned ? '<span class="badge badge--own">Yours</span>' : '<span class="badge badge--held">Held for you</span>')
         + (t.redeemed ? '<span class="badge badge--adm">Admitted</span>' : '');
+      var vq = t.version ? '?v=' + t.version : '';
       return '<a class="keep" href="/vault/' + encodeURIComponent(t.eventKey) + '" style="margin-bottom:18px">'
-        + '<div class="keep__art"><img src="/ticket/' + escT(t.tokenId) + '/image" alt="Keepsake #' + escT(t.tokenId) + '" loading="lazy"></div>'
+        + '<div class="keep__art"><img src="/ticket/' + escT(t.tokenId) + '/image' + vq + '" alt="Keepsake #' + escT(t.tokenId) + '" loading="lazy"></div>'
         + '<div class="keep__foot"><div>'
         + '<div class="keep__name">' + escT(t.name) + badges + '</div>'
         + '<div class="keep__date">#' + escT(t.tokenId) + (t.date ? ' &middot; ' + escT(t.date) : '') + '</div>'

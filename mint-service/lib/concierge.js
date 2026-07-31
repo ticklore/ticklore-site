@@ -18,11 +18,19 @@ const QRCode = require("qrcode");
 const events = require("./events");
 const claims = require("./claims");
 const ticklorev3 = require("./ticklore-v3");
+const ticklorev4 = require("./ticklore-v4");
 const privyLib = require("./privy");
 
-function mountConcierge(app, { chainV3 }) {
+function mountConcierge(app, { chainV3, chainV4 }) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
+
+  // The newest configured event-model contract does the work. V4 adds named
+  // sections + the price-display switch; V3 (multi-sponsor only) is the
+  // fallback until the flip.
+  const activeChain = chainV4 || chainV3;
+  const activeLib = chainV4 ? ticklorev4 : ticklorev3;
+  const activeVersion = chainV4 ? 4 : 3;
 
   // Privy (optional, env-gated like every other flip — see lib/privy.js).
   // When configured, the claim flow upgrades: email OTP proves the claimant
@@ -48,20 +56,21 @@ function mountConcierge(app, { chainV3 }) {
    *  store it as a sponsor-mode event, and generate one claim code per ticket. */
   app.post("/admin/create", express.json(), checkPassword, async (req, res) => {
     try {
-      if (!chainV3) {
-        throw new Error("Sponsor events need the V3 contract — set TICKLORE_CONTRACT_V3.");
+      if (!activeChain) {
+        throw new Error("Sponsor events need the V3+ contract — set TICKLORE_CONTRACT_V4 (or _V3).");
       }
       const body = req.body || {};
 
-      // Turn the block rows [{leadIn, name, count, priceDollars}] into the
-      // on-chain sponsor list + the blocks that drive code generation.
-      // sponsorRef is 1-based, in the same order the sponsors go on-chain.
+      // Turn the block rows [{leadIn, name, count, priceDollars, section}] into
+      // the on-chain sponsor + section lists and the blocks that drive code
+      // generation. Refs are 1-based, in on-chain order.
       // THE BATCH IS THE PRODUCT: a block may have NO sponsor (plain tickets the
-      // organizer sells however they like — sponsorRef 0), and each block can
-      // carry a price: what the buyer pays the ORGANIZER directly, engraved on
-      // the keepsake. Ticklore never touches that money.
+      // organizer sells however they like — sponsorRef 0), each block can carry
+      // a price (what the buyer pays the ORGANIZER directly, engraved), and on
+      // V4 a block can name its SECTION ("Table 7") — the seat as memory.
       const rawBlocks = Array.isArray(body.blocks) ? body.blocks : [];
       const sponsors = [];
+      const sections = [];
       const blocks = [];
       for (const b of rawBlocks) {
         const count = Math.max(0, Math.floor(Number(b.count) || 0));
@@ -72,29 +81,41 @@ function mountConcierge(app, { chainV3 }) {
         if (dollars < 0) throw new Error("A block price can't be negative.");
         if (dollars > 100000) throw new Error("A block price seems too high — is that right?");
         const priceCents = Math.round(dollars * 100);
+
+        // Sections dedup: two blocks naming "Table 7" share one on-chain entry.
+        const section = String(b.section || "").trim().slice(0, 32);
+        let sectionRef = 0;
+        if (section) {
+          const existing = sections.findIndex((s) => s.toLowerCase() === section.toLowerCase());
+          sectionRef = existing >= 0 ? existing + 1 : sections.push(section);
+        }
+
         if (name) {
           sponsors.push({ leadIn, name });
-          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents });
+          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents, sectionRef, section });
         } else {
-          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents });
+          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents, sectionRef, section });
         }
       }
       if (!blocks.length) throw new Error("Add at least one block with a ticket count of 1 or more.");
+      if (sections.length && activeVersion < 4) throw new Error("Sections need the V4 contract — set TICKLORE_CONTRACT_V4.");
 
       const totalTickets = blocks.reduce((s, b) => s + b.count, 0);
       if (totalTickets > 1000) throw new Error("That's over 1000 tickets — split it into more than one event for now.");
 
-      // 1) On-chain event on V3 (records the whole sponsor list, permanent).
-      const ev = await ticklorev3.createEvent(chainV3.contract, {
+      const showPrice = !(body.showPrice === false || body.showPrice === "false");
+
+      // 1) On-chain event (records the sponsor + section lists, permanent).
+      const ev = await activeLib.createEvent(activeChain.contract, {
         name: body.name, venue: body.venue, date: body.date, palette: body.palette,
-        sponsors, inscriptionsAllowed: false, soulbound: false,
+        sponsors, sections, showPrice, inscriptionsAllowed: false, soulbound: false,
       });
 
       // 2) Store it as a sponsor-mode event (free; not shown in the public shop).
       const { key } = events.create({
         name: body.name, venue: body.venue, date: body.date, palette: body.palette,
-        priceDollars: 0, sponsors, mode: "sponsor", blocks,
-        onChainEventId: ev.eventId, onChainVersion: 3,
+        priceDollars: 0, sponsors, sections, showPrice, mode: "sponsor", blocks,
+        onChainEventId: ev.eventId, onChainVersion: activeVersion,
         allowInscription: false, soulbound: false,
         redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
       });
@@ -140,7 +161,7 @@ function mountConcierge(app, { chainV3 }) {
         const url = `${PUBLIC_URL}/claim/${c.code}`;
         let qr = "";
         try { qr = await QRCode.toString(url, { type: "svg", margin: 1 }); } catch { /* leave blank */ }
-        return { code: c.code, sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, priceCents: c.priceCents || 0, status: c.status, url, qr };
+        return { code: c.code, sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, priceCents: c.priceCents || 0, section: c.section || "", status: c.status, url, qr };
       })
     );
     res.json({ name: e.name, venue: e.venue, date: e.date, codes });
@@ -161,12 +182,13 @@ function mountConcierge(app, { chainV3 }) {
     res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY }));
   });
 
-  /** Claim a code: lazy-mint the ticket on V3 with the code's sponsor, held in
-   *  custody against the email. Reserve→mint→finalize so one code mints once. */
+  /** Claim a code: lazy-mint the ticket (with its sponsor + section) on the
+   *  contract version its event was created on. Reserve→mint→finalize so one
+   *  code mints once. */
   app.post("/claim/:code", express.json(), async (req, res) => {
     const code = req.params.code;
     try {
-      if (!chainV3) throw new Error("Claiming isn't available right now.");
+      if (!activeChain) throw new Error("Claiming isn't available right now.");
       const rec = claims.get(code);
       if (!rec) return res.status(404).json({ ok: false, error: "That claim code isn't valid." });
       if (rec.status === "claimed") return res.status(409).json({ ok: false, error: "already claimed", tokenId: rec.tokenId });
@@ -174,7 +196,7 @@ function mountConcierge(app, { chainV3 }) {
       // Who gets the ticket? With Privy configured, the claimant proves their
       // login (OTP) and the mint goes to THEIR embedded wallet. Without it,
       // platform custody against a typed email (the original flow).
-      let to = chainV3.signer.address;
+      let to = activeChain.signer.address;
       let email = String((req.body && req.body.email) || "").trim();
       let owned = false;
       if (privyClient) {
@@ -192,16 +214,22 @@ function mountConcierge(app, { chainV3 }) {
       try {
         const details = events.get(rec.eventKey);
         if (!details || !details.onChainEventId) throw new Error("This event is no longer available.");
-        const r = await ticklorev3.mintTicket(chainV3.contract, {
+        // An event's ids only mean anything on the contract that created it —
+        // mint on that version, not blindly on the newest.
+        const mintChain = details.onChainVersion === 4 ? chainV4 : chainV3;
+        const mintLib = details.onChainVersion === 4 ? ticklorev4 : ticklorev3;
+        if (!mintChain) throw new Error("This event's contract isn't configured right now.");
+        const r = await mintLib.mintTicket(mintChain.contract, {
           eventId: details.onChainEventId,
           to,
           price: rec.priceCents || 0, // what the buyer pays the organizer; 0 renders "Free"
           buyerName: "",
           inscription: "",
           sponsorRef: rec.sponsorRef,
+          sectionRef: rec.sectionRef || 0,
         });
         claims.finalize(code, { email, tokenId: r.tokenId, address: owned ? to : null });
-        res.json({ ok: true, tokenId: r.tokenId, owned, address: owned ? to : undefined });
+        res.json({ ok: true, tokenId: r.tokenId, owned, address: owned ? to : undefined, version: details.onChainVersion || undefined });
       } catch (err) {
         claims.release(code); // mint never landed — the code stays claimable
         throw err;
@@ -246,10 +274,12 @@ function mountConcierge(app, { chainV3 }) {
       if (rec.redeemedAt) {
         return res.status(409).json({ ok: false, error: "Already admitted.", redeemedAt: rec.redeemedAt });
       }
-      if (!chainV3) throw new Error("Check-in isn't available right now.");
+      const redeemChain = details.onChainVersion === 4 ? chainV4 : chainV3;
+      const redeemLib = details.onChainVersion === 4 ? ticklorev4 : ticklorev3;
+      if (!redeemChain) throw new Error("Check-in isn't available right now.");
 
       try {
-        await ticklorev3.redeemTicket(chainV3.contract, rec.tokenId);
+        await redeemLib.redeemTicket(redeemChain.contract, rec.tokenId);
       } catch (err) {
         // The chain is the truth: if it says already redeemed, mirror and accept.
         if (/already redeemed/i.test(String(err?.shortMessage || err?.reason || err?.message || ""))) {
@@ -308,7 +338,7 @@ function adminPage() {
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--gold);margin:24px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .block-row{display:grid;grid-template-columns:1fr 1.3fr 80px 95px auto;gap:10px;margin-bottom:10px;align-items:center}
+  .block-row{display:grid;grid-template-columns:1fr 1.2fr 70px 85px 110px auto;gap:8px;margin-bottom:10px;align-items:center}
   .block-row input{width:100%}
   .blk-del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;height:42px;padding:0 12px;cursor:pointer}
   .blk-del:hover{background:rgba(227,138,138,.12)}
@@ -363,8 +393,17 @@ function adminPage() {
   <button type="button" class="add-block" onclick="addBlock()">+ Add a block</button>
   <div class="hint">Each row is a block of tickets. <b>Sponsor is optional</b> — leave it blank for plain
   tickets the organizer sells themselves. <b>Price</b> is what the buyer pays the organizer directly
-  (engraved on the keepsake); blank or 0 shows "Free". Ticklore never touches ticket money.</div>
+  (engraved on the keepsake); blank or 0 shows "Free". <b>Section</b> ("Table 7", "VIP") is engraved as
+  part of the memory — blocks naming the same section share it. Ticklore never touches ticket money.</div>
   <div class="total" id="total"></div>
+
+  <div class="field" style="margin-top:14px">
+    <label class="toggle" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <input type="checkbox" id="f-showprice" checked style="width:auto">
+      <span style="font-size:.9rem;color:rgba(241,233,221,.8)">Show prices on the keepsakes</span>
+    </label>
+    <div class="hint">On: each ticket shows its true price ($25 / Free). Off: no price appears at all — right for gifts and fully sponsored events.</div>
+  </div>
 
   <div class="section-label">Door check-in — optional</div>
   <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
@@ -395,7 +434,7 @@ function adminPage() {
   var PALETTES = { teal:'Teal & Gold', midnight:'Midnight & Silver', burgundy:'Burgundy & Gold', forest:'Forest & Cream', plum:'Plum & Rose' };
   (function(){ var s=document.getElementById('f-palette'); for(var k in PALETTES){var o=document.createElement('option');o.value=k;o.textContent=PALETTES[k];s.appendChild(o);} })();
 
-  function addBlock(leadIn, name, count, price){
+  function addBlock(leadIn, name, count, price, section){
     var row = document.createElement('div');
     row.className = 'block-row';
     row.innerHTML =
@@ -403,12 +442,14 @@ function adminPage() {
       '<input type="text" class="b-name" placeholder="Sponsor (optional)" maxlength="44" oninput="tally()">' +
       '<input type="number" class="b-count" placeholder="Qty" min="1" step="1" oninput="tally()">' +
       '<input type="number" class="b-price" placeholder="Price $" min="0" step="1" oninput="tally()">' +
+      '<input type="text" class="b-section" placeholder="Section (opt.)" maxlength="32" oninput="tally()">' +
       '<button type="button" class="blk-del" title="Remove" onclick="removeBlock(this)">&#10005;</button>';
     document.getElementById('block-list').appendChild(row);
     if (leadIn) row.querySelector('.b-lead').value = leadIn;
     if (name) row.querySelector('.b-name').value = name;
     if (count) row.querySelector('.b-count').value = count;
     if (price) row.querySelector('.b-price').value = price;
+    if (section) row.querySelector('.b-section').value = section;
     tally();
   }
   function removeBlock(btn){ var r=btn.closest('.block-row'); if(r) r.remove(); tally(); }
@@ -419,7 +460,8 @@ function adminPage() {
       var count=parseInt(rows[i].querySelector('.b-count').value,10)||0;
       var leadIn=rows[i].querySelector('.b-lead').value.trim();
       var price=parseFloat(rows[i].querySelector('.b-price').value)||0;
-      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price });
+      var section=rows[i].querySelector('.b-section').value.trim();
+      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price, section:section });
     }
     return out;
   }
@@ -443,7 +485,8 @@ function adminPage() {
       date: document.getElementById('f-date').value,
       palette: document.getElementById('f-palette').value,
       blocks: blocks,
-      redemptionEnabled: document.getElementById('f-redemption').checked
+      redemptionEnabled: document.getElementById('f-redemption').checked,
+      showPrice: document.getElementById('f-showprice').checked
     };
     btn.disabled=true; btn.textContent='Creating on-chain…';
     fetch('/admin/create',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':PW},body:JSON.stringify(body)})
@@ -464,6 +507,7 @@ function adminPage() {
   function resetForm(){
     ['f-name','f-venue','f-date'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('f-redemption').checked=false;
+    document.getElementById('f-showprice').checked=true;
     document.getElementById('block-list').innerHTML='';
     document.getElementById('f-palette').selectedIndex=0;
     document.getElementById('total').textContent='';
@@ -566,7 +610,8 @@ function sheetPage(key) {
     var groups={}, order=[];
     (d.codes||[]).forEach(function(c){
       var price = c.priceCents ? ' — $' + (c.priceCents/100).toFixed(2).replace(/\\.00$/,'') : '';
-      var k = (c.sponsorName || 'General') + price;
+      var sect = c.section ? ' — ' + c.section : '';
+      var k = (c.sponsorName || 'General') + sect + price;
       if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(c);
     });
     var claimed=(d.codes||[]).filter(function(c){return c.status==='claimed';}).length;
@@ -623,8 +668,12 @@ function claimPage({ code, rec, details, privy }) {
   if (rec.status === "claimed" && rec.tokenId) {
     const admitted = !!rec.redeemedAt;
     const headline = admitted ? "Admitted ✓" : "This keepsake is claimed.";
-    // Cache-buster after redemption so the freshly stamped on-chain art shows.
-    const imgSrc = `/ticket/${esc(rec.tokenId)}/image${admitted ? "?r=1" : ""}`;
+    // Pin the token's contract version (ids collide across versions) and
+    // cache-bust after redemption so the freshly stamped on-chain art shows.
+    const vq = details && details.onChainVersion ? `v=${details.onChainVersion}` : "";
+    const rq = admitted ? "r=1" : "";
+    const q = [vq, rq].filter(Boolean).join("&");
+    const imgSrc = `/ticket/${esc(rec.tokenId)}/image${q ? "?" + q : ""}`;
     const doorLink = !admitted && details && details.redemptionEnabled
       ? `<div class="hint" style="margin-top:18px"><a href="/door/${esc(rec.code)}" style="color:var(--gold-bright)">Door check-in &rarr;</a> <span style="opacity:.7">(staff only)</span></div>`
       : "";
@@ -718,7 +767,7 @@ ${doorLink}` + foot;
         document.getElementById('hint').textContent = d.owned
           ? 'Ticket #' + d.tokenId + ' — minted to YOUR wallet ' + short + '. Yours, permanently.'
           : 'Ticket #' + d.tokenId + ' — held for you.';
-        var img = new Image(); img.src = '/ticket/' + d.tokenId + '/image';
+        var img = new Image(); img.src = '/ticket/' + d.tokenId + '/image' + (d.version ? '?v=' + d.version : '');
         img.onload = function(){ document.getElementById('ticket').appendChild(img); };
       } else {
         btn.disabled = false; btn.textContent = 'Verify & claim';
@@ -753,7 +802,7 @@ ${doorLink}` + foot;
         if(d.ok || (d.tokenId)){
           document.getElementById('email').style.display='none'; btn.style.display='none';
           document.getElementById('hint').textContent='Ticket #'+d.tokenId+' — held for you. No wallet needed.';
-          var img=new Image(); img.src='/ticket/'+d.tokenId+'/image';
+          var img=new Image(); img.src='/ticket/'+d.tokenId+'/image'+(d.version?'?v='+d.version:'');
           img.onload=function(){ document.getElementById('ticket').appendChild(img); };
         } else { btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent=d.error||'Could not claim.'; }
       }).catch(function(){ btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent='Could not reach the server.'; });

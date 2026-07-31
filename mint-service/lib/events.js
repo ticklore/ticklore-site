@@ -117,8 +117,16 @@ function create(input) {
         count: Math.max(0, Math.floor(Number(b.count) || 0)),
         sponsorName: String(b.sponsorName || "").slice(0, 44),
         priceCents: Math.max(0, Math.round(Number(b.priceCents) || 0)),
+        sectionRef: Number(b.sectionRef) || 0,
+        section: String(b.section || "").slice(0, 32),
       }))
     : [];
+  // V4 fields: named sections ("Table 7") the tickets reference, and whether
+  // the keepsake shows its price at all (default ON; hiding is deliberate).
+  const sections = Array.isArray(input.sections)
+    ? input.sections.map((s) => String(s || "").trim().slice(0, 32)).filter(Boolean)
+    : [];
+  const showPrice = !(input.showPrice === false || input.showPrice === "false");
   // Door check-in (redemption) — per-event opt-in, off by default. When on, a
   // claimed ticket can be redeemed at the door (flips the contract's redeem
   // flag; the keepsake gains its ADMITTED stamp). Keepsake-only events leave it off.
@@ -166,7 +174,7 @@ function create(input) {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
-    mode, blocks, redemptionEnabled,
+    mode, blocks, redemptionEnabled, sections, showPrice,
     createdAt: new Date().toISOString(),
   };
   write(data);
