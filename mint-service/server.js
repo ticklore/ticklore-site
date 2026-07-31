@@ -298,6 +298,9 @@ show();
     // The memory vault: public branded pages + concierge curation. Content
     // sits behind lib/vault-store.js — the seam Arweave fills after the freeze.
     require("./lib/vault").mountVault(app);
+    // Off-chain stores are the custody ledger — get copies off this disk:
+    // /admin/backup (full archive) + a nightly email snapshot (BACKUP_EMAIL).
+    require("./lib/backup").mountBackup(app);
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");

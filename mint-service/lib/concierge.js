@@ -440,6 +440,11 @@ function adminPage() {
 
   <div class="section-label">Your sponsor events</div>
   <div id="ev-list"><div class="hint">None yet.</div></div>
+
+  <div class="section-label">Housekeeping</div>
+  <button type="button" class="add-block" onclick="downloadBackup(this)">&#8681; Download full backup (stores + vault media)</button>
+  <div class="hint" id="backup-hint">Everything off-chain in one archive — the custody ledger, claim codes, events, vault.
+  A nightly snapshot also emails automatically when BACKUP_EMAIL is set in the environment.</div>
 </div>
 
 <script>
@@ -554,6 +559,21 @@ function adminPage() {
       }).join('');
     });
   }
+  function downloadBackup(btn){
+    btn.disabled = true; btn.textContent = 'Building archive…';
+    fetch('/admin/backup', { headers: { 'x-admin-password': PW } })
+      .then(function(r){ if (!r.ok) throw 0; return r.blob(); })
+      .then(function(blob){
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'ticklore-backup-' + new Date().toISOString().slice(0,10) + '.tar.gz';
+        document.body.appendChild(a); a.click(); a.remove();
+        btn.disabled = false; btn.textContent = '\\u21E9 Download full backup (stores + vault media)';
+        document.getElementById('backup-hint').textContent = 'Downloaded \\u2713 — stash it somewhere safe (it contains emails and custody records).';
+      })
+      .catch(function(){ btn.disabled = false; btn.textContent = '\\u21E9 Download full backup (stores + vault media)'; alert('Backup failed — is anything in the stores yet?'); });
+  }
+
   function delEvent(btn){
     var row=btn.closest('.ev'), key=row.getAttribute('data-key');
     if(!confirm('Delete this sponsor event and its unclaimed codes? Minted tickets stay on-chain.')) return;

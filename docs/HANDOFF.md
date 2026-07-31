@@ -150,6 +150,10 @@ The original batched items, for the record:
    on-chain, auditable — never seize. Moves the ADMIN role only; never alters minted keepsakes.
 4. **Event-metadata mutability** — the standing call is lock-on-first-mint; confirm it as the final
    answer (or refine) in the pass.
+4b. **Custody-migration exemption (caught 2026-07-31, NOT in V4):** when a custodial "held for you"
+   keepsake's owner signs in, the right move is transferring it into their own wallet — but that's a
+   transfer, and the 10-day anti-scalp lock blocks it near the event. The final pass should **exempt
+   transfers FROM the platform custody wallet** (giving someone their own ticket isn't scalping).
 5. **Arweave cost** for the vault — settle before the vault deploys (it anchors to the final contract).
 Sequence when the trigger nears: final design pass → the contract that mints real keepsakes →
 Privy → Phase-2 vault.
@@ -361,6 +365,22 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   **Organizer authority via Privy waits for the final contract pass** (needs authority
   reassignment, not in V3).
 - **Phase-2 vault** (after freeze; read ADR-001 rev 3 first).
+
+## Backups — BUILT (2026-07-31): the custody ledger never has one copy
+The off-chain JSON stores ARE the custody ledger (who owns which custodial keepsake, which claim
+codes exist, events' on-chain ids, vault entries). `lib/backup.js`:
+- **`GET /admin/backup`** (ADMIN_PASSWORD header) — full tar.gz of every store + the vault media dir,
+  streamed on demand; a "Download full backup" button lives in the `/admin` console (fetch→blob so
+  the password never rides a URL).
+- **Nightly email snapshot** — the JSON stores bundled into one self-describing gzipped document,
+  mailed to **`BACKUP_EMAIL`** via the existing Resend key; at most once per 20h (marker file on the
+  persistent disk survives redeploys); media excluded to stay mail-sized. Degrades gracefully when
+  either env is missing. `GET /admin/backup/status` reports coverage + last-send.
+- **PRIVACY RULE: backups contain emails + custody records — they go to the admin and nowhere else.
+  Never to public/permanent storage (no Arweave for backups).**
+- Restore-drilled: archive extracts, custody records verified intact.
+- **Alex's env (one line, recommended): `BACKUP_EMAIL=<his email>`** to turn the nightly on.
+- Note for future stores: a new JSON store must be added to `storeFiles()` in `lib/backup.js`.
 
 ## Guardrails (persist these)
 - **Never paste GitHub tokens or private keys into chat.**
