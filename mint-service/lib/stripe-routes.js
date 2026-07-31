@@ -32,6 +32,7 @@ const ticklorev3 = require("./ticklore-v3");
 const store = require("./store");
 const events = require("./events");
 const mintCap = require("./mint-cap");
+const moderation = require("./moderation");
 
 // Seed events — the two demo events, available on a fresh install so /shop is
 // never empty. Organizer-created events (in the event store) are merged on top.
@@ -258,6 +259,13 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3 }) {
       // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
       const holderName = details.allowInscription ? (req.query.holder || "") : "";
       const message = details.allowInscription ? (req.query.msg || "") : "";
+
+      // Moderation checkpoint — BEFORE anything mints. An inscription is engraved
+      // on-chain forever, so the only place to catch abuse is right here.
+      const mod = moderation.checkInscription({ buyerName: holderName, inscription: message });
+      if (!mod.ok) {
+        return res.status(400).type("html").send(successPage({ error: mod.reason }));
+      }
 
       // Daily ceiling: this mints real testnet gas from one throwaway wallet over
       // a public link. Claim a slot before minting; on a mint failure below we

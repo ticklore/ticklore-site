@@ -191,10 +191,14 @@ The "Ticklore prints tickets manually" tool. Admin-only (`ADMIN_PASSWORD`); need
 - **Sponsors are the PATRON, never the point.** A restrained, permanent on-chain credit line. If any
   choice optimizes sponsor visibility over attendee sentiment, it's wrong. Sponsor **logos live in the
   event vault, not on the ticket face.**
-- **Buyer inscription = YES, but GATED.** Short one-liner engraved at mint; organizer opt-in (off by
-  default; built). Still required before real use: a **moderation checkpoint BEFORE the mint fires**
-  (profanity/abuse filter and/or organizer approval) — non-negotiable. Char-limited, single line, no
-  links; travels with the ticket.
+- **Buyer inscription = YES, but GATED — moderation checkpoint BUILT (2026-07-30).** Short one-liner
+  engraved at mint; organizer opt-in (off by default). `lib/moderation.js` runs BEFORE the mint fires
+  (and before the mint-cap reservation, so rejections cost nothing): profanity/slur blocklist with
+  leetspeak normalization + squeezed matching + whole-token masked-variant checks ("f*ck", "f0ck",
+  "f u c k" all caught; "Ashton"/"Fukushima" safe); links, emails, and long digit runs rejected
+  ("a memory, not an ad"). Leans strict on purpose: a false positive costs a rephrase, a false negative
+  is forever. Pilot-grade — when events get bigger, layer a moderation API and/or organizer approval
+  behind the same `checkInscription()` seam.
 - **Permanence discipline:** engraved event record + generated art always on-chain. Text memories
   fully on-chain; photos → durable storage + on-chain hash. Attendee images opt-in, moderated, PG.
 - **No resale royalties; never position the ticket as an appreciating asset.**
@@ -222,8 +226,8 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 ## Team / site
 - **Pat "Ozzy" Osborne = committed CO-FOUNDER** (biz dev & partnerships; spelling "Osborne").
 - **Allison Allred is OUT of Ticklore entirely** (stays on VBRE) — remove any remaining references.
-- **TODO (branch `main` → Netlify): about.html** — add Ozzy's co-founder card next to Alex (short bio
-  below), matching card styling; ensure no Allison card remains.
+- **about.html — DONE (2026-07-30, commit 6a6fd10 on `main`):** "Founders" heading + Ozzy's co-founder
+  card next to Alex's, matching styling; no Allison card existed (already clean).
 - Ozzy short bio: "Serial entrepreneur and recovery advocate. CEO of OzzySunSales (solar) and Wizard
   Homes Inc. (recovery housing), and co-founder of Virginia Beach Recovery Events. At Ticklore, Ozzy
   leads partnerships and business development — driven by a servant's heart and a belief in second
@@ -231,8 +235,6 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 
 ## Open items
 **Near:**
-- **about.html** — Ozzy in, Allison out.
-- **Inscription moderation checkpoint** before any real event uses inscriptions.
 - **Token `ticklore-jul25`:** rotated per Alex — one 10-second confirm in GitHub → Settings →
   Developer settings that the old token is dead, then delete this line.
 **Later (or when the trigger nears):**
