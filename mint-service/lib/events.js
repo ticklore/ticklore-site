@@ -116,6 +116,7 @@ function create(input) {
         sponsorRef: Number(b.sponsorRef) || 0,
         count: Math.max(0, Math.floor(Number(b.count) || 0)),
         sponsorName: String(b.sponsorName || "").slice(0, 44),
+        priceCents: Math.max(0, Math.round(Number(b.priceCents) || 0)),
       }))
     : [];
   // Door check-in (redemption) — per-event opt-in, off by default. When on, a

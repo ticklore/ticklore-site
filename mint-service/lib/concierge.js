@@ -44,21 +44,33 @@ function mountConcierge(app, { chainV3 }) {
       }
       const body = req.body || {};
 
-      // Turn the block rows [{leadIn, name, count}] into the on-chain sponsor
-      // list + the blocks that drive code generation. sponsorRef is 1-based, in
-      // the same order the sponsors go on-chain.
+      // Turn the block rows [{leadIn, name, count, priceDollars}] into the
+      // on-chain sponsor list + the blocks that drive code generation.
+      // sponsorRef is 1-based, in the same order the sponsors go on-chain.
+      // THE BATCH IS THE PRODUCT: a block may have NO sponsor (plain tickets the
+      // organizer sells however they like — sponsorRef 0), and each block can
+      // carry a price: what the buyer pays the ORGANIZER directly, engraved on
+      // the keepsake. Ticklore never touches that money.
       const rawBlocks = Array.isArray(body.blocks) ? body.blocks : [];
       const sponsors = [];
       const blocks = [];
       for (const b of rawBlocks) {
-        const name = String(b.name || "").trim();
         const count = Math.max(0, Math.floor(Number(b.count) || 0));
-        if (!name || count < 1) continue; // skip blank / zero-count rows
+        if (count < 1) continue; // skip empty rows
+        const name = String(b.name || "").trim();
         const leadIn = String(b.leadIn || "").trim();
-        sponsors.push({ leadIn, name });
-        blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name });
+        const dollars = Number(b.priceDollars) || 0;
+        if (dollars < 0) throw new Error("A block price can't be negative.");
+        if (dollars > 100000) throw new Error("A block price seems too high — is that right?");
+        const priceCents = Math.round(dollars * 100);
+        if (name) {
+          sponsors.push({ leadIn, name });
+          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents });
+        } else {
+          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents });
+        }
       }
-      if (!sponsors.length) throw new Error("Add at least one sponsor with a ticket count of 1 or more.");
+      if (!blocks.length) throw new Error("Add at least one block with a ticket count of 1 or more.");
 
       const totalTickets = blocks.reduce((s, b) => s + b.count, 0);
       if (totalTickets > 1000) throw new Error("That's over 1000 tickets — split it into more than one event for now.");
@@ -119,7 +131,7 @@ function mountConcierge(app, { chainV3 }) {
         const url = `${PUBLIC_URL}/claim/${c.code}`;
         let qr = "";
         try { qr = await QRCode.toString(url, { type: "svg", margin: 1 }); } catch { /* leave blank */ }
-        return { code: c.code, sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, status: c.status, url, qr };
+        return { code: c.code, sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, priceCents: c.priceCents || 0, status: c.status, url, qr };
       })
     );
     res.json({ name: e.name, venue: e.venue, date: e.date, codes });
@@ -160,7 +172,7 @@ function mountConcierge(app, { chainV3 }) {
         const r = await ticklorev3.mintTicket(chainV3.contract, {
           eventId: details.onChainEventId,
           to: chainV3.signer.address, // custodial; migrates to the attendee's wallet later (Privy)
-          price: 0,
+          price: rec.priceCents || 0, // what the buyer pays the organizer; 0 renders "Free"
           buyerName: "",
           inscription: "",
           sponsorRef: rec.sponsorRef,
@@ -273,7 +285,7 @@ function adminPage() {
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--gold);margin:24px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .block-row{display:grid;grid-template-columns:1fr 1.3fr 90px auto;gap:10px;margin-bottom:10px;align-items:center}
+  .block-row{display:grid;grid-template-columns:1fr 1.3fr 80px 95px auto;gap:10px;margin-bottom:10px;align-items:center}
   .block-row input{width:100%}
   .blk-del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;height:42px;padding:0 12px;cursor:pointer}
   .blk-del:hover{background:rgba(227,138,138,.12)}
@@ -323,10 +335,12 @@ function adminPage() {
     <div class="field"><label for="f-palette">Color</label><select id="f-palette"></select></div>
   </div>
 
-  <div class="section-label">Sponsors &amp; blocks</div>
+  <div class="section-label">Ticket blocks</div>
   <div id="block-list"></div>
-  <button type="button" class="add-block" onclick="addBlock()">+ Add a sponsor block</button>
-  <div class="hint">Each row is a sponsor and how many tickets they back. Those tickets carry that sponsor. Lead-in is optional ("Supported by").</div>
+  <button type="button" class="add-block" onclick="addBlock()">+ Add a block</button>
+  <div class="hint">Each row is a block of tickets. <b>Sponsor is optional</b> — leave it blank for plain
+  tickets the organizer sells themselves. <b>Price</b> is what the buyer pays the organizer directly
+  (engraved on the keepsake); blank or 0 shows "Free". Ticklore never touches ticket money.</div>
   <div class="total" id="total"></div>
 
   <div class="section-label">Door check-in — optional</div>
@@ -358,18 +372,20 @@ function adminPage() {
   var PALETTES = { teal:'Teal & Gold', midnight:'Midnight & Silver', burgundy:'Burgundy & Gold', forest:'Forest & Cream', plum:'Plum & Rose' };
   (function(){ var s=document.getElementById('f-palette'); for(var k in PALETTES){var o=document.createElement('option');o.value=k;o.textContent=PALETTES[k];s.appendChild(o);} })();
 
-  function addBlock(leadIn, name, count){
+  function addBlock(leadIn, name, count, price){
     var row = document.createElement('div');
     row.className = 'block-row';
     row.innerHTML =
-      '<input type="text" class="b-lead" placeholder="Supported by" maxlength="28" oninput="tally()">' +
-      '<input type="text" class="b-name" placeholder="The Acme Foundation" maxlength="44" oninput="tally()">' +
+      '<input type="text" class="b-lead" placeholder="Supported by (optional)" maxlength="28" oninput="tally()">' +
+      '<input type="text" class="b-name" placeholder="Sponsor (optional)" maxlength="44" oninput="tally()">' +
       '<input type="number" class="b-count" placeholder="Qty" min="1" step="1" oninput="tally()">' +
+      '<input type="number" class="b-price" placeholder="Price $" min="0" step="1" oninput="tally()">' +
       '<button type="button" class="blk-del" title="Remove" onclick="removeBlock(this)">&#10005;</button>';
     document.getElementById('block-list').appendChild(row);
     if (leadIn) row.querySelector('.b-lead').value = leadIn;
     if (name) row.querySelector('.b-name').value = name;
     if (count) row.querySelector('.b-count').value = count;
+    if (price) row.querySelector('.b-price').value = price;
     tally();
   }
   function removeBlock(btn){ var r=btn.closest('.block-row'); if(r) r.remove(); tally(); }
@@ -379,20 +395,25 @@ function adminPage() {
       var name=rows[i].querySelector('.b-name').value.trim();
       var count=parseInt(rows[i].querySelector('.b-count').value,10)||0;
       var leadIn=rows[i].querySelector('.b-lead').value.trim();
-      if (name && count>0) out.push({ leadIn:leadIn, name:name, count:count });
+      var price=parseFloat(rows[i].querySelector('.b-price').value)||0;
+      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price });
     }
     return out;
   }
   function tally(){
     var b=collectBlocks(), tickets=b.reduce(function(s,x){return s+x.count;},0);
-    document.getElementById('total').textContent = b.length ? (b.length + ' sponsor' + (b.length===1?'':'s') + ' · ' + tickets + ' ticket' + (tickets===1?'':'s') + ' total') : '';
+    var sponsored=b.filter(function(x){return x.name;}).length;
+    document.getElementById('total').textContent = b.length
+      ? (tickets + ' ticket' + (tickets===1?'':'s') + ' in ' + b.length + ' block' + (b.length===1?'':'s')
+         + (sponsored ? ' · ' + sponsored + ' sponsored' : ' · no sponsors'))
+      : '';
   }
 
   function create(){
     var btn=document.getElementById('create'), out=document.getElementById('result');
     out.className='result'; out.textContent='';
     var blocks=collectBlocks();
-    if (!blocks.length){ out.className='result err'; out.textContent='Add at least one sponsor block.'; return; }
+    if (!blocks.length){ out.className='result err'; out.textContent='Add at least one block with a ticket count.'; return; }
     var body = {
       name: document.getElementById('f-name').value,
       venue: document.getElementById('f-venue').value,
@@ -520,7 +541,11 @@ function sheetPage(key) {
     document.getElementById('title').textContent = d.name + ' — Claim codes';
     document.getElementById('meta').textContent = (d.venue||'') + (d.date? ' · '+d.date : '');
     var groups={}, order=[];
-    (d.codes||[]).forEach(function(c){ var k=c.sponsorName||'(no sponsor)'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(c); });
+    (d.codes||[]).forEach(function(c){
+      var price = c.priceCents ? ' — $' + (c.priceCents/100).toFixed(2).replace(/\\.00$/,'') : '';
+      var k = (c.sponsorName || 'General') + price;
+      if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(c);
+    });
     var claimed=(d.codes||[]).filter(function(c){return c.status==='claimed';}).length;
     document.getElementById('count').textContent = (d.codes||[]).length+' codes · '+claimed+' claimed';
     document.getElementById('groups').innerHTML = order.map(function(k){

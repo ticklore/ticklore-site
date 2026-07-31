@@ -160,6 +160,12 @@ The "Ticklore prints tickets manually" tool. Admin-only (`ADMIN_PASSWORD`); need
   store; the chain is the truth). Wrong password 401; double check-in 409; unclaimed → "claim first";
   keepsake-only events → "not enabled". Note: freshly stamped art can lag a few seconds behind on
   public-RPC reads — harmless in practice.
+- **Batch-is-the-product gaps — CLOSED (2026-07-30).** Blocks no longer require a sponsor (plain
+  blocks mint with sponsorRef 0; the sheet groups them as "General"), and each block carries an
+  optional **price** — what the buyer pays the organizer directly, engraved at claim (0/blank renders
+  "Free"; sheet group labels show the price so staff know which cards sell for what). Verified vs
+  deployed V3: Acme@$25 / plain@$10 / plain-free all engrave correctly, on-chain sponsor list holds
+  only real sponsors.
 - Not built yet: attendee wallet-connect on claim, emailed claim receipts.
 
 ## Two product modes (DECIDED — the spine)
@@ -184,11 +190,17 @@ The "Ticklore prints tickets manually" tool. Admin-only (`ADMIN_PASSWORD`); need
   (strategy, not accident):** sponsor events have free tickets (invoice the organizer directly) and
   early standard events can run LLC-as-merchant. Concierge-first can operate and earn for months;
   build Connect when self-serve demand is real.
-- **Lane B revenue — TIERED (CONFIRMED):** priced **per placement × event tier**, quoted by Alex per
-  event (Community / Standard / Premium-style, assigned by headcount/price/prestige). **A FEE, never a
-  % of the sponsor's payment** (a cut of ad spend = the resale-royalty trap; rejected). The old flat
-  **$750 is the floor** for a small event, not the price. No public price table yet — quote per event,
-  learn real numbers, harden into tiers later. Billing is manual/offline for now.
+- **Lane B revenue — REVISED (Alex, 2026-07-30): THE BATCH IS THE PRODUCT.** Ticklore charges the
+  organizer a **flat $750 for an allotment of batched tickets**; the organizer then sells/distributes
+  them however they like (cash at the door, their own channels, give-aways) — **Ticklore never touches
+  ticket money in Lane B, ever.** Sponsors are an OPTION within a batch, not its reason: fully
+  sponsor-funded (free to attendee), partially sponsored (credit on ticket, buyer pays the organizer
+  directly), or **no sponsor at all** (plain batch). Engraved price = what the buyer actually pays the
+  organizer — honest even though the money never passes through Ticklore. This supersedes the earlier
+  tier-×-placement framing ($750 had been "the floor"); larger batches / premium concierge work can
+  still be quoted up, but the flat batch fee is the base product. **Still true: a FEE, never a % of the
+  sponsor's payment.** Billing is manual/offline (invoice the organizer). This kills any remaining
+  Lane B need for Stripe Connect.
 - **Sponsor money stays the organizer's** — their fundraising, collected however they already do it.
   Ticklore takes no cut of sponsorship.
 

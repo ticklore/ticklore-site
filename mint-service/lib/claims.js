@@ -57,6 +57,9 @@ function generate(eventKey, blocks) {
         eventKey,
         sponsorRef: Number(b.sponsorRef) || 0,
         sponsorName: b.sponsorName || "",
+        // What the buyer pays the ORGANIZER for this ticket (engraved at mint).
+        // 0 renders "Free". Ticklore never handles this money.
+        priceCents: Math.max(0, Math.round(Number(b.priceCents) || 0)),
         status: "unclaimed", // unclaimed → claiming → claimed
         email: null,
         tokenId: null,
