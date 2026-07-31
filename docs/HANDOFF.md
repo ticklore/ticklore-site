@@ -120,7 +120,22 @@ deployed V4: Lane A price-hidden buy, sectioned batch claims (Table 7/Acme/$25 v
 V3-token-#1 vs V4-token-#1 resolving correctly by pin. **THE FLIP (Alex's Render action, not done):
 ADD `TICKLORE_CONTRACT_V4 = 0x31DFbEC3A80700078BDB53403D5ef79e4dC07049`** (keep all earlier vars;
 added, never replaced). Old V3 keepsakes (incl. Alex's owned #23) survive the flip via the version pin.
-Remaining pre-freeze item: **Arweave cost** (research, not contract code).
+**Arweave cost — RESEARCHED + RESOLVED (2026-07-31): permanence is cheap; cost is a NON-ISSUE.**
+Numbers (July 2026): Arweave is a ONE-TIME payment for 200+ years (endowment model). Protocol rate
+≈ 11 AR/GiB with AR ≈ $1.91 → ≈ $21/GiB; Turbo bundler retail ≈ $33/GiB. Per-event reality:
+- **Text is effectively FREE** — Turbo uploads under 100 KiB cost nothing, and the permanent core's
+  text (event record, story, letters, sponsor credits) is all KB-scale.
+- **Lean curated vault** (30 web-optimized photos, ~45MB) ≈ **$1.50–2**. **Generous** (100 photos,
+  ~250MB) ≈ **$8–9**. Extreme 1GB ≈ $35. Vs the $750 batch fee: **0.2–1.2% of one Lane B sale.**
+  Even a 5× AR price spike keeps a generous vault under ~$45.
+- **Payment rail: ArDrive/ar.io Turbo credits bought BY CARD** — Ticklore never holds or trades AR
+  tokens (credits are non-tradeable storage credit, pegged to storage power). Clean fit with the
+  no-crypto-custody posture.
+**Recommendations:** bake a ~$15 permanence allowance into the batch fee; web-optimize photos at
+upload (the store's 8MB cap already helps; add resize later); keep VIDEO out of the permanent core
+for now (GB-scale each — app-layer only); the real constraint is curation discipline, not cost —
+which is already the product's privacy model. With this, **every pre-freeze research item is closed**
+— the freeze now waits only on its trigger (first real keepsake / vault deploy).
 The original batched items, for the record:
 1. **Price-display option (REVISED decision):** price shows when it tells a true story; the organizer
    can **OMIT** it (sponsor-funded/free events shouldn't stamp "$0" forever; gifts shouldn't brag a
