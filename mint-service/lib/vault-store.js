@@ -68,8 +68,11 @@ function mediaPath(name) {
 }
 
 /** Add an entry. Photos pass imageData (a data URL); letters pass text.
- *  `publish` true = live immediately (the concierge/curator path). */
-function add(eventKey, { type, title, text, credit, imageData, publish }) {
+ *  `publish` true = live immediately (the concierge/curator path); attendee
+ *  submissions pass false and wait for the curator. `submitter` is context
+ *  for curation ({name, email, verified}) — never rendered publicly unless
+ *  the curator puts it in the credit. */
+function add(eventKey, { type, title, text, credit, imageData, publish, submitter }) {
   const t = type === "photo" ? "photo" : "letter";
   const entry = {
     id: crypto.randomBytes(8).toString("base64url"),
@@ -80,6 +83,13 @@ function add(eventKey, { type, title, text, credit, imageData, publish }) {
     credit: String(credit || "").trim().slice(0, 60),
     media: null,
     status: publish ? "published" : "pending",
+    submitter: submitter
+      ? {
+          name: String(submitter.name || "").trim().slice(0, 60),
+          email: String(submitter.email || "").trim().slice(0, 120),
+          verified: !!submitter.verified,
+        }
+      : null,
     createdAt: new Date().toISOString(),
     publishedAt: publish ? new Date().toISOString() : null,
   };

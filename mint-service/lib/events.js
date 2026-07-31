@@ -132,6 +132,13 @@ function create(input) {
   // flag; the keepsake gains its ADMITTED stamp). Keepsake-only events leave it off.
   const redemptionEnabled = input.redemptionEnabled === true || input.redemptionEnabled === "true";
 
+  // Who may SUBMIT memories to the vault. "open" (default): anyone with the
+  // vault link — photos are donations, and the curation gate is the real
+  // protection. "holders": only verified keepsake holders (Privy sign-in +
+  // a claim record for this event) — for sensitive events, same instinct as
+  // soulbound. Publishing always requires the curator either way.
+  const vaultSubmissions = input.vaultSubmissions === "holders" ? "holders" : "open";
+
   // Ticket design — whitelisted so a bad value can't reach the renderer.
   const PALETTES = ["teal", "midnight", "burgundy", "forest", "plum"];
   const STYLES = ["classic", "modern", "elegant"];
@@ -174,7 +181,7 @@ function create(input) {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
-    mode, blocks, redemptionEnabled, sections, showPrice,
+    mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
     createdAt: new Date().toISOString(),
   };
   write(data);

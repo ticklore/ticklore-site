@@ -118,6 +118,7 @@ function mountConcierge(app, { chainV3, chainV4 }) {
         onChainEventId: ev.eventId, onChainVersion: activeVersion,
         allowInscription: false, soulbound: false,
         redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
+        vaultSubmissions: body.vaultSubmissions,
       });
 
       // 3) One claim code per ticket in every block.
@@ -412,6 +413,15 @@ function adminPage() {
   </label>
   <div class="hint">Off = keepsake only. On = staff can mark each claimed ticket admitted at the door — the keepsake gains its permanent ADMITTED stamp. Never deletes or burns anything.</div>
 
+  <div class="section-label">Vault memories</div>
+  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+    <input type="checkbox" id="f-holders" style="width:auto">
+    <span style="font-size:.9rem;color:rgba(241,233,221,.8)">Holders-only submissions (verified keepsake holders)</span>
+  </label>
+  <div class="hint">Off (default) = anyone with the vault link can submit a memory — nothing publishes without
+  your approval either way. On = submitters must sign in and hold a keepsake from this event; for
+  sensitive gatherings, same instinct as soulbound.</div>
+
   <button class="create" id="create" onclick="create()">Create event &amp; generate codes</button>
   <div class="result" id="result"></div>
 
@@ -486,7 +496,8 @@ function adminPage() {
       palette: document.getElementById('f-palette').value,
       blocks: blocks,
       redemptionEnabled: document.getElementById('f-redemption').checked,
-      showPrice: document.getElementById('f-showprice').checked
+      showPrice: document.getElementById('f-showprice').checked,
+      vaultSubmissions: document.getElementById('f-holders').checked ? 'holders' : 'open'
     };
     btn.disabled=true; btn.textContent='Creating on-chain…';
     fetch('/admin/create',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':PW},body:JSON.stringify(body)})
@@ -507,6 +518,7 @@ function adminPage() {
   function resetForm(){
     ['f-name','f-venue','f-date'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('f-redemption').checked=false;
+    document.getElementById('f-holders').checked=false;
     document.getElementById('f-showprice').checked=true;
     document.getElementById('block-list').innerHTML='';
     document.getElementById('f-palette').selectedIndex=0;
