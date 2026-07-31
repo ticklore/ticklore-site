@@ -251,6 +251,27 @@ The "Ticklore prints tickets manually" tool. Admin-only (`ADMIN_PASSWORD`); need
 - **Design system (future):** organizer picks palette/layout from **curated** options the contract
   renders — never free-form.
 
+## Vault EXPERIENCE — BUILT (2026-07-31, app layer only; contract still waits for freeze)
+Per the two-layer split below, the presentation + submission layer is now real:
+- **`lib/vault-store.js` — THE STORAGE SEAM.** JSON store + media dir today; Arweave anchors the
+  permanent core behind this same API after the freeze, nothing upstream changes. Entries
+  `{type: photo|letter, title, text, credit, media, status}`; **"pending" state already exists** for
+  future attendee submissions (today's concierge flow publishes directly — the admin IS the curator,
+  which IS the privacy model: curation, not gating).
+- **`lib/vault.js`** — public `/vault/:key` (open reads, branded: hero, THE STORY from the event
+  blurb, FROM THE NIGHT ITSELF photo gallery with captions/credits, LETTERS & MEMORIES quote cards,
+  THE PATRONS OF THIS NIGHT sponsor panel — where sponsor recognition actually lives);
+  `/vault-media/:name` (unguessable names, traversal-safe, 8MB cap, png/jpg/webp/gif only);
+  `/admin/vault/:key` curation console (ADMIN_PASSWORD; photo upload via file picker → base64,
+  letters with title/credit, list + remove) linked from each `/admin` event row ("Vault →").
+- Old placeholder vaultPage removed from wallet.js; wallet cards link straight into the real thing.
+- Verified end-to-end locally: create event → curate 2 photos + a letter → public page renders all
+  sections + sponsors; media serves; wrong password 401; remove works.
+- **Render env for persistence (Alex, whenever): `VAULT_STORE=/var/data/vault.json` and
+  `VAULT_MEDIA=/var/data/vault-media`** — without them the defaults work but are wiped on redeploy.
+- Still later: attendee submissions (land as pending → curator approves), Arweave anchoring
+  (post-freeze; cost research still open), organizer self-serve curation (with organizer accounts).
+
 ## Vault design note (2026-07-28, Alex)
 The vault should look and feel like a **real, branded web page** — full Ticklore styling, same feel as
 the ticket — the *deeper story behind the keepsake*: event hero, the story, photo galleries, roster,

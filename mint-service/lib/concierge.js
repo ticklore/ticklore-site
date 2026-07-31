@@ -524,6 +524,7 @@ function adminPage() {
           + '<div class="ev__main"><div class="ev__name">'+esc(e.name)+'</div>'
           + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
+          + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');
     });

@@ -1,0 +1,378 @@
+/**
+ * lib/vault.js — the memory vault: the deeper story behind the keepsake.
+ *
+ * The public page (/vault/:key) is the branded web-page experience Alex
+ * described: event hero, the story, the photo gallery, letters, and the
+ * sponsor credits panel — where sponsor recognition actually lives (the
+ * ticket face carries only the restrained credit line). Reads are OPEN on
+ * purpose: gating a view is theater; privacy is what the curator publishes.
+ *
+ * Submission is concierge-only for now (/admin/vault/:key, ADMIN_PASSWORD):
+ * Ticklore adds photos and letters on the organizer's behalf and is the
+ * curator. The store already carries a "pending" state for the day attendees
+ * submit directly. Content sits behind lib/vault-store.js — the storage seam
+ * Arweave fills after the contract freeze (see docs/HANDOFF.md).
+ */
+
+const express = require("express");
+const crypto = require("crypto");
+const events = require("./events");
+const vaultStore = require("./vault-store");
+const { head, formatDate, esc } = require("./ui");
+const { listEvents } = require("./stripe-routes");
+
+function mountVault(app) {
+  const PASSWORD = process.env.ADMIN_PASSWORD;
+
+  function checkPassword(req, res, next) {
+    if (!PASSWORD) return res.status(500).json({ error: "Vault admin is not configured (ADMIN_PASSWORD unset)." });
+    const given = req.get("x-admin-password") || "";
+    const a = Buffer.from(given), b = Buffer.from(PASSWORD);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: "Wrong password." });
+    }
+    next();
+  }
+
+  function findEvent(key) {
+    return events.get(key) || listEvents().find((x) => x.key === key) || null;
+  }
+
+  /** The public vault page. Open reads, curated content. */
+  app.get("/vault/:key", (req, res) => {
+    const e = findEvent(req.params.key) || { name: "Your event", date: "" };
+    const entries = vaultStore.listByEvent(req.params.key, { publishedOnly: true });
+    res.type("html").send(vaultPage(e, entries));
+  });
+
+  /** Stored vault media (photos). Names are unguessable and format-checked. */
+  app.get("/vault-media/:name", (req, res) => {
+    const p = vaultStore.mediaPath(req.params.name);
+    if (!p) return res.status(404).send("Not found");
+    res.sendFile(p, { maxAge: "7d" });
+  });
+
+  // --- Concierge curation ----------------------------------------------------
+
+  app.get("/admin/vault/:key/entries", checkPassword, (req, res) => {
+    const e = findEvent(req.params.key);
+    if (!e) return res.status(404).json({ error: "No such event." });
+    res.json({ name: e.name, date: e.date, entries: vaultStore.listByEvent(req.params.key, { publishedOnly: false }) });
+  });
+
+  /** Add a photo or letter. Concierge path publishes immediately — the admin
+   *  IS the curator. Raised body limit for the base64 photo payload. */
+  app.post("/admin/vault/:key/add", express.json({ limit: "10mb" }), checkPassword, (req, res) => {
+    try {
+      const e = findEvent(req.params.key);
+      if (!e) return res.status(404).json({ ok: false, error: "No such event." });
+      const b = req.body || {};
+      const entry = vaultStore.add(req.params.key, {
+        type: b.type, title: b.title, text: b.text, credit: b.credit,
+        imageData: b.imageData, publish: true,
+      });
+      res.json({ ok: true, id: entry.id, type: entry.type });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post("/admin/vault/publish", express.json(), checkPassword, (req, res) => {
+    const e = vaultStore.publish((req.body || {}).id);
+    if (!e) return res.status(404).json({ ok: false, error: "No such entry." });
+    res.json({ ok: true, id: e.id });
+  });
+
+  app.post("/admin/vault/remove", express.json(), checkPassword, (req, res) => {
+    const removed = vaultStore.remove((req.body || {}).id);
+    if (!removed) return res.status(404).json({ ok: false, error: "No such entry." });
+    res.json({ ok: true });
+  });
+
+  /** The curation console — client-gated like the code sheet. */
+  app.get("/admin/vault/:key", (req, res) => {
+    res.type("html").send(consolePage(req.params.key));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The public vault page — the wallpaper test applies here too.
+// ---------------------------------------------------------------------------
+
+function vaultPage(e, entries) {
+  const photos = entries.filter((x) => x.type === "photo");
+  const letters = entries.filter((x) => x.type === "letter");
+  const sponsors = Array.isArray(e.sponsors) ? e.sponsors.filter((s) => s && s.name) : [];
+
+  const photoCards = photos.map((p) => `
+      <figure class="ph">
+        <img src="/vault-media/${esc(p.media)}" alt="${esc(p.title || e.name)}" loading="lazy">
+        ${p.title || p.credit ? `<figcaption>${esc(p.title)}${p.title && p.credit ? " — " : ""}${p.credit ? `<span>${esc(p.credit)}</span>` : ""}</figcaption>` : ""}
+      </figure>`).join("");
+
+  const letterCards = letters.map((l) => `
+      <blockquote class="letter">
+        ${l.title ? `<div class="letter__title">${esc(l.title)}</div>` : ""}
+        <p>${esc(l.text).replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>")}</p>
+        ${l.credit ? `<cite>— ${esc(l.credit)}</cite>` : ""}
+      </blockquote>`).join("");
+
+  const sponsorRows = sponsors.map((s) => `
+      <div class="sp"><span class="sp__lead">${esc(s.leadIn || "With thanks to")}</span><span class="sp__name">${esc(s.name)}</span></div>`).join("");
+
+  const empty = !photos.length && !letters.length;
+
+  return `<!doctype html>
+<html lang="en"><head>${head("The Vault — " + e.name)}
+<meta name="theme-color" content="#081619">
+<style>
+  *{box-sizing:border-box}
+  body{background:var(--ink-deep,#081619)}
+  .vnav{padding:16px 20px;position:sticky;top:0;z-index:5;
+    background:linear-gradient(rgba(8,22,25,.95),rgba(8,22,25,.75));backdrop-filter:blur(8px)}
+  .vnav a{color:rgba(241,233,221,.7);text-decoration:none;font-size:.9rem}
+  .vault{max-width:760px;margin:0 auto;padding:26px 22px 90px}
+  .hero{text-align:center;padding:20px 0 34px;border-bottom:1px solid var(--line)}
+  .hero__tag{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+  .hero__name{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(2rem,6vw,3rem);line-height:1.08;margin-bottom:10px}
+  .hero__meta{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--sage)}
+  .sect{margin-top:44px}
+  .sect__label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--gold);margin-bottom:18px}
+  .story{font-family:'Fraunces',serif;font-style:italic;font-size:1.22rem;line-height:1.65;color:rgba(241,233,221,.85)}
+  .gallery{columns:2;column-gap:14px}
+  @media (max-width:560px){.gallery{columns:1}}
+  .ph{break-inside:avoid;margin:0 0 14px;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+    background:rgba(241,233,221,.02);box-shadow:0 18px 40px -26px rgba(0,0,0,.8)}
+  .ph img{display:block;width:100%;height:auto}
+  .ph figcaption{padding:10px 13px;font-size:.82rem;color:rgba(241,233,221,.75);font-family:'Fraunces',serif}
+  .ph figcaption span{color:var(--sage);font-family:'IBM Plex Mono',monospace;font-size:.72rem}
+  .letter{margin:0 0 18px;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;
+    padding:22px 24px;background:rgba(241,233,221,.03)}
+  .letter__title{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold-bright);margin-bottom:10px}
+  .letter p{font-family:'Fraunces',serif;font-style:italic;font-size:1.08rem;line-height:1.7;
+    color:rgba(241,233,221,.88);margin:0 0 10px}
+  .letter cite{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:var(--sage)}
+  .sp{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:13px 4px;border-bottom:1px solid var(--line)}
+  .sp__lead{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--sage)}
+  .sp__name{font-family:'Fraunces',serif;font-size:1.12rem;color:var(--gold-bright)}
+  .empty{border:1px dashed var(--line);border-radius:16px;padding:44px 26px;text-align:center;
+    background:rgba(241,233,221,.02);margin-top:44px}
+  .empty h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.2rem;margin-bottom:12px}
+  .empty p{color:rgba(241,233,221,.6);line-height:1.6;font-size:.98rem}
+  .vfoot{text-align:center;margin-top:60px;font-family:'IBM Plex Mono',monospace;font-size:.68rem;
+    letter-spacing:.24em;text-transform:uppercase;color:rgba(241,233,221,.35)}
+</style></head>
+<body>
+  <nav class="vnav"><a href="/wallet">← Your keepsakes</a></nav>
+  <main class="vault">
+    <div class="hero">
+      <div class="hero__tag">The Memory Vault</div>
+      <div class="hero__name">${esc(e.name)}</div>
+      <div class="hero__meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>
+    </div>
+
+    ${e.blurb ? `<section class="sect"><div class="sect__label">The Story</div><div class="story">${esc(e.blurb)}</div></section>` : ""}
+
+    ${photos.length ? `<section class="sect"><div class="sect__label">From the night itself</div><div class="gallery">${photoCards}</div></section>` : ""}
+
+    ${letters.length ? `<section class="sect"><div class="sect__label">Letters &amp; memories</div>${letterCards}</section>` : ""}
+
+    ${sponsors.length ? `<section class="sect"><div class="sect__label">The patrons of this night</div>${sponsorRows}</section>` : ""}
+
+    ${empty ? `<div class="empty"><h2>Forever, from the night itself.</h2><p>Photos and memories from this event will live here — permanently, tied to your ticket. The story is still being written.</p></div>` : ""}
+
+    <div class="vfoot">Every ticket has a story</div>
+  </main>
+</body></html>`;
+}
+
+// ---------------------------------------------------------------------------
+// The curation console (concierge-only).
+// ---------------------------------------------------------------------------
+
+function consolePage(key) {
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault curation — Ticklore</title>
+<style>
+  :root{--ink:#0E262B;--ink-deep:#081619;--parchment:#F1E9DD;--gold:#C9A227;--gold-bright:#E3C25E;
+    --sage:#7FB3A6;--line:rgba(241,233,221,.14);--field:rgba(241,233,221,.05)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--parchment);font-family:system-ui,'Segoe UI',sans-serif;line-height:1.5}
+  .gate{position:fixed;inset:0;background:var(--ink-deep);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}
+  .gate.hidden{display:none}
+  .gate__box{max-width:360px;width:100%;text-align:center}
+  .gate input{width:100%;padding:12px;border-radius:6px;border:1px solid var(--line);background:var(--field);
+    color:var(--parchment);margin:14px 0 10px;text-align:center;font-size:1rem}
+  .gate button{width:100%;padding:12px;border:0;border-radius:6px;background:var(--gold);color:var(--ink-deep);font-weight:600;cursor:pointer}
+  .gate .err{color:#E38A8A;font-size:.85rem;min-height:1.2em;margin-top:8px}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-family:Georgia,serif;font-size:1.4rem;margin-bottom:4px}
+  .sub{color:var(--sage);font-size:.85rem;margin-bottom:24px;font-family:ui-monospace,monospace}
+  .sub a{color:var(--gold-bright)}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tabs button{flex:1;padding:10px;border-radius:6px;border:1px solid var(--line);background:transparent;
+    color:var(--parchment);cursor:pointer;font-size:.9rem}
+  .tabs button.on{background:var(--gold);color:var(--ink-deep);border-color:var(--gold);font-weight:600}
+  label{display:block;font-size:.78rem;letter-spacing:.05em;color:var(--sage);margin:14px 0 6px;text-transform:uppercase}
+  input[type=text],textarea{width:100%;background:var(--field);border:1px solid var(--line);color:var(--parchment);
+    padding:11px 13px;border-radius:6px;font-size:.96rem}
+  textarea{min-height:110px;resize:vertical}
+  input[type=file]{margin-top:4px;color:var(--sage)}
+  .go{width:100%;margin-top:18px;background:var(--gold);color:var(--ink-deep);border:0;border-radius:6px;
+    padding:13px;font-weight:600;font-size:.98rem;cursor:pointer}
+  .go:disabled{opacity:.6;cursor:wait}
+  .msg{min-height:1.3em;margin-top:10px;font-size:.9rem}
+  .msg.err{color:#E38A8A}
+  .msg.ok{color:var(--sage)}
+  .entries{margin-top:34px;border-top:1px solid var(--line);padding-top:20px}
+  .entry{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:10px;background:var(--field)}
+  .entry img{width:52px;height:52px;object-fit:cover;border-radius:6px}
+  .entry__main{flex:1;min-width:0}
+  .entry__t{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .entry__m{font-size:.72rem;color:var(--sage);font-family:ui-monospace,monospace}
+  .entry button{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;
+    padding:6px 11px;font-size:.8rem;cursor:pointer}
+</style></head>
+<body>
+<div class="gate" id="gate"><div class="gate__box">
+  <div>Enter the admin password to curate this vault.</div>
+  <input id="pw" type="password" placeholder="Admin password" autofocus>
+  <button onclick="unlock()">Open curation</button>
+  <div class="err" id="gerr"></div>
+</div></div>
+
+<div class="wrap" id="main" style="display:none">
+  <h1 id="title">Vault curation</h1>
+  <div class="sub" id="sub"></div>
+
+  <div class="tabs">
+    <button id="tab-photo" class="on" onclick="setTab('photo')">Add a photo</button>
+    <button id="tab-letter" onclick="setTab('letter')">Add a letter</button>
+  </div>
+
+  <div id="pane-photo">
+    <label>Photo</label>
+    <input type="file" id="f-file" accept="image/*">
+    <label>Caption (optional)</label>
+    <input type="text" id="f-ptitle" maxlength="80" placeholder="The whole family, one frame">
+    <label>Credit (optional)</label>
+    <input type="text" id="f-pcredit" maxlength="60" placeholder="Photo: Aunt May">
+  </div>
+  <div id="pane-letter" style="display:none">
+    <label>Title (optional)</label>
+    <input type="text" id="f-ltitle" maxlength="80" placeholder="A note from the organizers">
+    <label>The letter</label>
+    <textarea id="f-ltext" maxlength="4000" placeholder="What a night it was…"></textarea>
+    <label>Signed (optional)</label>
+    <input type="text" id="f-lcredit" maxlength="60" placeholder="The Sullivan family">
+  </div>
+
+  <button class="go" id="go" onclick="submitEntry()">Publish to the vault</button>
+  <div class="msg" id="msg"></div>
+
+  <div class="entries">
+    <div style="font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:12px">Published entries</div>
+    <div id="list"><span style="color:var(--sage);font-size:.9rem">None yet.</span></div>
+  </div>
+</div>
+
+<script>
+  var KEY = ${JSON.stringify(key)};
+  var PW = "", TAB = "photo";
+
+  function unlock(){
+    PW = document.getElementById('pw').value;
+    fetch('/admin/vault/' + encodeURIComponent(KEY) + '/entries', { headers: { 'x-admin-password': PW } })
+      .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+      .then(function(d){
+        document.getElementById('gate').classList.add('hidden');
+        document.getElementById('main').style.display = 'block';
+        document.getElementById('title').textContent = 'Vault — ' + d.name;
+        document.getElementById('sub').innerHTML = 'Curating the memory vault · <a href="/vault/' + encodeURIComponent(KEY) + '" target="_blank">view the public page &rarr;</a>';
+        renderList(d.entries);
+      })
+      .catch(function(){ document.getElementById('gerr').textContent = 'Wrong password (or event not found).'; });
+  }
+  document.getElementById('pw').addEventListener('keydown', function(e){ if (e.key === 'Enter') unlock(); });
+
+  function setTab(t){
+    TAB = t;
+    document.getElementById('tab-photo').className = t === 'photo' ? 'on' : '';
+    document.getElementById('tab-letter').className = t === 'letter' ? 'on' : '';
+    document.getElementById('pane-photo').style.display = t === 'photo' ? 'block' : 'none';
+    document.getElementById('pane-letter').style.display = t === 'letter' ? 'block' : 'none';
+  }
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function renderList(entries){
+    var list = document.getElementById('list');
+    if (!entries.length) { list.innerHTML = '<span style="color:var(--sage);font-size:.9rem">None yet.</span>'; return; }
+    list.innerHTML = entries.map(function(e){
+      var thumb = e.type === 'photo' && e.media ? '<img src="/vault-media/' + esc(e.media) + '">' : '';
+      var t = e.type === 'photo' ? (e.title || 'Photo') : (e.title || (e.text || '').slice(0, 40) + '…');
+      return '<div class="entry" data-id="' + esc(e.id) + '">' + thumb
+        + '<div class="entry__main"><div class="entry__t">' + esc(t) + '</div>'
+        + '<div class="entry__m">' + e.type + ' · ' + (e.status) + (e.credit ? ' · ' + esc(e.credit) : '') + '</div></div>'
+        + '<button onclick="removeEntry(this)">Remove</button></div>';
+    }).join('');
+  }
+
+  function refresh(){
+    fetch('/admin/vault/' + encodeURIComponent(KEY) + '/entries', { headers: { 'x-admin-password': PW } })
+      .then(function(r){ return r.json(); }).then(function(d){ renderList(d.entries || []); });
+  }
+
+  function submitEntry(){
+    var msg = document.getElementById('msg'); msg.className = 'msg'; msg.textContent = '';
+    var btn = document.getElementById('go');
+    var body = { type: TAB };
+    if (TAB === 'letter') {
+      body.title = document.getElementById('f-ltitle').value;
+      body.text = document.getElementById('f-ltext').value;
+      body.credit = document.getElementById('f-lcredit').value;
+      if (!body.text.trim()) { msg.className = 'msg err'; msg.textContent = 'A letter needs some words.'; return; }
+      send(body);
+    } else {
+      var f = document.getElementById('f-file').files[0];
+      if (!f) { msg.className = 'msg err'; msg.textContent = 'Choose a photo first.'; return; }
+      if (f.size > 8 * 1024 * 1024) { msg.className = 'msg err'; msg.textContent = 'Photos are capped at 8 MB for now.'; return; }
+      var reader = new FileReader();
+      reader.onload = function(){ body.imageData = reader.result; body.title = document.getElementById('f-ptitle').value; body.credit = document.getElementById('f-pcredit').value; send(body); };
+      reader.readAsDataURL(f);
+    }
+    function send(payload){
+      btn.disabled = true; btn.textContent = 'Publishing…';
+      fetch('/admin/vault/' + encodeURIComponent(KEY) + '/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': PW },
+        body: JSON.stringify(payload)
+      }).then(function(r){ return r.json(); }).then(function(d){
+        btn.disabled = false; btn.textContent = 'Publish to the vault';
+        if (d.ok) {
+          msg.className = 'msg ok'; msg.textContent = 'Published \\u2713';
+          ['f-file','f-ptitle','f-pcredit','f-ltitle','f-ltext','f-lcredit'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+          refresh();
+        } else { msg.className = 'msg err'; msg.textContent = d.error || 'Could not publish.'; }
+      }).catch(function(){ btn.disabled = false; btn.textContent = 'Publish to the vault'; msg.className = 'msg err'; msg.textContent = 'Could not reach the server.'; });
+    }
+  }
+
+  function removeEntry(btn){
+    var id = btn.closest('.entry').getAttribute('data-id');
+    if (!confirm('Remove this entry from the vault?')) return;
+    fetch('/admin/vault/remove', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': PW }, body: JSON.stringify({ id: id }) })
+      .then(function(r){ return r.json(); }).then(function(){ refresh(); });
+  }
+</script>
+</body></html>`;
+}
+
+module.exports = { mountVault, vaultPage };

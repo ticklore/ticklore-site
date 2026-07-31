@@ -66,14 +66,8 @@ function mountWallet(app, { chain }) {
     }
   });
 
-  app.get("/vault/:key", (req, res) => {
-    // events.get first: sponsor events are hidden from the public listing but
-    // their holders absolutely get a vault.
-    const e = events.get(req.params.key) ||
-      listEvents().find((x) => x.key === req.params.key) ||
-      { name: "Your event", date: "" };
-    res.type("html").send(vaultPage(e));
-  });
+  // The vault route + page live in lib/vault.js now — the real branded
+  // experience with galleries, letters, and the sponsor credits panel.
 
   app.get("/manifest.webmanifest", (req, res) => {
     res.type("application/manifest+json").send(JSON.stringify(MANIFEST));
@@ -346,35 +340,4 @@ function walletPage(eventsList) {
   });
 }
 
-function vaultPage(e) {
-  return `<!doctype html>
-<html lang="en"><head>${head("The Vault — " + e.name)}
-<meta name="theme-color" content="#081619">
-<style>
-  body{background:var(--ink-deep,#081619)}
-  .vnav{padding:16px 20px}
-  .vnav a{color:rgba(241,233,221,.7);text-decoration:none;font-size:.9rem}
-  .vault{max-width:520px;margin:0 auto;padding:30px 24px 80px;text-align:center}
-  .vault__tag{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.24em;
-    text-transform:uppercase;color:var(--gold);margin-bottom:14px}
-  .vault__event{font-family:'Fraunces',serif;font-weight:600;font-size:2rem;line-height:1.1;margin-bottom:8px}
-  .vault__date{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--sage);margin-bottom:40px}
-  .vault__ph{border:1px dashed var(--line);border-radius:16px;padding:44px 26px;background:rgba(241,233,221,.02)}
-  .vault__ph h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.2rem;margin-bottom:12px}
-  .vault__ph p{color:rgba(241,233,221,.6);line-height:1.6;font-size:.98rem}
-</style></head>
-<body>
-  <nav class="vnav"><a href="/wallet">← Your keepsakes</a></nav>
-  <main class="vault">
-    <div class="vault__tag">The Memory Vault</div>
-    <div class="vault__event">${esc(e.name)}</div>
-    <div class="vault__date">${e.date ? formatDate(e.date) : ""}</div>
-    <div class="vault__ph">
-      <h2>Forever, from the night itself.</h2>
-      <p>Photos and memories the organizer shares from this event will live here — permanently, tied to your ticket. This is where the keepsake keeps growing. Coming next.</p>
-    </div>
-  </main>
-</body></html>`;
-}
-
-module.exports = { mountWallet, walletPage, vaultPage };
+module.exports = { mountWallet, walletPage };

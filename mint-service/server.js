@@ -295,6 +295,9 @@ show();
     // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs
     // V3+ for the on-chain sponsor list; prefers V4 (sections, price display).
     require("./lib/concierge").mountConcierge(app, { chainV3, chainV4 });
+    // The memory vault: public branded pages + concierge curation. Content
+    // sits behind lib/vault-store.js — the seam Arweave fills after the freeze.
+    require("./lib/vault").mountVault(app);
     require("./lib/wallet").mountWallet(app, { chain });
 
     const { ethers } = require("ethers");
