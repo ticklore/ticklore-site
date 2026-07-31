@@ -127,6 +127,17 @@ function release(code) {
   }
 }
 
+/** Mirror a door redemption onto the code record, so pages can show "Admitted"
+ *  without a chain read. The chain's redeem flag is the truth; this is a cache. */
+function markRedeemed(code) {
+  const data = read();
+  const c = data.codes[code];
+  if (!c) return null;
+  c.redeemedAt = new Date().toISOString();
+  write(data);
+  return c;
+}
+
 /** Remove all codes for an event (when a sponsor event is deleted). */
 function removeByEvent(eventKey) {
   const data = read();
@@ -138,4 +149,4 @@ function removeByEvent(eventKey) {
   return n;
 }
 
-module.exports = { generate, get, listByEvent, statsByEvent, reserve, finalize, release, removeByEvent };
+module.exports = { generate, get, listByEvent, statsByEvent, reserve, finalize, release, markRedeemed, removeByEvent };

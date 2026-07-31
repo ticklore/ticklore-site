@@ -187,6 +187,30 @@ async function mintTicket(contract, input) {
   };
 }
 
+/** Redeem a ticket at the door — flips the contract's redeem flag (never a
+ *  burn), which bakes the ADMITTED stamp into the on-chain art. Caller must be
+ *  the event's organizer/agent (our minter is, for concierge events). */
+async function redeemTicket(contract, tokenId) {
+  // Same RPC-lag guard as elsewhere: a just-minted token may not be visible to
+  // the estimating node yet. Failure is pre-send, so retrying is safe.
+  let tx;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      tx = await contract.redeem(BigInt(tokenId));
+      break;
+    } catch (err) {
+      const msg = String(err?.shortMessage || err?.reason || err?.message || "");
+      if (/no such ticket/i.test(msg) && attempt < 5) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  const receipt = await tx.wait();
+  return { tokenId: String(tokenId), txHash: tx.hash, block: receipt.blockNumber };
+}
+
 /** Read a ticket's metadata back out of the contract and decode it. */
 async function getTicket(contract, tokenId) {
   // A just-minted token may not be visible on the reading node yet (RPC lag),
@@ -220,5 +244,6 @@ module.exports = {
   sponsorTuples,
   createEvent,
   mintTicket,
+  redeemTicket,
   getTicket,
 };

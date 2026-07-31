@@ -75,6 +75,7 @@ function mountConcierge(app, { chainV3 }) {
         priceDollars: 0, sponsors, mode: "sponsor", blocks,
         onChainEventId: ev.eventId, onChainVersion: 3,
         allowInscription: false, soulbound: false,
+        redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
       });
 
       // 3) One claim code per ticket in every block.
@@ -170,6 +171,60 @@ function mountConcierge(app, { chainV3 }) {
         claims.release(code); // mint never landed — the code stays claimable
         throw err;
       }
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
+  // --- Door check-in (redemption) -------------------------------------------
+  // Per-event opt-in. Staff (Ticklore, at concierge events) opens the same
+  // claim link the attendee holds, follows "Door check-in", enters the admin
+  // password, and the server flips the contract's redeem flag — the keepsake
+  // gains its ADMITTED stamp on-chain. Never a burn.
+
+  /** The door page for one code. Public page; the redeem ACTION is gated. */
+  app.get("/door/:code", (req, res) => {
+    const rec = claims.get(req.params.code);
+    const details = rec ? events.get(rec.eventKey) : null;
+    res.type("html").send(doorPage({ code: req.params.code, rec, details }));
+  });
+
+  /** Redeem a claimed ticket at the door. Gated by ADMIN_PASSWORD in the body. */
+  app.post("/door/:code", express.json(), async (req, res) => {
+    try {
+      if (!PASSWORD) return res.status(500).json({ ok: false, error: "Door check-in is not configured." });
+      const given = String((req.body && req.body.password) || "");
+      const a = Buffer.from(given), b = Buffer.from(PASSWORD);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return res.status(401).json({ ok: false, error: "Wrong password." });
+      }
+
+      const rec = claims.get(req.params.code);
+      if (!rec) return res.status(404).json({ ok: false, error: "That code isn't valid." });
+      const details = events.get(rec.eventKey);
+      if (!details || !details.redemptionEnabled) {
+        return res.status(400).json({ ok: false, error: "Door check-in isn't enabled for this event." });
+      }
+      if (rec.status !== "claimed" || !rec.tokenId) {
+        return res.status(400).json({ ok: false, error: "This ticket hasn't been claimed yet — claim it first, then check in." });
+      }
+      if (rec.redeemedAt) {
+        return res.status(409).json({ ok: false, error: "Already admitted.", redeemedAt: rec.redeemedAt });
+      }
+      if (!chainV3) throw new Error("Check-in isn't available right now.");
+
+      try {
+        await ticklorev3.redeemTicket(chainV3.contract, rec.tokenId);
+      } catch (err) {
+        // The chain is the truth: if it says already redeemed, mirror and accept.
+        if (/already redeemed/i.test(String(err?.shortMessage || err?.reason || err?.message || ""))) {
+          claims.markRedeemed(req.params.code);
+          return res.status(409).json({ ok: false, error: "Already admitted." });
+        }
+        throw err;
+      }
+      claims.markRedeemed(req.params.code);
+      res.json({ ok: true, tokenId: rec.tokenId });
     } catch (err) {
       res.status(400).json({ ok: false, error: err.message });
     }
@@ -274,6 +329,13 @@ function adminPage() {
   <div class="hint">Each row is a sponsor and how many tickets they back. Those tickets carry that sponsor. Lead-in is optional ("Supported by").</div>
   <div class="total" id="total"></div>
 
+  <div class="section-label">Door check-in — optional</div>
+  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+    <input type="checkbox" id="f-redemption" style="width:auto">
+    <span style="font-size:.9rem;color:rgba(241,233,221,.8)">Enable door check-in (redeem at the gate)</span>
+  </label>
+  <div class="hint">Off = keepsake only. On = staff can mark each claimed ticket admitted at the door — the keepsake gains its permanent ADMITTED stamp. Never deletes or burns anything.</div>
+
   <button class="create" id="create" onclick="create()">Create event &amp; generate codes</button>
   <div class="result" id="result"></div>
 
@@ -336,7 +398,8 @@ function adminPage() {
       venue: document.getElementById('f-venue').value,
       date: document.getElementById('f-date').value,
       palette: document.getElementById('f-palette').value,
-      blocks: blocks
+      blocks: blocks,
+      redemptionEnabled: document.getElementById('f-redemption').checked
     };
     btn.disabled=true; btn.textContent='Creating on-chain…';
     fetch('/admin/create',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':PW},body:JSON.stringify(body)})
@@ -356,6 +419,7 @@ function adminPage() {
   }
   function resetForm(){
     ['f-name','f-venue','f-date'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('f-redemption').checked=false;
     document.getElementById('block-list').innerHTML='';
     document.getElementById('f-palette').selectedIndex=0;
     document.getElementById('total').textContent='';
@@ -509,10 +573,18 @@ function claimPage({ code, rec, details }) {
   const sponsor = rec.sponsorName ? `<div class="sponsor">Presented with ${esc(rec.sponsorName)}</div>` : "";
 
   if (rec.status === "claimed" && rec.tokenId) {
+    const admitted = !!rec.redeemedAt;
+    const headline = admitted ? "Admitted ✓" : "This keepsake is claimed.";
+    // Cache-buster after redemption so the freshly stamped on-chain art shows.
+    const imgSrc = `/ticket/${esc(rec.tokenId)}/image${admitted ? "?r=1" : ""}`;
+    const doorLink = !admitted && details && details.redemptionEnabled
+      ? `<div class="hint" style="margin-top:18px"><a href="/door/${esc(rec.code)}" style="color:var(--gold-bright)">Door check-in &rarr;</a> <span style="opacity:.7">(staff only)</span></div>`
+      : "";
     return head + `<h1>${evName}</h1>${venue}${sponsor}
-<div class="headline">This keepsake is claimed.</div>
-<div class="ticket"><img src="/ticket/${esc(rec.tokenId)}/image" alt="Your keepsake"></div>
-<div class="hint">Ticket #${esc(rec.tokenId)} — held for you.</div>` + foot;
+<div class="headline">${headline}</div>
+<div class="ticket"><img src="${imgSrc}" alt="Your keepsake"></div>
+<div class="hint">Ticket #${esc(rec.tokenId)} — held for you.</div>
+${doorLink}` + foot;
   }
 
   return head + `<h1>${evName}</h1>${venue}${sponsor}
@@ -539,6 +611,70 @@ function claimPage({ code, rec, details }) {
         } else { btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent=d.error||'Could not claim.'; }
       }).catch(function(){ btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent='Could not reach the server.'; });
   }
+</script>` + foot;
+}
+
+/** The door check-in page for one code. Staff-facing; the action needs the
+ *  admin password, so an attendee stumbling in can look but not redeem. */
+function doorPage({ code, rec, details }) {
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Door check-in — Ticklore</title>
+<style>
+  :root{--ink:#0E262B;--ink-deep:#081619;--parchment:#F1E9DD;--gold:#C9A227;--gold-bright:#E3C25E;--sage:#7FB3A6;--line:rgba(241,233,221,.14);--field:rgba(241,233,221,.05)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink-deep);color:var(--parchment);font-family:system-ui,'Segoe UI',sans-serif;line-height:1.5;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  .box{max-width:440px;width:100%;text-align:center}
+  .tag{font-family:ui-monospace,monospace;font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:18px}
+  h1{font-family:Georgia,serif;font-weight:600;font-size:1.6rem;margin-bottom:4px}
+  .venue{color:var(--sage);font-size:.92rem;margin-bottom:4px}
+  .tk{font-family:ui-monospace,monospace;font-size:.85rem;color:rgba(241,233,221,.7);margin-bottom:24px}
+  input{width:100%;background:var(--field);border:1px solid var(--line);color:var(--parchment);padding:13px 15px;border-radius:6px;font-size:1rem;text-align:center;margin-bottom:12px}
+  button{width:100%;background:var(--gold);color:var(--ink-deep);border:0;border-radius:6px;padding:14px;font-weight:600;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
+  .big{font-family:Georgia,serif;font-weight:600;font-size:2rem;color:var(--gold-bright);margin:18px 0 8px}
+  .hint{color:rgba(241,233,221,.55);font-size:.85rem;margin-top:14px}
+</style></head><body><div class="box">
+<div class="tag">Ticklore · Door check-in</div>`;
+  const foot = `</div></body></html>`;
+
+  if (!rec) return head + `<h1>Code not found</h1><div class="hint">This link isn't a valid ticket code.</div>` + foot;
+  const details2 = details || {};
+  const evName = esc(details2.name || "Event");
+  const venue = details2.venue ? `<div class="venue">${esc(details2.venue)}</div>` : "";
+
+  if (!details2.redemptionEnabled) {
+    return head + `<h1>${evName}</h1>${venue}<div class="hint">Door check-in isn't enabled for this event — it's a keepsake-only event.</div>` + foot;
+  }
+  if (rec.redeemedAt) {
+    return head + `<h1>${evName}</h1>${venue}<div class="big">Admitted ✓</div><div class="tk">Ticket #${esc(rec.tokenId || "?")} · checked in</div>` + foot;
+  }
+  if (rec.status !== "claimed" || !rec.tokenId) {
+    return head + `<h1>${evName}</h1>${venue}
+<div class="hint">This ticket hasn't been claimed yet. Have the guest claim it first, then check in.</div>
+<div class="hint"><a href="/claim/${esc(code)}" style="color:var(--gold-bright)">Open the claim page &rarr;</a></div>` + foot;
+  }
+
+  return head + `<h1>${evName}</h1>${venue}
+<div class="tk">Ticket #${esc(rec.tokenId)} · claimed, not yet admitted</div>
+<input id="pw" type="password" placeholder="Staff password" autofocus>
+<button id="go" onclick="redeem()">Admit &amp; stamp the keepsake</button>
+<div class="err" id="err"></div>
+<div class="hint">Stamps ADMITTED onto the on-chain keepsake. Permanent, never a burn.</div>
+<script>
+  var CODE = ${JSON.stringify(code)};
+  function redeem(){
+    var btn=document.getElementById('go'), err=document.getElementById('err');
+    err.textContent='';
+    btn.disabled=true; btn.textContent='Stamping…';
+    fetch('/door/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})})
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.ok){ location.reload(); }
+        else { btn.disabled=false; btn.textContent='Admit & stamp the keepsake'; err.textContent=d.error||'Could not check in.'; }
+      }).catch(function(){ btn.disabled=false; btn.textContent='Admit & stamp the keepsake'; err.textContent='Could not reach the server.'; });
+  }
+  document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') redeem(); });
 </script>` + foot;
 }
 

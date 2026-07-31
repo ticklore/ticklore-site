@@ -118,6 +118,10 @@ function create(input) {
         sponsorName: String(b.sponsorName || "").slice(0, 44),
       }))
     : [];
+  // Door check-in (redemption) — per-event opt-in, off by default. When on, a
+  // claimed ticket can be redeemed at the door (flips the contract's redeem
+  // flag; the keepsake gains its ADMITTED stamp). Keepsake-only events leave it off.
+  const redemptionEnabled = input.redemptionEnabled === true || input.redemptionEnabled === "true";
 
   // Ticket design — whitelisted so a bad value can't reach the renderer.
   const PALETTES = ["teal", "midnight", "burgundy", "forest", "plum"];
@@ -161,7 +165,7 @@ function create(input) {
     name, tier, blurb, priceCents, date, unlockDays, nonTransferable,
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
-    mode, blocks,
+    mode, blocks, redemptionEnabled,
     createdAt: new Date().toISOString(),
   };
   write(data);

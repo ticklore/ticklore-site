@@ -152,8 +152,15 @@ The "Ticklore prints tickets manually" tool. Admin-only (`ADMIN_PASSWORD`); need
   code, so lineup changes break nothing. (Round-robin was built briefly and corrected.)
 - Verified end-to-end vs deployed V3: Acme×3/Beta×3 → QR on every code → claim Acme → ticket carries
   Acme → double-claim blocked → Beta claim carries Beta.
-- Not built yet: door **redemption** toggle (contract has `redeem`; make it a per-event option),
-  attendee wallet-connect on claim, emailed claim receipts.
+- **Door check-in (redemption) — BUILT (2026-07-30).** Per-event opt-in on the concierge create form
+  (`redemptionEnabled`, default off = keepsake-only). Claimed tickets on enabled events get a
+  "Door check-in →" link on the claim page → `/door/:code`: staff enters the **admin password**, the
+  server calls the contract's `redeem` (never a burn), the keepsake gains its permanent on-chain
+  **ADMITTED** stamp, and claim/door pages flip to "Admitted ✓" (mirrored as `redeemedAt` in the claim
+  store; the chain is the truth). Wrong password 401; double check-in 409; unclaimed → "claim first";
+  keepsake-only events → "not enabled". Note: freshly stamped art can lag a few seconds behind on
+  public-RPC reads — harmless in practice.
+- Not built yet: attendee wallet-connect on claim, emailed claim receipts.
 
 ## Two product modes (DECIDED — the spine)
 1. **Lane A — Standard ticketing (general admission), self-serve, the scale engine.** Organizer sets up
@@ -243,7 +250,7 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 - Lane A **Stripe Connect** build (5% + $0.99 skim + organizer onboarding) — when self-serve demand is real.
 - **Rotate the throwaway testnet minter key `0xE6Bc4936F…`** (exposed in an earlier transcript; in
   `showroom-key.txt`) before anything touches real money.
-- Door **redemption** toggle on claim QR; attendee wallet-connect on claim (Privy).
+- Attendee wallet-connect on claim (Privy).
 - **Privy** integration (chosen; Stripe owns Privy; free ≤499 MAU → $299 → $499) — organizer authority
   = Privy embedded wallet (email/Google login custodies the address; no seed phrase; Ticklore =
   revocable agent via `setAgent`, never custodian).
