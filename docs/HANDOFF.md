@@ -18,8 +18,8 @@ The **V3 multi-sponsor stack and the Lane B concierge backend are LIVE on the de
 `/admin` concierge armed behind `ADMIN_PASSWORD`, demo mint cap 20/day, `/organize` cleaned to pure
 Lane A (no sponsor UI). The full concierge flow works end-to-end: sponsor blocks → claim codes → QR
 sheet → attendee claims → ticket lazy-mints carrying its block's sponsor.
-**Next big rock: the FINAL contract design pass ("freeze pass") — see ⚠️ Freeze status below — then
-freeze, then Privy, then the Phase-2 vault.**
+**Freeze is REFRAMED (see ⚠️ below): event-triggered (first real keepsake / vault deploy), never
+scheduled. The final contract design pass happens when we next touch the contract — batched, no rush.**
 
 ## The product (one paragraph)
 Ticklore — "every ticket has a story." An ERC-721 keepsake-ticketing product on **Base** (currently
@@ -84,10 +84,20 @@ redeploy); over-cap = calm 429 "today's batch is full" page.
   Scripts: `DeployV3.s.sol`, `SmokeV3.s.sol`. (Foundry gotcha: busy wallet → "nonce too low" on
   broadcast; re-run with `--slow`.)
 
-## ⚠️ FREEZE STATUS — one more contract pass required (DECIDED 2026-07-29)
-**The deployed V3 is NOT the freeze candidate.** Review outcome: batch ALL contract-touching decisions
-into **ONE final design pass, then freeze** — no sequential patches. V3 already covers multi-sponsor +
-per-ticket reference + inscription + free tickets. The freeze pass must still fold in:
+## ⚠️ FREEZE — REFRAMED (DECIDED 2026-07-30): event-triggered, not scheduled
+**What "freeze" means (so nobody re-scares themselves):** every deployed contract is already immutable;
+V1→V2→V3 were *replacements* at new addresses, not edits. "Freeze" is simply the **promise to stop
+replacing** — because (a) every replacement orphans the old contract's keepsakes (fatal to the
+permanence pitch once real people hold them), and (b) the vault is immutable/no-admin and anchors to
+ONE ticket-contract address forever.
+**The freeze is triggered by events, never by calendar:** (1) the first keepsake a real person truly
+keeps — whatever contract mints it is de facto the forever contract; (2) deploying the vault. Until
+either happens, iterate contracts freely on testnet. **Hard line: never run a real pilot on a contract
+already slated for replacement.** Everything off-chain (mint-service, UI, claim flow, pricing) plus all
+per-event data (palette, sponsors, blocks, soulbound) stays flexible forever regardless.
+**The deployed V3 is NOT the final contract.** Discipline kept from the 2026-07-29 review: whenever the
+contract is next touched, **batch everything known into ONE design pass** — no dribbled patches. Known
+items for that pass:
 1. **Price-display option (REVISED decision):** price shows when it tells a true story; the organizer
    can **OMIT** it (sponsor-funded/free events shouldn't stamp "$0" forever; gifts shouldn't brag a
    price). Decide mechanism (per-event flag vs per-ticket) in the pass.
@@ -101,9 +111,9 @@ per-ticket reference + inscription + free tickets. The freeze pass must still fo
    on-chain, auditable — never seize. Moves the ADMIN role only; never alters minted keepsakes.
 4. **Event-metadata mutability** — the standing call is lock-on-first-mint; confirm it as the final
    answer (or refine) in the pass.
-5. **Arweave cost** for the vault — settle before freeze since the vault deploys against the frozen
-   contract.
-Then: freeze forever → Privy → Phase-2 vault.
+5. **Arweave cost** for the vault — settle before the vault deploys (it anchors to the final contract).
+Sequence when the trigger nears: final design pass → the contract that mints real keepsakes →
+Privy → Phase-2 vault.
 
 ## How the mint-service is wired (as-built)
 All model code is additive + env-gated; the code prefers newest (V3 > V2 > V1).
@@ -221,12 +231,13 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 
 ## Open items
 **Near:**
-- **The freeze pass** (the ⚠️ section above) — the next big rock.
 - **about.html** — Ozzy in, Allison out.
 - **Inscription moderation checkpoint** before any real event uses inscriptions.
 - **Token `ticklore-jul25`:** rotated per Alex — one 10-second confirm in GitHub → Settings →
   Developer settings that the old token is dead, then delete this line.
-**Later:**
+**Later (or when the trigger nears):**
+- **The final contract design pass** (the ⚠️ items) — do it batched whenever the contract is next
+  touched; mandatory before any real pilot.
 - Lane A **Stripe Connect** build (5% + $0.99 skim + organizer onboarding) — when self-serve demand is real.
 - **Rotate the throwaway testnet minter key `0xE6Bc4936F…`** (exposed in an earlier transcript; in
   `showroom-key.txt`) before anything touches real money.
