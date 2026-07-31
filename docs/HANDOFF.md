@@ -263,9 +263,20 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 - **Rotate the throwaway testnet minter key `0xE6Bc4936F…`** (exposed in an earlier transcript; in
   `showroom-key.txt`) before anything touches real money.
 - Attendee wallet-connect on claim (Privy).
-- **Privy** integration (chosen; Stripe owns Privy; free ≤499 MAU → $299 → $499) — organizer authority
-  = Privy embedded wallet (email/Google login custodies the address; no seed phrase; Ticklore =
-  revocable agent via `setAgent`, never custodian).
+- **Privy — ATTENDEE SIDE IN PROGRESS (started 2026-07-31; dormant behind env).** Chosen (Stripe owns
+  Privy; free ≤499 MAU → $299 → $499). Vanilla path: `@privy-io/js-sdk-core` bundled once via esbuild
+  → `public/privy.js` (rebuild cmd in `privy-entry.js`); server verify via `@privy-io/server-auth`
+  (`PrivyClient.verifyAuthToken` → `getUserById` → embedded-wallet address — address always from
+  Privy's API, never the client). **Built + tested with fake creds:** claim page swaps to email→OTP
+  flow when configured (`sendCode`/`loginWithCode`, hidden wallet iframe, `getAccessToken`), claim
+  POST requires the token and mints **to the attendee's own embedded wallet** (`owned:true`,
+  address recorded on the claim record); without env, custodial flow is untouched (regression-tested).
+  **Gate = ALL THREE env vars or nothing:** `PRIVY_APP_ID`, `PRIVY_CLIENT_ID`, `PRIVY_APP_SECRET`.
+  **Remaining:** Alex creates the Privy app (dashboard.privy.io: email login ON, embedded wallets
+  auto-create on login, chain Base Sepolia) + sets the three Render vars; then a REAL OTP round-trip
+  test; then `/wallet` PWA login (list your keepsakes); OTP bonus = claimants now prove email
+  ownership. **Organizer authority via Privy waits for the final contract pass** (needs authority
+  reassignment, not in V3).
 - **Phase-2 vault** (after freeze; read ADR-001 rev 3 first).
 
 ## Guardrails (persist these)

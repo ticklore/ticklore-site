@@ -10,11 +10,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@privy-io/server-auth": "^1.32.5",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
     "express": "^4.22.2",
     "qrcode": "^1.5.4",
     "resend": "^6.18.0",
     "stripe": "^22.3.2"
+  },
+  "devDependencies": {
+    "@privy-io/js-sdk-core": "^0.68.5",
+    "esbuild": "^0.28.1"
   }
 }

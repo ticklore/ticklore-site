@@ -23,6 +23,39 @@ function mountConcierge(app, { chainV3 }) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
 
+  // Privy (optional, env-gated like every other flip). When configured, the
+  // claim flow upgrades: email OTP proves the claimant owns the address, and
+  // the keepsake mints straight into THEIR embedded wallet — real ownership,
+  // no seed phrase, no crypto vocabulary. Without the env vars, claims keep
+  // the current custodial email flow, so the live demo is untouched until the
+  // deliberate flip.
+  // All three vars or nothing — a half-configured Privy would show the wallet
+  // UI while the server still runs custodial, which is worse than either mode.
+  const PRIVY =
+    process.env.PRIVY_APP_ID && process.env.PRIVY_CLIENT_ID && process.env.PRIVY_APP_SECRET
+      ? { appId: process.env.PRIVY_APP_ID, clientId: process.env.PRIVY_CLIENT_ID }
+      : null;
+  let privyClient = null;
+  if (PRIVY) {
+    const { PrivyClient } = require("@privy-io/server-auth");
+    privyClient = new PrivyClient(PRIVY.appId, process.env.PRIVY_APP_SECRET);
+  }
+
+  /** The attendee's embedded EVM wallet address from a verified Privy token.
+   *  The address comes from Privy's server API — never from the client — so a
+   *  claimant can only ever mint to the wallet their login actually owns. */
+  async function privyWalletFromToken(token) {
+    const claims = await privyClient.verifyAuthToken(token);
+    const user = await privyClient.getUserById(claims.userId);
+    const accounts = user.linkedAccounts || [];
+    const wallet =
+      accounts.find((a) => a.type === "wallet" && a.walletClientType === "privy" && a.chainType === "ethereum") ||
+      (user.wallet && user.wallet.address ? user.wallet : null);
+    const email = accounts.find((a) => a.type === "email");
+    if (!wallet || !wallet.address) throw new Error("Your login has no wallet yet — refresh and try again.");
+    return { address: wallet.address, email: email ? email.address : null };
+  }
+
   function checkPassword(req, res, next) {
     if (!PASSWORD) {
       return res.status(500).json({ error: "Concierge access is not configured (ADMIN_PASSWORD unset)." });
@@ -149,7 +182,7 @@ function mountConcierge(app, { chainV3 }) {
   app.get("/claim/:code", (req, res) => {
     const rec = claims.get(req.params.code);
     const details = rec ? events.get(rec.eventKey) : null;
-    res.type("html").send(claimPage({ code: req.params.code, rec, details }));
+    res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY }));
   });
 
   /** Claim a code: lazy-mint the ticket on V3 with the code's sponsor, held in
@@ -162,7 +195,21 @@ function mountConcierge(app, { chainV3 }) {
       if (!rec) return res.status(404).json({ ok: false, error: "That claim code isn't valid." });
       if (rec.status === "claimed") return res.status(409).json({ ok: false, error: "already claimed", tokenId: rec.tokenId });
 
-      const email = String((req.body && req.body.email) || "").trim();
+      // Who gets the ticket? With Privy configured, the claimant proves their
+      // login (OTP) and the mint goes to THEIR embedded wallet. Without it,
+      // platform custody against a typed email (the original flow).
+      let to = chainV3.signer.address;
+      let email = String((req.body && req.body.email) || "").trim();
+      let owned = false;
+      if (privyClient) {
+        const token = String((req.body && req.body.privyToken) || "");
+        if (!token) return res.status(401).json({ ok: false, error: "Sign in to claim this keepsake." });
+        const w = await privyWalletFromToken(token); // throws on a bad/expired token
+        to = w.address;
+        email = w.email || email;
+        owned = true;
+      }
+
       const reserved = claims.reserve(code);
       if (!reserved) return res.status(409).json({ ok: false, error: "That code is already being claimed." });
 
@@ -171,14 +218,14 @@ function mountConcierge(app, { chainV3 }) {
         if (!details || !details.onChainEventId) throw new Error("This event is no longer available.");
         const r = await ticklorev3.mintTicket(chainV3.contract, {
           eventId: details.onChainEventId,
-          to: chainV3.signer.address, // custodial; migrates to the attendee's wallet later (Privy)
+          to,
           price: rec.priceCents || 0, // what the buyer pays the organizer; 0 renders "Free"
           buyerName: "",
           inscription: "",
           sponsorRef: rec.sponsorRef,
         });
-        claims.finalize(code, { email, tokenId: r.tokenId });
-        res.json({ ok: true, tokenId: r.tokenId });
+        claims.finalize(code, { email, tokenId: r.tokenId, address: owned ? to : null });
+        res.json({ ok: true, tokenId: r.tokenId, owned, address: owned ? to : undefined });
       } catch (err) {
         claims.release(code); // mint never landed — the code stays claimable
         throw err;
@@ -564,7 +611,7 @@ function sheetPage(key) {
 }
 
 /** The public claim page for one code. */
-function claimPage({ code, rec, details }) {
+function claimPage({ code, rec, details, privy }) {
   const head = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Claim your keepsake — Ticklore</title>
 <style>
@@ -610,6 +657,105 @@ function claimPage({ code, rec, details }) {
 <div class="ticket"><img src="${imgSrc}" alt="Your keepsake"></div>
 <div class="hint">Ticket #${esc(rec.tokenId)} — held for you.</div>
 ${doorLink}` + foot;
+  }
+
+  if (privy) {
+    // Privy flow: email OTP proves the claimant owns the address, an embedded
+    // wallet is created silently, and the keepsake mints into THEIR wallet.
+    return head + `<h1>${evName}</h1>${venue}${sponsor}
+<p style="margin-bottom:18px;color:rgba(241,233,221,.75)">Claim your keepsake — verify your email and it's yours, permanently.</p>
+<div id="step-email">
+  <input id="email" type="email" placeholder="you@email.com" autocomplete="email">
+  <button id="send" onclick="sendCode()">Send my code</button>
+</div>
+<div id="step-code" style="display:none">
+  <input id="otp" type="text" inputmode="numeric" placeholder="6-digit code" autocomplete="one-time-code" maxlength="6">
+  <button id="verify" onclick="verifyAndClaim()">Verify &amp; claim</button>
+</div>
+<div class="err" id="err"></div>
+<div class="ticket" id="ticket"></div>
+<div class="hint" id="hint">No app, no seed phrase — your email is your key.</div>
+<script src="/privy.js"></script>
+<script>
+  var CODE = ${JSON.stringify(code)};
+  var PRIVY_CFG = ${JSON.stringify(privy)};
+  var privy = null, booted = false, bootErr = null;
+
+  // Boot the SDK + mount the hidden wallet iframe as soon as the page loads,
+  // so key setup overlaps with the human typing their email.
+  (async function boot(){
+    try {
+      privy = new TickPrivy.Privy({ appId: PRIVY_CFG.appId, clientId: PRIVY_CFG.clientId, storage: new TickPrivy.LocalStorage() });
+      if (privy.initialize) await privy.initialize();
+      var f = document.createElement('iframe');
+      f.src = await Promise.resolve(privy.embeddedWallet.getURL());
+      f.style.display = 'none';
+      document.body.appendChild(f);
+      privy.setMessagePoster(f.contentWindow);
+      window.addEventListener('message', function(e){ try { privy.embeddedWallet.onMessage(e.data); } catch(_){} });
+      booted = true;
+    } catch (e) { bootErr = e; }
+  })();
+
+  async function sendCode(){
+    var err = document.getElementById('err'); err.textContent = '';
+    var email = document.getElementById('email').value.trim();
+    if (!email || email.indexOf('@') < 1) { err.textContent = 'Enter a valid email.'; return; }
+    if (!booted) { err.textContent = bootErr ? 'Could not start the secure wallet. Refresh and try again.' : 'One moment — still getting ready…'; return; }
+    var btn = document.getElementById('send');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await privy.auth.email.sendCode(email);
+      document.getElementById('step-email').style.display = 'none';
+      document.getElementById('step-code').style.display = 'block';
+      document.getElementById('hint').textContent = 'We emailed a 6-digit code to ' + email + '.';
+      document.getElementById('otp').focus();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Send my code';
+      err.textContent = 'Could not send the code — check the address and try again.';
+    }
+  }
+
+  async function verifyAndClaim(){
+    var err = document.getElementById('err'); err.textContent = '';
+    var email = document.getElementById('email').value.trim();
+    var otp = document.getElementById('otp').value.trim();
+    if (otp.length < 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
+    var btn = document.getElementById('verify');
+    btn.disabled = true; btn.textContent = 'Writing your chapter…';
+    try {
+      var session = await privy.auth.email.loginWithCode(email, otp);
+      var user = session && session.user ? session.user : session;
+      // Ensure the embedded wallet exists (dashboard usually auto-creates on login).
+      if (!TickPrivy.getUserEmbeddedEthereumWallet(user)) {
+        try { await privy.embeddedWallet.create({}); } catch (_) { /* server verifies anyway */ }
+      }
+      var token = await privy.getAccessToken();
+      var r = await fetch('/claim/' + encodeURIComponent(CODE), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privyToken: token })
+      });
+      var d = await r.json();
+      if (d.ok) {
+        document.getElementById('step-code').style.display = 'none';
+        var short = d.address ? d.address.slice(0, 6) + '…' + d.address.slice(-4) : '';
+        document.getElementById('hint').textContent = d.owned
+          ? 'Ticket #' + d.tokenId + ' — minted to YOUR wallet ' + short + '. Yours, permanently.'
+          : 'Ticket #' + d.tokenId + ' — held for you.';
+        var img = new Image(); img.src = '/ticket/' + d.tokenId + '/image';
+        img.onload = function(){ document.getElementById('ticket').appendChild(img); };
+      } else {
+        btn.disabled = false; btn.textContent = 'Verify & claim';
+        err.textContent = d.error || 'Could not claim.';
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Verify & claim';
+      err.textContent = 'That code did not verify — check it and try again.';
+    }
+  }
+  document.getElementById('otp').addEventListener('keydown', function(e){ if (e.key === 'Enter') verifyAndClaim(); });
+  document.getElementById('email').addEventListener('keydown', function(e){ if (e.key === 'Enter') sendCode(); });
+</script>` + foot;
   }
 
   return head + `<h1>${evName}</h1>${venue}${sponsor}

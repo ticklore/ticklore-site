@@ -107,14 +107,17 @@ function reserve(code) {
   return c;
 }
 
-/** Finalize a reserved code once its ticket is minted. */
-function finalize(code, { email, tokenId }) {
+/** Finalize a reserved code once its ticket is minted. `address` is set when
+ *  the ticket minted straight into the attendee's own (Privy) wallet — absent
+ *  means platform custody against the email. */
+function finalize(code, { email, tokenId, address }) {
   const data = read();
   const c = data.codes[code];
   if (!c) return null;
   c.status = "claimed";
   c.email = email || null;
   c.tokenId = tokenId != null ? String(tokenId) : null;
+  c.address = address || null;
   c.claimedAt = new Date().toISOString();
   write(data);
   return c;
