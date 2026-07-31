@@ -116,4 +116,82 @@ function ticketEmailHtml({ eventName, ticketId, viewUrl, custodial }) {
 </body></html>`;
 }
 
-module.exports = { sendTicketEmail };
+/**
+ * Send the claim receipt — the keepsake email after a claim-code redemption.
+ * Same design rule: by now the keepsake exists on-chain; a mail failure costs
+ * a notification, never the claim. Always resolves.
+ */
+async function sendClaimEmail({ to, eventName, ticketId, claimUrl, vaultUrl, owned }) {
+  if (!to) return { sent: false, reason: "no email on the claim" };
+
+  const client = getClient();
+  if (!client) return { sent: false, reason: "RESEND_API_KEY not set — email disabled" };
+
+  const from = process.env.FROM_EMAIL || "Ticklore <onboarding@resend.dev>";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const heldLine = owned
+    ? "It was minted straight into your own wallet — yours, permanently. Your email is the key; there is nothing to install or remember."
+    : "It is held safely for you — no wallet or crypto account required.";
+
+  const btn = (url, label, solid) => `<a href="${esc(url)}" style="display:inline-block;${solid
+    ? "background:#C9A227;color:#081619;"
+    : "background:transparent;color:#E3C25E;border:1px solid #C9A227;"}text-decoration:none;font-weight:600;padding:12px 24px;border-radius:5px;font-family:Helvetica,Arial,sans-serif;font-size:14px;margin:0 6px 8px;">${esc(label)}</a>`;
+
+  const text = [
+    `Your keepsake from ${eventName} is claimed.`,
+    ``,
+    `Keepsake #${ticketId}. ${owned ? "Minted into your own wallet — yours, permanently." : "Held safely for you."}`,
+    ``,
+    claimUrl ? `See your keepsake: ${claimUrl}` : ``,
+    vaultUrl ? `Open the memory vault: ${vaultUrl}` : ``,
+    ``,
+    `Every ticket has a story.`,
+    `Ticklore`,
+  ].filter(Boolean).join("\n");
+
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0E262B;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0E262B;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:linear-gradient(135deg,#123138,#0a1e23);border:1px solid rgba(227,194,94,0.2);border-radius:12px;">
+        <tr><td style="padding:40px 40px 8px;text-align:center;">
+          <div style="font-family:Georgia,serif;font-size:26px;font-weight:bold;color:#F1E9DD;letter-spacing:-0.5px;">Tick<span style="color:#E3C25E;">lore</span></div>
+          <div style="font-family:Georgia,serif;font-style:italic;font-size:14px;color:#E3C25E;margin-top:4px;">Every ticket has a story.</div>
+        </td></tr>
+        <tr><td style="padding:24px 40px 8px;text-align:center;">
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#C9A227;">Your keepsake is claimed</div>
+          <h1 style="font-family:Georgia,serif;font-weight:600;font-size:24px;color:#F1E9DD;margin:10px 0 0;line-height:1.2;">${esc(eventName)}</h1>
+        </td></tr>
+        <tr><td style="padding:16px 40px 8px;text-align:center;">
+          <p style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(241,233,221,0.72);margin:0;">
+            Keepsake <strong style="color:#F1E9DD;">#${esc(ticketId)}</strong> is written into the story.
+            ${esc(heldLine)}
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 40px 8px;text-align:center;">
+          ${claimUrl ? btn(claimUrl, "See your keepsake", true) : ""}
+          ${vaultUrl ? btn(vaultUrl, "Open the memory vault", false) : ""}
+        </td></tr>
+        <tr><td style="padding:28px 40px 40px;text-align:center;border-top:1px solid rgba(241,233,221,0.1);">
+          <p style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:rgba(241,233,221,0.4);margin:16px 0 0;">
+            This keepsake lives on the blockchain and does not expire. The vault is where its story keeps growing — photos and memories from the night, added over time. Worth revisiting.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const { data, error } = await client.emails.send({
+    from, to: [to],
+    subject: `Your keepsake from ${eventName} — claimed`,
+    html, text,
+  });
+
+  if (error) return { sent: false, reason: error.message || String(error) };
+  return { sent: true, id: data?.id };
+}
+
+module.exports = { sendTicketEmail, sendClaimEmail };

@@ -231,6 +231,19 @@ function mountConcierge(app, { chainV3, chainV4 }) {
         });
         claims.finalize(code, { email, tokenId: r.tokenId, address: owned ? to : null });
         res.json({ ok: true, tokenId: r.tokenId, owned, address: owned ? to : undefined, version: details.onChainVersion || undefined });
+
+        // Claim receipt — after the response on purpose. The keepsake already
+        // exists on-chain; a mail failure costs a notification, never a claim.
+        require("./email").sendClaimEmail({
+          to: email,
+          eventName: details.name,
+          ticketId: r.tokenId,
+          claimUrl: `${PUBLIC_URL}/claim/${code}`,
+          vaultUrl: `${PUBLIC_URL}/vault/${encodeURIComponent(rec.eventKey)}`,
+          owned,
+        }).then((m) => console.log(m.sent
+          ? `  ✉ claim receipt → ${email} (${m.id})`
+          : `  ⚠ claim receipt not sent: ${m.reason}`));
       } catch (err) {
         claims.release(code); // mint never landed — the code stays claimable
         throw err;

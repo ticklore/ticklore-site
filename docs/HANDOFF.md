@@ -284,8 +284,20 @@ Per the two-layer split below, the presentation + submission layer is now real:
   sections + sponsors; media serves; wrong password 401; remove works.
 - **Render env for persistence (Alex, whenever): `VAULT_STORE=/var/data/vault.json` and
   `VAULT_MEDIA=/var/data/vault-media`** — without them the defaults work but are wiped on redeploy.
-- Still later: attendee submissions (land as pending → curator approves), Arweave anchoring
-  (post-freeze; cost research still open), organizer self-serve curation (with organizer accounts).
+- **Attendee submissions — BUILT (2026-07-31, commit c93def1).** "Add your memory" on the public
+  vault page: submissions land PENDING; only the curator publishes (curation stays the protection).
+  **Open by default** (Alex's call — photos are donations, don't toll-booth generosity) with a
+  per-event **"holders-only" toggle** on the concierge form (Privy sign-in + claim record for THIS
+  event, verified server-side; form hides if Privy isn't configured). Guardrails: inscription
+  moderation on all text (letters checked line-by-line), 6 submissions/hr/IP (attempts count),
+  200-pending cap/event, 8MB photos. Submitter name/email ride along for curation (verified flag on
+  holders); name auto-becomes the credit. Console: Publish button, pending highlights, awaiting count.
+- **Claim receipts — BUILT (2026-07-31).** `email.sendClaimEmail` — after a claim, the attendee gets
+  a branded keepsake email ("See your keepsake" + "Open the memory vault" buttons; owned vs held
+  copy). Fired AFTER the claim response; mail can never slow or break a claim. Active only when
+  `RESEND_API_KEY` is set (same gate as ticket emails; `FROM_EMAIL` override applies).
+- Still later: Arweave anchoring (post-freeze; cost RESOLVED — see Money/Arweave section), organizer
+  self-serve curation (with organizer accounts).
 
 ## Vault design note (2026-07-28, Alex)
 The vault should look and feel like a **real, branded web page** — full Ticklore styling, same feel as
