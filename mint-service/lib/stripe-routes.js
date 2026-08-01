@@ -294,73 +294,42 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
       if (details.mode === "sponsor") {
         return res.status(404).type("html").send(successPage({ error: "This is a sponsor keepsake event — it's distributed by claim code, not bought here." }));
       }
-      // Only honor a buyer inscription when the organizer enabled it — the
-      // fields aren't shown otherwise, and a hand-crafted URL shouldn't slip past.
-      const holderName = details.allowInscription ? (req.query.holder || "") : "";
-      const message = details.allowInscription ? (req.query.msg || "") : "";
-
-      // Moderation checkpoint — BEFORE anything mints. An inscription is engraved
-      // on-chain forever, so the only place to catch abuse is right here.
-      const mod = moderation.checkInscription({ buyerName: holderName, inscription: message });
-      if (!mod.ok) {
-        return res.status(400).type("html").send(successPage({ error: mod.reason }));
-      }
-
-      // Daily ceiling: this mints real testnet gas from one throwaway wallet over
-      // a public link. Claim a slot before minting; on a mint failure below we
-      // give it back, so only mints that actually spend gas count against the day.
+      // Daily ceiling: every demo buy leads to a real testnet mint from one
+      // throwaway wallet over a public link.
       const slot = mintCap.tryReserveMint();
       if (!slot.ok) {
         return res.status(429).type("html").send(successPage({ capped: true, cap: slot.cap }));
       }
 
+      // Published (on-chain) events walk the REAL road: the "purchase" buys a
+      // claim code — exactly what a card payment buys — and the buyer lands on
+      // the claim page: email (or sign-in), mint at claim, possibly straight
+      // into their own wallet, receipt in their inbox. Everything a paying
+      // customer experiences except the card swipe itself.
+      if (details.onChainEventId && (details.onChainVersion === 3 || details.onChainVersion === 4)) {
+        const [rec] = claims.generate(req.query.demo, [{
+          sponsorRef: 0, count: 1, sponsorName: "",
+          priceCents: details.priceCents || 0, sectionRef: 0, section: "",
+        }]);
+        // Personalization typed on the shop form rides along as a PREFILL —
+        // the claim page is where it's confirmed, and the claim POST is the
+        // moderated source of truth.
+        const qs = [];
+        if (details.allowInscription && req.query.holder) qs.push("name=" + encodeURIComponent(String(req.query.holder).slice(0, 32)));
+        if (details.allowInscription && req.query.msg) qs.push("msg=" + encodeURIComponent(String(req.query.msg).slice(0, 42)));
+        return res.redirect(`/claim/${rec.code}${qs.length ? "?" + qs.join("&") : ""}`);
+      }
+
+      // Seed events exist only in code (no on-chain event), so they keep the
+      // legacy instant showcase mint — display-only, V1, no buyer identity.
+      const holderName = details.allowInscription ? (req.query.holder || "") : "";
+      const message = details.allowInscription ? (req.query.msg || "") : "";
+      const mod = moderation.checkInscription({ buyerName: holderName, inscription: message });
+      if (!mod.ok) {
+        mintCap.releaseMint();
+        return res.status(400).type("html").send(successPage({ error: mod.reason }));
+      }
       try {
-        // V4 path: the final-design event model (sections, price display). A
-        // standard (Lane A) event has no sponsor/section blocks, so refs are 0.
-        if (chainV4 && details.onChainEventId && details.onChainVersion === 4) {
-          const r = await ticklorev4.mintTicket(chainV4.contract, {
-            eventId: details.onChainEventId,
-            to: chainV4.signer.address,
-            price: details.priceCents,
-            buyerName: holderName,
-            inscription: message,
-            sponsorRef: 0,
-            sectionRef: 0,
-          });
-          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true, version: 4 }));
-        }
-
-        // V3 path: multi-sponsor event lives on-chain. Assign this ticket its
-        // sponsor by rotating through the event's list (ticket 1 → sponsor 1,
-        // 2 → sponsor 2, wrap), so different keepsakes credit different sponsors.
-        if (chainV3 && details.onChainEventId && details.onChainVersion === 3) {
-          const sponsors = Array.isArray(details.sponsors) ? details.sponsors : [];
-          const n = events.recordMint(req.query.demo); // 1-based mint index for this event
-          const sponsorRef = sponsors.length ? (((n - 1) % sponsors.length) + 1) : 0;
-          const r = await ticklorev3.mintTicket(chainV3.contract, {
-            eventId: details.onChainEventId,
-            to: chainV3.signer.address,
-            price: details.priceCents,
-            buyerName: holderName,
-            inscription: message,
-            sponsorRef,
-          });
-          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true, version: 3 }));
-        }
-
-        // V2 path: the event lives on-chain → mint the event-model ticket.
-        if (chainV2 && details.onChainEventId && details.onChainVersion !== 3 && details.onChainVersion !== 4) {
-          const r = await ticklorev2.mintTicket(chainV2.contract, {
-            eventId: details.onChainEventId,
-            to: chainV2.signer.address,
-            price: details.priceCents,
-            buyerName: holderName,
-            inscription: message,
-          });
-          return res.type("html").send(successPage({ ticketId: r.tokenId, eventName: details.name, custodial: true, immediate: true }));
-        }
-
-        // V1 path (current demo).
         const result = await ticklore.mintTicket(chain.contract, {
           to: chain.signer.address,
           eventName: details.name, tier: details.tier,
@@ -369,7 +338,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
           palette: details.palette, style: details.style,
           holderName, message,
         });
-        return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true }));
+        return res.type("html").send(successPage({ ticketId: result.ticketId, eventName: details.name, custodial: true, immediate: true, version: 1 }));
       } catch (err) {
         mintCap.releaseMint(); // the mint never landed — don't burn the slot
         return res.type("html").send(successPage({ error: err.message }));

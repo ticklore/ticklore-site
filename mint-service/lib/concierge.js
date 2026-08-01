@@ -17,6 +17,7 @@ const crypto = require("crypto");
 const QRCode = require("qrcode");
 const events = require("./events");
 const claims = require("./claims");
+const moderation = require("./moderation");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const privyLib = require("./privy");
@@ -193,7 +194,10 @@ function mountConcierge(app, { chainV3, chainV4 }) {
   app.get("/claim/:code", (req, res) => {
     const rec = claims.get(req.params.code);
     const details = rec ? events.get(rec.eventKey) : null;
-    res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY }));
+    // Prefill personalization typed earlier (e.g. on the shop's buy form) —
+    // display-only convenience; the POST is the moderated source of truth.
+    const prefill = { name: String(req.query.name || "").slice(0, 32), msg: String(req.query.msg || "").slice(0, 42) };
+    res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY, prefill }));
   });
 
   /** Claim a code: lazy-mint the ticket (with its sponsor + section) on the
@@ -211,6 +215,17 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       if (rec.active === false) {
         return res.status(403).json({ ok: false, error: "This ticket hasn't been activated yet — see the ticket desk." });
       }
+
+      const details = events.get(rec.eventKey);
+      if (!details || !details.onChainEventId) throw new Error("This event is no longer available.");
+
+      // Personalization at claim — only when the organizer allowed it, and
+      // ALWAYS through the moderation gate before anything mints (engravings
+      // are forever; a rejected line costs a rephrase, not a claim).
+      const buyerName = details.allowInscription ? String((req.body && req.body.buyerName) || "").trim().slice(0, 32) : "";
+      const inscription = details.allowInscription ? String((req.body && req.body.inscription) || "").trim().slice(0, 42) : "";
+      const mod = moderation.checkInscription({ buyerName, inscription });
+      if (!mod.ok) return res.status(400).json({ ok: false, error: mod.reason });
 
       // Who gets the ticket? With Privy configured, the claimant proves their
       // login (OTP) and the mint goes to THEIR embedded wallet. Without it,
@@ -231,8 +246,6 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       if (!reserved) return res.status(409).json({ ok: false, error: "That code is already being claimed." });
 
       try {
-        const details = events.get(rec.eventKey);
-        if (!details || !details.onChainEventId) throw new Error("This event is no longer available.");
         // An event's ids only mean anything on the contract that created it —
         // mint on that version, not blindly on the newest.
         const mintChain = details.onChainVersion === 4 ? chainV4 : chainV3;
@@ -242,8 +255,8 @@ function mountConcierge(app, { chainV3, chainV4 }) {
           eventId: details.onChainEventId,
           to,
           price: rec.priceCents || 0, // what the buyer pays the organizer; 0 renders "Free"
-          buyerName: "",
-          inscription: "",
+          buyerName,
+          inscription,
           sponsorRef: rec.sponsorRef,
           sectionRef: rec.sectionRef || 0,
         });
@@ -749,7 +762,25 @@ function sheetPage(key) {
 }
 
 /** The public claim page for one code. */
-function claimPage({ code, rec, details, privy }) {
+function claimPage({ code, rec, details, privy, prefill }) {
+  // Optional personalization fields — only when the organizer allowed
+  // inscriptions. Values are set via attributes (escaped); the server
+  // re-validates and moderates on POST regardless.
+  const allowIns = !!(details && details.allowInscription);
+  const pfName = esc((prefill && prefill.name) || "");
+  const pfMsg = esc((prefill && prefill.msg) || "");
+  const inscriptionFields = allowIns ? `
+<div id="insc" style="margin-bottom:2px">
+  <input id="in-name" type="text" maxlength="32" placeholder="Your name (optional)" value="${pfName}">
+  <input id="in-msg" type="text" maxlength="42" placeholder="A line for the keepsake (optional)" value="${pfMsg}">
+  <div style="font-size:.74rem;color:rgba(241,233,221,.45);margin:-4px 0 10px">Engraved on the keepsake forever — keep it kind.</div>
+</div>` : "";
+  const inscriptionJs = `
+  function inscriptionBody(){
+    var n = document.getElementById('in-name'), m = document.getElementById('in-msg');
+    return { buyerName: n ? n.value : '', inscription: m ? m.value : '' };
+  }
+  function hideInscription(){ var b = document.getElementById('insc'); if (b) b.style.display = 'none'; }`;
   const head = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Claim your keepsake — Ticklore</title>
 <style>
@@ -816,6 +847,7 @@ ${doorLink}` + foot;
     // wallet is created silently, and the keepsake mints into THEIR wallet.
     return head + `<h1>${evName}</h1>${venue}${sponsor}
 <p style="margin-bottom:18px;color:rgba(241,233,221,.75)">Claim your keepsake — verify your email and it's yours, permanently.</p>
+${inscriptionFields}
 <div id="step-email">
   <input id="email" type="email" placeholder="you@email.com" autocomplete="email">
   <button id="send" onclick="sendCode()">Send my code</button>
@@ -832,6 +864,7 @@ ${doorLink}` + foot;
   var CODE = ${JSON.stringify(code)};
   var PRIVY_CFG = ${JSON.stringify(privy)};
   var privy = null, booted = false, bootErr = null;
+${inscriptionJs}
 
   // Boot the SDK + mount the hidden wallet iframe as soon as the page loads,
   // so key setup overlaps with the human typing their email.
@@ -883,13 +916,15 @@ ${doorLink}` + foot;
         try { await privy.embeddedWallet.create({}); } catch (_) { /* server verifies anyway */ }
       }
       var token = await privy.getAccessToken();
+      var ins = inscriptionBody();
       var r = await fetch('/claim/' + encodeURIComponent(CODE), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ privyToken: token })
+        body: JSON.stringify({ privyToken: token, buyerName: ins.buyerName, inscription: ins.inscription })
       });
       var d = await r.json();
       if (d.ok) {
         document.getElementById('step-code').style.display = 'none';
+        hideInscription();
         var short = d.address ? d.address.slice(0, 6) + '…' + d.address.slice(-4) : '';
         document.getElementById('hint').textContent = d.owned
           ? 'Ticket #' + d.tokenId + ' — minted to YOUR wallet ' + short + '. Yours, permanently.'
@@ -912,6 +947,7 @@ ${doorLink}` + foot;
 
   return head + `<h1>${evName}</h1>${venue}${sponsor}
 <p style="margin-bottom:18px;color:rgba(241,233,221,.75)">Claim your keepsake ticket — enter your email and it's yours.</p>
+${inscriptionFields}
 <input id="email" type="email" placeholder="you@email.com" autocomplete="email">
 <button id="go" onclick="claim()">Claim my keepsake</button>
 <div class="err" id="err"></div>
@@ -919,15 +955,17 @@ ${doorLink}` + foot;
 <div class="hint" id="hint">Free — no wallet or app needed.</div>
 <script>
   var CODE = ${JSON.stringify(code)};
+${inscriptionJs}
   function claim(){
     var btn=document.getElementById('go'), err=document.getElementById('err');
     err.textContent=''; var email=document.getElementById('email').value.trim();
     if(!email || email.indexOf('@')<1){ err.textContent='Enter a valid email.'; return; }
     btn.disabled=true; btn.textContent='Writing your chapter…';
-    fetch('/claim/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+    var ins = inscriptionBody();
+    fetch('/claim/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,buyerName:ins.buyerName,inscription:ins.inscription})})
       .then(function(r){return r.json()}).then(function(d){
         if(d.ok || (d.tokenId)){
-          document.getElementById('email').style.display='none'; btn.style.display='none';
+          document.getElementById('email').style.display='none'; btn.style.display='none'; hideInscription();
           document.getElementById('hint').textContent='Ticket #'+d.tokenId+' — held for you. No wallet needed.';
           var img=new Image(); img.src='/ticket/'+d.tokenId+'/image'+(d.version?'?v='+d.version:'');
           img.onload=function(){ document.getElementById('ticket').appendChild(img); };
