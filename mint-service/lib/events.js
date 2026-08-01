@@ -11,6 +11,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { ethers } = require("ethers");
 
 const FILE = process.env.EVENT_STORE || path.join(__dirname, "..", "events.json");
@@ -119,8 +120,21 @@ function create(input) {
         priceCents: Math.max(0, Math.round(Number(b.priceCents) || 0)),
         sectionRef: Number(b.sectionRef) || 0,
         section: String(b.section || "").slice(0, 32),
+        // Online blocks are sold through the card payment gate: their codes are
+        // never printed — the webhook hands them out by email, one per payment.
+        online: b.online === true || b.online === "true",
       }))
     : [];
+
+  // Seller activation (optional, for cash sales): printed codes start DORMANT
+  // and the desk activates each one at the moment of sale with this PIN — the
+  // gift-card model. A photographed or stolen card is worthless paper. The PIN
+  // is per-event and deliberately NOT the admin password: desk volunteers never
+  // hold the master key.
+  const activationRequired = input.activationRequired === true || input.activationRequired === "true";
+  const sellerPin = activationRequired
+    ? (String(input.sellerPin || "").trim().slice(0, 12) || String(crypto.randomInt(100000, 1000000)))
+    : null;
   // V4 fields: named sections ("Table 7") the tickets reference, and whether
   // the keepsake shows its price at all (default ON; hiding is deliberate).
   const sections = Array.isArray(input.sections)
@@ -182,6 +196,7 @@ function create(input) {
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
+    activationRequired, sellerPin,
     createdAt: new Date().toISOString(),
   };
   write(data);

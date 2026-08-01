@@ -369,6 +369,27 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   reassignment, not in V3).
 - **Phase-2 vault** (after freeze; read ADR-001 rev 3 first).
 
+## Gala sales lanes — BUILT (2026-08-01): activation + Stripe-sells-a-code
+Both point-of-sale models for real events (all additive; dormant until an event uses them):
+- **Seller activation (gift-card model), per-event toggle:** printed cards are born DORMANT; the desk
+  activates each at the moment of cash sale via `/activate/:code` (link on the card's own claim page)
+  with a **per-event seller PIN** (auto-generated, shown once at create — volunteers never hold the
+  admin password). Dormant cards show "Almost yours" and refuse to claim; a photographed card is
+  worthless paper. Online codes are always born active (payment IS activation).
+- **Stripe-sells-a-code (the card lane):** mark a block **online** at create — its codes are NEVER
+  printed. `/buy/:key` is the poster-QR payment page (price from the online block, live remaining
+  count) → Stripe checkout → the webhook **allocates one unsold code and emails the claim link**
+  (`sendCodeEmail`) — from there the buyer walks the identical claim flow as a cash buyer (mint at
+  claim, newest contract, Privy-owned when signed in). Idempotent via the order store (Stripe retries
+  can't double-sell); paid-but-sold-out logs a loud REFUND NEEDED and releases the session; `/bought`
+  is the "check your email" landing. **No mint in the webhook — the old V1 webhook mint path is
+  bypassed entirely for code sales.**
+- **TO GO LIVE with card sales (Alex, when the Gala says yes):** set `STRIPE_SECRET_KEY` (+ add a
+  webhook endpoint in the Stripe dashboard → `https://app.ticklore.com/webhook`, event
+  `checkout.session.completed` → copy its signing secret to `STRIPE_WEBHOOK_SECRET`). Test mode first.
+- **The wedding (no money, vault-first): needs NOTHING new** — plain batch, `showPrice` off, open
+  vault submissions, guests pour photos in, curate. Ready today.
+
 ## Backups — BUILT (2026-07-31): the custody ledger never has one copy
 The off-chain JSON stores ARE the custody ledger (who owns which custodial keepsake, which claim
 codes exist, events' on-chain ids, vault entries). `lib/backup.js`:

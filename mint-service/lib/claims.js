@@ -44,11 +44,12 @@ function newCode() {
  * sponsorRef is the 1-based index into the event's on-chain sponsor list (0 for a
  * block with no sponsor). Returns the created code records.
  */
-function generate(eventKey, blocks) {
+function generate(eventKey, blocks, { activationRequired = false } = {}) {
   const data = read();
   const created = [];
   for (const b of blocks) {
     const count = Math.max(0, Math.floor(Number(b.count) || 0));
+    const online = b.online === true;
     for (let i = 0; i < count; i++) {
       let code = newCode();
       while (data.codes[code]) code = newCode(); // astronomically unlikely, still cheap to guard
@@ -63,6 +64,17 @@ function generate(eventKey, blocks) {
         // The named section this block belongs to ("Table 7"); 0/"" = none.
         sectionRef: Number(b.sectionRef) || 0,
         section: b.section || "",
+        // "print" codes go on the QR sheet; "online" codes are sold through the
+        // card payment gate and are NEVER printed — the webhook emails them out.
+        channel: online ? "online" : "print",
+        // Seller activation (gift-card model): when the event requires it,
+        // printed codes start dormant and the desk activates each at sale.
+        // Online codes are always active — the payment IS the activation.
+        active: online ? true : !activationRequired,
+        // Online allocation: set when a payment assigns this code to a buyer,
+        // so the same code can never be sold twice.
+        assignedTo: null,
+        assignedAt: null,
         status: "unclaimed", // unclaimed → claiming → claimed
         email: null,
         tokenId: null,
@@ -74,6 +86,40 @@ function generate(eventKey, blocks) {
   }
   write(data);
   return created;
+}
+
+/** Desk activation at the moment of a cash sale. Returns the record, or null. */
+function activate(code) {
+  const data = read();
+  const c = data.codes[code];
+  if (!c) return null;
+  c.active = true;
+  c.activatedAt = new Date().toISOString();
+  write(data);
+  return c;
+}
+
+/** Allocate one unsold online code to a paying buyer (webhook path). Picks the
+ *  oldest unclaimed, unassigned online code for the event, stamps the buyer on
+ *  it, and returns it — or null when the online block is sold out. Node runs
+ *  this to completion with no await inside, so two webhooks can't double-sell. */
+function allocateOnline(eventKey, buyerEmail) {
+  const data = read();
+  const pick = Object.values(data.codes)
+    .filter((c) => c.eventKey === eventKey && c.channel === "online" && c.status === "unclaimed" && !c.assignedTo)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0];
+  if (!pick) return null;
+  pick.assignedTo = String(buyerEmail || "").trim().slice(0, 120) || "unknown";
+  pick.assignedAt = new Date().toISOString();
+  write(data);
+  return pick;
+}
+
+/** How many online codes remain sellable for an event. */
+function onlineRemaining(eventKey) {
+  return Object.values(read().codes)
+    .filter((c) => c.eventKey === eventKey && c.channel === "online" && c.status === "unclaimed" && !c.assignedTo)
+    .length;
 }
 
 function get(code) {
@@ -181,4 +227,8 @@ function removeByEvent(eventKey) {
   return n;
 }
 
-module.exports = { generate, get, listByEvent, statsByEvent, listByOwner, reserve, finalize, release, markRedeemed, removeByEvent };
+module.exports = {
+  generate, get, listByEvent, statsByEvent, listByOwner,
+  activate, allocateOnline, onlineRemaining,
+  reserve, finalize, release, markRedeemed, removeByEvent,
+};

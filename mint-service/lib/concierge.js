@@ -90,11 +90,15 @@ function mountConcierge(app, { chainV3, chainV4 }) {
           sectionRef = existing >= 0 ? existing + 1 : sections.push(section);
         }
 
+        // Online blocks are sold through the card payment gate — their codes
+        // are never printed; the webhook emails them out one per payment.
+        const online = b.online === true || b.online === "true";
+
         if (name) {
           sponsors.push({ leadIn, name });
-          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents, sectionRef, section });
+          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents, sectionRef, section, online });
         } else {
-          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents, sectionRef, section });
+          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents, sectionRef, section, online });
         }
       }
       if (!blocks.length) throw new Error("Add at least one block with a ticket count of 1 or more.");
@@ -112,6 +116,7 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       });
 
       // 2) Store it as a sponsor-mode event (free; not shown in the public shop).
+      const activationRequired = body.activationRequired === true || body.activationRequired === "true";
       const { key } = events.create({
         name: body.name, venue: body.venue, date: body.date, palette: body.palette,
         priceDollars: 0, sponsors, sections, showPrice, mode: "sponsor", blocks,
@@ -119,12 +124,19 @@ function mountConcierge(app, { chainV3, chainV4 }) {
         allowInscription: false, soulbound: false,
         redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
         vaultSubmissions: body.vaultSubmissions,
+        activationRequired,
       });
+      const stored = events.get(key);
 
-      // 3) One claim code per ticket in every block.
-      const codes = claims.generate(key, blocks);
+      // 3) One claim code per ticket in every block (print codes start dormant
+      //    when activation is on; online codes are born active).
+      const codes = claims.generate(key, blocks, { activationRequired });
 
-      res.json({ ok: true, key, eventId: ev.eventId, codeCount: codes.length });
+      res.json({
+        ok: true, key, eventId: ev.eventId, codeCount: codes.length,
+        sellerPin: stored ? stored.sellerPin : null,
+        onlineCount: codes.filter((c) => c.channel === "online").length,
+      });
     } catch (err) {
       res.status(400).json({ ok: false, error: err.message });
     }
@@ -158,7 +170,8 @@ function mountConcierge(app, { chainV3, chainV4 }) {
     const e = events.get(req.params.key);
     if (!e || e.mode !== "sponsor") return res.status(404).json({ error: "No such sponsor event." });
     const codes = await Promise.all(
-      claims.listByEvent(req.params.key).map(async (c) => {
+      // Online codes never print — they're sold and delivered by email.
+      claims.listByEvent(req.params.key).filter((c) => c.channel !== "online").map(async (c) => {
         const url = `${PUBLIC_URL}/claim/${c.code}`;
         let qr = "";
         try { qr = await QRCode.toString(url, { type: "svg", margin: 1 }); } catch { /* leave blank */ }
@@ -193,6 +206,11 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       const rec = claims.get(code);
       if (!rec) return res.status(404).json({ ok: false, error: "That claim code isn't valid." });
       if (rec.status === "claimed") return res.status(409).json({ ok: false, error: "already claimed", tokenId: rec.tokenId });
+      // Seller activation: a dormant card hasn't been sold yet — no mint until
+      // the desk activates it. A photographed card is worthless paper.
+      if (rec.active === false) {
+        return res.status(403).json({ ok: false, error: "This ticket hasn't been activated yet — see the ticket desk." });
+      }
 
       // Who gets the ticket? With Privy configured, the claimant proves their
       // login (OTP) and the mint goes to THEIR embedded wallet. Without it,
@@ -258,6 +276,41 @@ function mountConcierge(app, { chainV3, chainV4 }) {
   // claim link the attendee holds, follows "Door check-in", enters the admin
   // password, and the server flips the contract's redeem flag — the keepsake
   // gains its ADMITTED stamp on-chain. Never a burn.
+
+  // --- Seller activation (cash sales, gift-card model) ----------------------
+  // When an event requires activation, printed cards are DORMANT until the
+  // desk activates them at the moment of sale — with the event's seller PIN,
+  // not the admin password, so volunteers never hold the master key.
+
+  /** The activation page for one code. Public page; the ACTION needs the PIN. */
+  app.get("/activate/:code", (req, res) => {
+    const rec = claims.get(req.params.code);
+    const details = rec ? events.get(rec.eventKey) : null;
+    res.type("html").send(activatePage({ code: req.params.code, rec, details }));
+  });
+
+  /** Activate a dormant code at the point of sale. */
+  app.post("/activate/:code", express.json(), (req, res) => {
+    try {
+      const rec = claims.get(req.params.code);
+      if (!rec) return res.status(404).json({ ok: false, error: "That code isn't valid." });
+      const details = events.get(rec.eventKey);
+      if (!details || !details.activationRequired || !details.sellerPin) {
+        return res.status(400).json({ ok: false, error: "This event doesn't use activation." });
+      }
+      if (rec.active) return res.json({ ok: true, already: true });
+
+      const given = String((req.body && req.body.pin) || "").trim();
+      const a = Buffer.from(given), b = Buffer.from(String(details.sellerPin));
+      if (!given || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return res.status(401).json({ ok: false, error: "Wrong PIN." });
+      }
+      claims.activate(req.params.code);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
 
   /** The door page for one code. Public page; the redeem ACTION is gated. */
   app.get("/door/:code", (req, res) => {
@@ -352,7 +405,9 @@ function adminPage() {
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--gold);margin:24px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .block-row{display:grid;grid-template-columns:1fr 1.2fr 70px 85px 110px auto;gap:8px;margin-bottom:10px;align-items:center}
+  .block-row{display:grid;grid-template-columns:1fr 1.2fr 70px 85px 110px auto auto;gap:8px;margin-bottom:10px;align-items:center}
+  .b-online{display:flex;align-items:center;gap:5px;font-size:.74rem;color:var(--sage);white-space:nowrap;cursor:pointer}
+  .b-online input{width:auto;margin:0}
   .block-row input{width:100%}
   .blk-del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;height:42px;padding:0 12px;cursor:pointer}
   .blk-del:hover{background:rgba(227,138,138,.12)}
@@ -426,6 +481,14 @@ function adminPage() {
   </label>
   <div class="hint">Off = keepsake only. On = staff can mark each claimed ticket admitted at the door — the keepsake gains its permanent ADMITTED stamp. Never deletes or burns anything.</div>
 
+  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;margin-top:14px">
+    <input type="checkbox" id="f-activation" style="width:auto">
+    <span style="font-size:.9rem;color:rgba(241,233,221,.8)">Require desk activation for printed cards (gift-card model)</span>
+  </label>
+  <div class="hint">On = printed cards are DORMANT until the seller activates each one at the moment of sale
+  with a per-event seller PIN (shown after you create — give it to the desk, never the admin password).
+  A stolen or photographed card is worthless paper. Online-sold codes are always active.</div>
+
   <div class="section-label">Vault memories</div>
   <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
     <input type="checkbox" id="f-holders" style="width:auto">
@@ -471,6 +534,7 @@ function adminPage() {
       '<input type="number" class="b-count" placeholder="Qty" min="1" step="1" oninput="tally()">' +
       '<input type="number" class="b-price" placeholder="Price $" min="0" step="1" oninput="tally()">' +
       '<input type="text" class="b-section" placeholder="Section (opt.)" maxlength="32" oninput="tally()">' +
+      '<label class="b-online" title="Sold through the card payment gate — never printed"><input type="checkbox" class="b-onl" onchange="tally()">online</label>' +
       '<button type="button" class="blk-del" title="Remove" onclick="removeBlock(this)">&#10005;</button>';
     document.getElementById('block-list').appendChild(row);
     if (leadIn) row.querySelector('.b-lead').value = leadIn;
@@ -489,16 +553,19 @@ function adminPage() {
       var leadIn=rows[i].querySelector('.b-lead').value.trim();
       var price=parseFloat(rows[i].querySelector('.b-price').value)||0;
       var section=rows[i].querySelector('.b-section').value.trim();
-      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price, section:section });
+      var online=rows[i].querySelector('.b-onl').checked;
+      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price, section:section, online:online });
     }
     return out;
   }
   function tally(){
     var b=collectBlocks(), tickets=b.reduce(function(s,x){return s+x.count;},0);
     var sponsored=b.filter(function(x){return x.name;}).length;
+    var online=b.filter(function(x){return x.online;}).reduce(function(s,x){return s+x.count;},0);
     document.getElementById('total').textContent = b.length
       ? (tickets + ' ticket' + (tickets===1?'':'s') + ' in ' + b.length + ' block' + (b.length===1?'':'s')
-         + (sponsored ? ' · ' + sponsored + ' sponsored' : ' · no sponsors'))
+         + (sponsored ? ' · ' + sponsored + ' sponsored' : ' · no sponsors')
+         + (online ? ' · ' + online + ' sold online' : ''))
       : '';
   }
 
@@ -514,6 +581,7 @@ function adminPage() {
       palette: document.getElementById('f-palette').value,
       blocks: blocks,
       redemptionEnabled: document.getElementById('f-redemption').checked,
+      activationRequired: document.getElementById('f-activation').checked,
       showPrice: document.getElementById('f-showprice').checked,
       vaultSubmissions: document.getElementById('f-holders').checked ? 'holders' : 'open'
     };
@@ -523,7 +591,9 @@ function adminPage() {
         if (d.ok){
           btn.textContent='Created \\u2713';
           out.className='result';
-          out.innerHTML='Created <span class="mono">'+esc(d.key)+'</span> — event #'+d.eventId+', '+d.codeCount+' claim codes. '
+          out.innerHTML='Created <span class="mono">'+esc(d.key)+'</span> — event #'+d.eventId+', '+d.codeCount+' claim codes'
+            + (d.onlineCount ? ' ('+d.onlineCount+' reserved for online sale)' : '') + '. '
+            + (d.sellerPin ? '<br><b style="color:var(--gold-bright)">Seller PIN: <span class="mono">'+esc(d.sellerPin)+'</span></b> — write it down for the ticket desk; it activates cards at sale. ' : '')
             + '<a href="/admin/event/'+encodeURIComponent(d.key)+'/sheet" target="_blank">Open the code sheet &rarr;</a>'
             + ' &nbsp;<a href="#" onclick="resetForm();return false;">New event &rarr;</a>';
           loadEvents();
@@ -536,6 +606,7 @@ function adminPage() {
   function resetForm(){
     ['f-name','f-venue','f-date'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('f-redemption').checked=false;
+    document.getElementById('f-activation').checked=false;
     document.getElementById('f-holders').checked=false;
     document.getElementById('f-showprice').checked=true;
     document.getElementById('block-list').innerHTML='';
@@ -710,6 +781,16 @@ function claimPage({ code, rec, details, privy }) {
   const evName = esc(details ? details.name : "Your event");
   const venue = details && details.venue ? `<div class="venue">${esc(details.venue)}</div>` : "";
   const sponsor = rec.sponsorName ? `<div class="sponsor">Presented with ${esc(rec.sponsorName)}</div>` : "";
+
+  // A dormant card: printed but not yet sold. Friendly wall for the curious,
+  // discreet door for the desk.
+  if (rec.active === false && rec.status !== "claimed") {
+    return head + `<h1>${evName}</h1>${venue}${sponsor}
+<div class="headline">Almost yours.</div>
+<p style="color:rgba(241,233,221,.75)">This ticket hasn't been activated yet — once it's purchased at the
+ticket desk, this page becomes your keepsake claim.</p>
+<div class="hint" style="margin-top:22px"><a href="/activate/${esc(rec.code)}" style="color:var(--gold-bright)">Ticket desk: activate this card &rarr;</a> <span style="opacity:.7">(staff only)</span></div>` + foot;
+  }
 
   if (rec.status === "claimed" && rec.tokenId) {
     const admitted = !!rec.redeemedAt;
@@ -917,6 +998,66 @@ function doorPage({ code, rec, details }) {
       }).catch(function(){ btn.disabled=false; btn.textContent='Admit & stamp the keepsake'; err.textContent='Could not reach the server.'; });
   }
   document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') redeem(); });
+</script>` + foot;
+}
+
+/** The point-of-sale activation page — the gift-card swipe, Ticklore style. */
+function activatePage({ code, rec, details }) {
+  const head = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Activate — Ticklore</title>
+<style>
+  :root{--ink:#0E262B;--ink-deep:#081619;--parchment:#F1E9DD;--gold:#C9A227;--gold-bright:#E3C25E;--sage:#7FB3A6;--line:rgba(241,233,221,.14);--field:rgba(241,233,221,.05)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink-deep);color:var(--parchment);font-family:system-ui,'Segoe UI',sans-serif;line-height:1.5;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  .box{max-width:440px;width:100%;text-align:center}
+  .tag{font-family:ui-monospace,monospace;font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:18px}
+  h1{font-family:Georgia,serif;font-weight:600;font-size:1.6rem;margin-bottom:4px}
+  .venue{color:var(--sage);font-size:.92rem;margin-bottom:4px}
+  .tk{font-family:ui-monospace,monospace;font-size:.85rem;color:rgba(241,233,221,.7);margin-bottom:24px}
+  input{width:100%;background:var(--field);border:1px solid var(--line);color:var(--parchment);padding:13px 15px;border-radius:6px;font-size:1.1rem;text-align:center;letter-spacing:.3em;margin-bottom:12px}
+  button{width:100%;background:var(--gold);color:var(--ink-deep);border:0;border-radius:6px;padding:14px;font-weight:600;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
+  .big{font-family:Georgia,serif;font-weight:600;font-size:2rem;color:var(--gold-bright);margin:18px 0 8px}
+  .hint{color:rgba(241,233,221,.55);font-size:.85rem;margin-top:14px}
+</style></head><body><div class="box">
+<div class="tag">Ticklore · Ticket desk</div>`;
+  const foot = `</div></body></html>`;
+
+  if (!rec) return head + `<h1>Code not found</h1><div class="hint">This link isn't a valid ticket code.</div>` + foot;
+  const d = details || {};
+  const evName = esc(d.name || "Event");
+  const venue = d.venue ? `<div class="venue">${esc(d.venue)}</div>` : "";
+  const price = rec.priceCents ? `$${(rec.priceCents / 100).toFixed(2).replace(/\.00$/, "")}` : "Free";
+
+  if (!d.activationRequired) {
+    return head + `<h1>${evName}</h1>${venue}<div class="hint">This event doesn't use desk activation — cards are live as printed.</div>` + foot;
+  }
+  if (rec.active) {
+    return head + `<h1>${evName}</h1>${venue}<div class="big">Active ✓</div>
+<div class="tk">${rec.status === "claimed" ? "Already claimed by its owner." : "Sold and ready — the buyer can claim any time."}</div>` + foot;
+  }
+
+  return head + `<h1>${evName}</h1>${venue}
+<div class="tk">Dormant card · ${esc(rec.sponsorName || "General")} · ${esc(price)}</div>
+<input id="pin" type="password" inputmode="numeric" placeholder="Seller PIN" autofocus>
+<button id="go" onclick="activate()">Mark as sold &amp; activate</button>
+<div class="err" id="err"></div>
+<div class="hint">Collect the ${esc(price)} first, then activate — the card becomes claimable the moment you do.</div>
+<script>
+  var CODE = ${JSON.stringify(code)};
+  function activate(){
+    var btn=document.getElementById('go'), err=document.getElementById('err');
+    err.textContent='';
+    btn.disabled=true; btn.textContent='Activating…';
+    fetch('/activate/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:document.getElementById('pin').value})})
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.ok){ location.reload(); }
+        else { btn.disabled=false; btn.textContent='Mark as sold & activate'; err.textContent=d.error||'Could not activate.'; }
+      }).catch(function(){ btn.disabled=false; btn.textContent='Mark as sold & activate'; err.textContent='Could not reach the server.'; });
+  }
+  document.getElementById('pin').addEventListener('keydown',function(e){ if(e.key==='Enter') activate(); });
 </script>` + foot;
 }
 

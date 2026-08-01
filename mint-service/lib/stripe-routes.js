@@ -32,6 +32,7 @@ const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const store = require("./store");
 const events = require("./events");
+const claims = require("./claims");
 const mintCap = require("./mint-cap");
 const moderation = require("./moderation");
 
@@ -117,7 +118,8 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
     // a timeout that would trigger a retry for an order already in progress.
     res.json({ received: true });
 
-    // Claim before minting. If two deliveries land at once, only one wins.
+    // Claim before fulfilling. If two deliveries land at once, only one wins —
+    // this is also what makes Stripe's webhook retries idempotent.
     const claimed = store.claimSession(session.id, {
       email: session.customer_details?.email || null,
       eventKey: session.metadata?.eventKey || null,
@@ -128,6 +130,42 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
     if (!claimed) {
       const existing = store.findBySession(session.id);
       console.log(`  ↺ duplicate webhook for ${session.id} — already ${existing?.status}, ticket #${existing?.ticketId ?? "?"}`);
+      return;
+    }
+
+    // ------------------------------------------------------------------
+    // Code sale (the Gala lane): the payment buys a CLAIM CODE, not a mint.
+    // Allocate an unsold online code and email the claim link — from there
+    // the buyer walks the same claim flow as every cash buyer. No mint here;
+    // the mint happens at claim, on the newest contract, possibly straight
+    // into the buyer's own wallet.
+    // ------------------------------------------------------------------
+    if (session.metadata?.codeSale === "true") {
+      try {
+        const eventKey = session.metadata.eventKey;
+        const details = getEvent(eventKey);
+        if (!details) throw new Error(`Unknown event: ${eventKey}`);
+        const buyerEmail = session.customer_details?.email || null;
+
+        const rec = claims.allocateOnline(eventKey, buyerEmail);
+        if (!rec) {
+          // Paid but sold out — the race window is tiny (availability is checked
+          // at checkout creation) but money is involved, so shout loudly.
+          store.releaseSession(session.id, "online codes sold out — REFUND NEEDED");
+          console.error(`  ✗✗ PAID BUT SOLD OUT: ${session.id} (${buyerEmail}) — refund in the Stripe dashboard`);
+          return;
+        }
+
+        const claimUrl = `${PUBLIC_URL}/claim/${rec.code}`;
+        const emailResult = await require("./email").sendCodeEmail({
+          to: buyerEmail, eventName: details.name, claimUrl, priceCents: session.amount_total,
+        });
+        store.completeSession(session.id, { code: rec.code, recipient: buyerEmail, custodial: true });
+        console.log(`  ✓ code sale ${session.id} → ${rec.code} → ${buyerEmail} ${emailResult.sent ? `(✉ ${emailResult.id})` : `(⚠ email: ${emailResult.reason})`}`);
+      } catch (err) {
+        console.error(`  ✗ code sale failed for ${session.id}: ${err.message}`);
+        store.releaseSession(session.id, err.message);
+      }
       return;
     }
 
@@ -340,6 +378,65 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
     // Stripe path: poll the order store until the webhook mints.
     res.type("html").send(successPage({ sessionId: req.query.session_id || "" }));
   });
+
+  // -------------------------------------------------------------------------
+  // The card payment gate for concierge events (the "poster QR"): buys a claim
+  // code from the event's ONLINE block. Cash buyers get printed cards; card
+  // buyers get this page — same keepsake either way.
+  // -------------------------------------------------------------------------
+
+  /** What an event's online lane looks like right now. */
+  function onlineLane(key) {
+    const details = getEvent(key);
+    if (!details) return null;
+    const block = (details.blocks || []).find((b) => b.online);
+    if (!block) return null;
+    return { details, block, remaining: claims.onlineRemaining(key) };
+  }
+
+  app.get("/buy/:key", (req, res) => {
+    const lane = onlineLane(req.params.key);
+    res.type("html").send(buyPage({ key: req.params.key, lane, stripeReady: !!stripe }));
+  });
+
+  app.post("/buy/:key/checkout", express.json(), async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: "Card payments aren't configured yet." });
+    try {
+      const lane = onlineLane(req.params.key);
+      if (!lane) return res.status(404).json({ error: "This event doesn't sell tickets online." });
+      if (lane.remaining < 1) return res.status(409).json({ error: "Online tickets are sold out — cards may still be available at the door." });
+      if (!lane.block.priceCents) return res.status(400).json({ error: "This event's online tickets aren't priced." });
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [{
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: lane.block.priceCents,
+            product_data: {
+              name: `${lane.details.name} — keepsake ticket`,
+              description: lane.details.venue ? `${lane.details.venue}` : "A one-of-one keepsake ticket.",
+            },
+          },
+        }],
+        metadata: { codeSale: "true", eventKey: req.params.key },
+        success_url: `${PUBLIC_URL}/bought?key=${encodeURIComponent(req.params.key)}`,
+        cancel_url: `${PUBLIC_URL}/buy/${encodeURIComponent(req.params.key)}`,
+      });
+      res.json({ url: session.url });
+    } catch (err) {
+      console.error("  ✗ code-sale checkout failed:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** Where the buyer lands after paying: the ticket is in their email. */
+  app.get("/bought", (req, res) => {
+    const details = getEvent(String(req.query.key || ""));
+    res.type("html").send(boughtPage(details));
+  });
 }
 
 function successPage(opts) {
@@ -430,6 +527,82 @@ function successPage(opts) {
   } else { fail('No order reference found.'); }
 </script>
 </body></html>`;
+}
+
+// ---------------------------------------------------------------------------
+// The payment-gate pages (shared minimal styling with the claim pages).
+// ---------------------------------------------------------------------------
+
+function gateHead(title) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
+<style>
+  :root{--ink:#0E262B;--ink-deep:#081619;--parchment:#F1E9DD;--gold:#C9A227;--gold-bright:#E3C25E;--sage:#7FB3A6;--line:rgba(241,233,221,.14)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--parchment);font-family:system-ui,'Segoe UI',sans-serif;line-height:1.5;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  .box{max-width:480px;width:100%;text-align:center}
+  .brand{font-family:Georgia,serif;font-size:1.5rem;font-weight:600}
+  .brand em{font-style:italic;color:var(--gold-bright)}
+  .tag{font-style:italic;color:var(--gold-bright);font-size:.95rem;margin:2px 0 26px}
+  h1{font-family:Georgia,serif;font-weight:600;font-size:1.8rem;margin-bottom:6px}
+  .venue{color:var(--sage);font-size:.95rem;margin-bottom:20px}
+  .price{font-family:Georgia,serif;font-size:2.2rem;color:var(--gold-bright);margin:10px 0 4px}
+  .left{font-family:ui-monospace,monospace;font-size:.78rem;color:var(--sage);margin-bottom:24px}
+  button{width:100%;background:var(--gold);color:var(--ink-deep);border:0;border-radius:8px;padding:15px;font-weight:600;font-size:1.05rem;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
+  .hint{color:rgba(241,233,221,.55);font-size:.85rem;margin-top:16px;line-height:1.6}
+</style></head><body><div class="box">
+<div class="brand">Tick<em>lore</em></div><div class="tag">Every ticket has a story.</div>`;
+}
+const gateFoot = `</div></body></html>`;
+
+function buyPage({ key, lane, stripeReady }) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  if (!lane) {
+    return gateHead("Ticklore") + `<h1>Not available</h1><div class="hint">This event doesn't sell tickets online. If you have a printed card, scan its QR instead.</div>` + gateFoot;
+  }
+  const { details, block, remaining } = lane;
+  const price = `$${(block.priceCents / 100).toFixed(2).replace(/\.00$/, "")}`;
+  if (!stripeReady) {
+    return gateHead("Ticklore") + `<h1>${esc(details.name)}</h1><div class="venue">${esc(details.venue || "")}</div>
+<div class="hint">Card payments aren't switched on yet — tickets are available for cash at the desk.</div>` + gateFoot;
+  }
+  if (remaining < 1) {
+    return gateHead("Ticklore") + `<h1>${esc(details.name)}</h1><div class="venue">${esc(details.venue || "")}</div>
+<div class="hint">Online tickets are <b>sold out</b> — printed tickets may still be available at the door.</div>` + gateFoot;
+  }
+  return gateHead("Buy a ticket — " + esc(details.name)) + `<h1>${esc(details.name)}</h1>
+<div class="venue">${esc(details.venue || "")}</div>
+<div class="price">${price}</div>
+<div class="left">${remaining} available online</div>
+<button id="go" onclick="pay()">Pay by card &rarr;</button>
+<div class="err" id="err"></div>
+<div class="hint">Secure payment by Stripe. Your ticket arrives by email the moment payment lands —
+it becomes a permanent keepsake when you claim it. No wallet, no app, no crypto anything.</div>
+<script>
+  function pay(){
+    var btn=document.getElementById('go'), err=document.getElementById('err');
+    err.textContent=''; btn.disabled=true; btn.textContent='Opening secure checkout…';
+    fetch('/buy/${encodeURIComponent(key)}/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.url){ location.href=d.url; }
+        else { btn.disabled=false; btn.textContent='Pay by card \\u2192'; err.textContent=d.error||'Could not start checkout.'; }
+      }).catch(function(){ btn.disabled=false; btn.textContent='Pay by card \\u2192'; err.textContent='Could not reach the server.'; });
+  }
+</script>` + gateFoot;
+}
+
+function boughtPage(details) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const name = details ? esc(details.name) : "your event";
+  return gateHead("Payment received — Ticklore") + `<h1>You're in. 🎉</h1>
+<div class="venue">${name}</div>
+<div class="hint" style="font-size:1rem;color:rgba(241,233,221,.8);margin-top:18px">
+Your ticket is on its way to your email right now — open the message and tap
+<b>“Claim my keepsake.”</b></div>
+<div class="hint">Nothing in your inbox after a minute? Check spam, then find us at the ticket desk — your payment is safe either way.</div>` + gateFoot;
 }
 
 module.exports = { mountStripeRoutes, getEvent, listEvents };

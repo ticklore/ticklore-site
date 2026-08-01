@@ -194,4 +194,38 @@ async function sendClaimEmail({ to, eventName, ticketId, claimUrl, vaultUrl, own
   return { sent: true, id: data?.id };
 }
 
-module.exports = { sendTicketEmail, sendClaimEmail };
+/** The email a card buyer gets the moment their payment lands: their claim
+ *  link — a purchased code, delivered instead of printed. */
+async function sendCodeEmail({ to, eventName, claimUrl, priceCents }) {
+  const { Resend } = require("resend");
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { sent: false, reason: "RESEND_API_KEY not set" };
+  if (!to) return { sent: false, reason: "buyer email missing" };
+  const from = process.env.FROM_EMAIL || "Ticklore <onboarding@resend.dev>";
+  const price = priceCents ? `$${(priceCents / 100).toFixed(2).replace(/\.00$/, "")}` : "";
+
+  const { data, error } = await new Resend(key).emails.send({
+    from,
+    to: [to],
+    subject: `Your ticket to ${eventName} 🎟`,
+    html: `
+<div style="background:#0E262B;padding:36px 20px;font-family:Georgia,serif;color:#F1E9DD">
+  <div style="max-width:480px;margin:0 auto;text-align:center">
+    <div style="font-size:22px;font-weight:600;margin-bottom:4px">Tick<span style="font-style:italic;color:#E3C25E">lore</span></div>
+    <div style="font-style:italic;color:#E3C25E;font-size:14px;margin-bottom:26px">Every ticket has a story.</div>
+    <div style="font-size:19px;margin-bottom:8px">You're going to ${eventName}.</div>
+    <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">${price ? `Paid ${price} · ` : ""}Your keepsake ticket is one tap away.</div>
+    <a href="${claimUrl}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
+       padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px">Claim my keepsake &rarr;</a>
+    <div style="color:rgba(241,233,221,.55);font-size:12px;margin-top:24px;line-height:1.6">
+      This link IS your ticket — keep it safe like cash, and don't share it.<br>
+      No wallet, no app, no crypto anything required.</div>
+  </div>
+</div>`,
+    text: `You're going to ${eventName}. ${price ? `Paid ${price}. ` : ""}Claim your keepsake ticket: ${claimUrl}\nThis link IS your ticket — keep it safe and don't share it.`,
+  });
+  if (error) return { sent: false, reason: error.message || String(error) };
+  return { sent: true, id: data?.id };
+}
+
+module.exports = { sendTicketEmail, sendClaimEmail, sendCodeEmail };
