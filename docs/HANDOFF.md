@@ -420,6 +420,14 @@ codes exist, events' on-chain ids, vault entries). `lib/backup.js`:
 - **Alex's env (one line, recommended): `BACKUP_EMAIL=<his email>`** to turn the nightly on.
 - Note for future stores: a new JSON store must be added to `storeFiles()` in `lib/backup.js`.
 
+## Testing discipline (learned 2026-08-01, the hard way)
+A one-character quote-escape bug in server-rendered inline JS shipped a SyntaxError that silently
+killed the entire admin console — routes tested green, page text tested green, but nobody ever
+PARSED the page's JavaScript. **Whenever inline `<script>` content in a server-rendered page is
+touched, run `scripts/js-syntax-audit.sh` (WSL):** boots the server, renders all 12 pages, extracts
+every inline script block, `node --check`s each. Also remember: template literals collapse `\'` to
+`'` — prefer data-attributes over quoting values into onclick handlers (the Delete-button pattern).
+
 ## Guardrails (persist these)
 - **Never paste GitHub tokens or private keys into chat.**
 - Deploy contracts / hold the key with the **throwaway testnet key only.** The **human** makes all
