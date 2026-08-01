@@ -390,6 +390,16 @@ Both point-of-sale models for real events (all additive; dormant until an event 
 - **The wedding (no money, vault-first): needs NOTHING new** — plain batch, `showPrice` off, open
   vault submissions, guests pour photos in, curate. Ready today.
 
+## Demo buy = the real road (2026-08-01, Alex's catch)
+The demo buy used to insta-mint with NO buyer identity (no email anywhere — legacy showroom).
+Now a demo "purchase" of any published on-chain event does exactly what a card payment does:
+generates a claim code → redirects to the claim page (email or Privy OTP) → mint at claim on the
+event's own contract version → buyer's own wallet when signed in → receipt email. The claim page
+gained optional **name + inscription fields** (only when the organizer allows; prefilled from the
+shop form; ALWAYS moderated at the claim POST before the mint — a rejected line costs a rephrase,
+never the claim, and never a mint-cap slot beyond the buy). Seed events (Sullivan/Riverbend, not
+on-chain) keep the legacy instant showcase mint on V1. Commit 96a2c91.
+
 ## Backups — BUILT (2026-07-31): the custody ledger never has one copy
 The off-chain JSON stores ARE the custody ledger (who owns which custodial keepsake, which claim
 codes exist, events' on-chain ids, vault entries). `lib/backup.js`:
