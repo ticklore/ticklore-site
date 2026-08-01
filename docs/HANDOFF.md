@@ -332,6 +332,12 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   chances."
 
 ## Open items
+**Small-fry sweep — DONE (2026-08-01):** photo-consent line on the vault submit form; `gas` field in
+`/health` ("ok" / "LOW — top up" under 0.0005 ETH / "EMPTY"); square 512×512 PWA icon
+(`public/icon-512.png`, brand-ink bg, manifest any+maskable); per-event **claims CSV export**
+(`/admin/event/:key/claims.csv`, admin-gated, CSV↓ button in the console) — the organizer's
+"who came?" list with code/status/sponsor/price/email/ticket/admitted columns.
+
 **Near:**
 - **Token `ticklore-jul25`:** rotated per Alex — one 10-second confirm in GitHub → Settings →
   Developer settings that the old token is dead, then delete this line.

@@ -135,12 +135,18 @@ app.get("/health", async (req, res) => {
   try {
     const balance = await chain.provider.getBalance(chain.signer.address);
     const next = await chain.contract.nextTicketId();
+    // The minter pays gas for every mint and nobody watches it at 3am. A mint
+    // costs ~0.00002 ETH on Base Sepolia, so 0.0005 is ~25 mints of runway —
+    // enough warning to hit a faucet before an event day goes dark.
+    const eth = Number(require("ethers").formatEther(balance));
+    const gas = eth <= 0 ? "EMPTY — mints will fail" : eth < 0.0005 ? "LOW — top up the minter soon" : "ok";
     res.json({
       status: "ok",
       chainId: chain.network.chainId.toString(),
       contract: chain.address,
       minter: chain.signer.address,
       minterBalanceEth: require("ethers").formatEther(balance),
+      gas,
       nextTicketId: next.toString(),
     });
   } catch (err) {

@@ -182,6 +182,31 @@ function mountConcierge(app, { chainV3, chainV4 }) {
     res.json({ name: e.name, venue: e.venue, date: e.date, codes });
   });
 
+  /** The "who came?" list — every code's full story as a CSV the organizer can
+   *  open in Excel. Contains emails/addresses, so it's admin-gated like the
+   *  backup and downloaded via fetch+blob from the console. */
+  app.get("/admin/event/:key/claims.csv", checkPassword, (req, res) => {
+    const e = events.get(req.params.key);
+    if (!e || e.mode !== "sponsor") return res.status(404).json({ error: "No such sponsor event." });
+    const cell = (v) => {
+      const s = String(v == null ? "" : v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = [[
+      "code", "channel", "status", "active", "sponsor", "section", "price",
+      "email", "wallet", "ticket", "claimedAt", "admittedAt", "soldOnlineTo",
+    ].join(",")];
+    for (const c of claims.listByEvent(req.params.key)) {
+      rows.push([
+        c.code, c.channel || "print", c.status, c.active === false ? "dormant" : "active",
+        c.sponsorName || "", c.section || "", c.priceCents ? (c.priceCents / 100).toFixed(2) : "0",
+        c.email || "", c.address || "", c.tokenId || "", c.claimedAt || "", c.redeemedAt || "",
+        c.assignedTo || "",
+      ].map(cell).join(","));
+    }
+    res.type("text/csv").send(rows.join("\n"));
+  });
+
   /** The printable code sheet — a client-gated page (opened in a new tab, so it
    *  can't carry the admin header; it asks for the password, then fetches). */
   app.get("/admin/event/:key/sheet", (req, res) => {
@@ -639,10 +664,23 @@ function adminPage() {
           + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
+          + '<a class="ev__sheet" href="#" onclick="downloadCsv(this, \''+esc(e.key)+'\');return false;">CSV &darr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');
     });
   }
+  function downloadCsv(link, key){
+    fetch('/admin/event/'+encodeURIComponent(key)+'/claims.csv', { headers: { 'x-admin-password': PW } })
+      .then(function(r){ if (!r.ok) throw 0; return r.blob(); })
+      .then(function(blob){
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = key + '-claims.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+      })
+      .catch(function(){ alert('Could not download the CSV.'); });
+  }
+
   function downloadBackup(btn){
     btn.disabled = true; btn.textContent = 'Building archive…';
     fetch('/admin/backup', { headers: { 'x-admin-password': PW } })

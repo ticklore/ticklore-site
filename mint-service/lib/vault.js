@@ -332,6 +332,11 @@ function vaultPage(e, entries, { vaultKey, privy } = {}) {
         <label>Your name (optional — for the credit)</label>
         <input type="text" id="s-name" maxlength="60" placeholder="Aunt May">
         ${holdersOnly ? "" : `<label>Your email (optional)</label><input type="email" id="s-email" maxlength="120" placeholder="you@email.com">`}
+        <div style="font-size:.76rem;color:rgba(241,233,221,.5);line-height:1.5;margin:10px 0 4px">
+          By sharing, you confirm you have the right to share this photo or note, and that anyone
+          pictured is okay appearing in this event's vault. The curator reviews everything before
+          it's published.
+        </div>
         <button class="send" id="s-send" onclick="submitMemory()">Send to the curator</button>
         <div class="msg" id="s-msg"></div>
       </div>

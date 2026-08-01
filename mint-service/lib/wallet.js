@@ -86,7 +86,10 @@ const MANIFEST = {
   display: "standalone",
   background_color: "#0E262B",
   theme_color: "#0E262B",
-  icons: [{ src: "/logo.png", sizes: "895x337", type: "image/png", purpose: "any" }],
+  icons: [
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+  ],
 };
 
 // Network-first with an offline fallback to whatever's cached — enough to make
