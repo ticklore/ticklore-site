@@ -339,8 +339,6 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
 "who came?" list with code/status/sponsor/price/email/ticket/admitted columns.
 
 **Near:**
-- **Token `ticklore-jul25`:** rotated per Alex — one 10-second confirm in GitHub → Settings →
-  Developer settings that the old token is dead, then delete this line.
 **Later (or when the trigger nears):**
 - **The final contract design pass** (the ⚠️ items) — do it batched whenever the contract is next
   touched; mandatory before any real pilot.
