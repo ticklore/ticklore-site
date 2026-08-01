@@ -664,12 +664,13 @@ function adminPage() {
           + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
-          + '<a class="ev__sheet" href="#" onclick="downloadCsv(this, \''+esc(e.key)+'\');return false;">CSV &darr;</a>'
+          + '<a class="ev__sheet" href="#" onclick="downloadCsv(this);return false;">CSV &darr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');
     });
   }
-  function downloadCsv(link, key){
+  function downloadCsv(link){
+    var key = link.closest('.ev').getAttribute('data-key');
     fetch('/admin/event/'+encodeURIComponent(key)+'/claims.csv', { headers: { 'x-admin-password': PW } })
       .then(function(r){ if (!r.ok) throw 0; return r.blob(); })
       .then(function(blob){
