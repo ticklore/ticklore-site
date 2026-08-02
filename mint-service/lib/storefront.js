@@ -174,6 +174,7 @@ function landingPage(events) {
       <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block">
     </a>
     <span style="display:flex;gap:22px;align-items:center">
+      <a href="https://ticklore.com" style="opacity:.75">← ticklore.com</a>
       <a href="/wallet">Wallet</a>
       <a href="/organize">Organizer demo</a>
       <a href="/shop">Browse events →</a>
@@ -275,7 +276,10 @@ function shopPage(events, stripeEnabled, demoEnabled) {
 <body>
   <nav class="nav">
     <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a>
-    <a href="/shop">All events</a>
+    <span style="display:flex;gap:22px;align-items:center">
+      <a href="https://ticklore.com" style="opacity:.75">← ticklore.com</a>
+      <a href="/shop">All events</a>
+    </span>
   </nav>
   <main>
     <div class="head">
