@@ -88,6 +88,73 @@ function generate(eventKey, blocks, { activationRequired = false } = {}) {
   return created;
 }
 
+/**
+ * Roster import (the Serenity play: "keep your registration; send me the
+ * list"). One code per person, channel "roster" — never printed, born active,
+ * the person's email stamped on at creation. IDEMPOTENT by email per event:
+ * re-importing an updated list only creates codes for the new people, so the
+ * organizer can send the list weekly without double-issuing anyone.
+ * Returns { created: [codes], skipped: n (already had one), }.
+ */
+function importRoster(eventKey, entries, { priceCents = 0 } = {}) {
+  const data = read();
+  const have = new Set(
+    Object.values(data.codes)
+      .filter((c) => c.eventKey === eventKey && c.channel === "roster" && c.assignedTo)
+      .map((c) => c.assignedTo.toLowerCase())
+  );
+  const created = [];
+  let skipped = 0;
+  for (const person of entries) {
+    const email = String(person.email || "").trim().toLowerCase();
+    if (!email) continue;
+    if (have.has(email)) { skipped++; continue; }
+    have.add(email);
+    let code = newCode();
+    while (data.codes[code]) code = newCode();
+    data.codes[code] = {
+      code,
+      eventKey,
+      sponsorRef: 0,
+      sponsorName: "",
+      priceCents: Math.max(0, Math.round(Number(priceCents) || 0)),
+      sectionRef: 0,
+      section: "",
+      channel: "roster",
+      active: true, // registration already happened; nothing to activate
+      assignedTo: email,
+      assignedName: String(person.name || "").trim().slice(0, 60), // organizer reconciliation only — never rendered
+      assignedAt: new Date().toISOString(),
+      emailSentAt: null,
+      status: "unclaimed",
+      email: null,
+      tokenId: null,
+      createdAt: new Date().toISOString(),
+      claimedAt: null,
+    };
+    created.push(data.codes[code]);
+  }
+  if (created.length) write(data);
+  return { created, skipped };
+}
+
+/** Roster codes for one event, oldest first. */
+function listRoster(eventKey) {
+  return Object.values(read().codes)
+    .filter((c) => c.eventKey === eventKey && c.channel === "roster")
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+}
+
+/** Stamp a roster code as invited (its claim-link email went out). */
+function markEmailed(code) {
+  const data = read();
+  const c = data.codes[code];
+  if (!c) return null;
+  c.emailSentAt = new Date().toISOString();
+  write(data);
+  return c;
+}
+
 /** Desk activation at the moment of a cash sale. Returns the record, or null. */
 function activate(code) {
   const data = read();
@@ -229,6 +296,7 @@ function removeByEvent(eventKey) {
 
 module.exports = {
   generate, get, listByEvent, statsByEvent, listByOwner,
+  importRoster, listRoster, markEmailed,
   activate, allocateOnline, onlineRemaining,
   reserve, finalize, release, markRedeemed, removeByEvent,
 };

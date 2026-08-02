@@ -443,8 +443,19 @@ reviewed before entering the vault (built).
 - **S3 "Discreet event" preset** — one checkbox on `/admin` create sets soulbound + holders-only vault
   viewing AND submissions, with the neutral-name warning in the form. **Verified on-chain: a discreet
   keepsake's transfer reverts "permanently non-transferable."**
-- Remaining in track: **S4 roster import** (paste list → codes → emailed claim links) · **S5
-  roster-leak audit** · Alex's live check: open a gated vault with his own Privy login.
+- **S4 roster import — BUILT.** `/admin/roster/:key` (admin console rows link it): paste the
+  organizer's registration export (tolerates CSV/semicolons/tabs/headers/dupes/junk) + optional
+  engraved price → codes on a **"roster" channel** (never printed, born active, email stamped at
+  creation). **Idempotent by email per event** — re-pasting an updated list only adds the new people,
+  so separate imports per price tier (campers $35 / RV $30 / non-camper $25) and weekly list updates
+  are all safe. **"Email the unsent" button** sends claim links in batches of 80, sequential
+  (~2/sec), resumable across days (Resend free-tier limits); failures stay queued. `lib/roster.js` +
+  `claims.importRoster/listRoster/markEmailed` + `email.sendRosterEmail` (warm, discreet copy: "this
+  link is yours alone", no prices/hype). Verified: messy-paste parse, idempotent re-import, live
+  Resend pipeline (rejected test domains gracefully, queue intact), roster code claims + engraves its
+  price, sheet excludes roster codes, CSV includes them, page JS parses.
+- Remaining in track: **S5 roster-leak audit** · Alex's live check: open a gated vault with his own
+  Privy login.
 Note: gated vaults must also stay OFF the public Arweave permaweb later — they take the ADR's
 anticipated private-vault path (server-side holder check), not the public core.
 

@@ -179,8 +179,9 @@ function mountConcierge(app, { chainV3, chainV4 }) {
     const e = events.get(req.params.key);
     if (!e || e.mode !== "sponsor") return res.status(404).json({ error: "No such sponsor event." });
     const codes = await Promise.all(
-      // Online codes never print — they're sold and delivered by email.
-      claims.listByEvent(req.params.key).filter((c) => c.channel !== "online").map(async (c) => {
+      // Only print-channel codes go on the sheet — online and roster codes
+      // are delivered by email and must never exist on paper.
+      claims.listByEvent(req.params.key).filter((c) => (c.channel || "print") === "print").map(async (c) => {
         const url = `${PUBLIC_URL}/claim/${c.code}`;
         let qr = "";
         try { qr = await QRCode.toString(url, { type: "svg", margin: 1 }); } catch { /* leave blank */ }
@@ -689,6 +690,7 @@ function adminPage() {
           + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
+          + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'
           + '<a class="ev__sheet" href="#" onclick="downloadCsv(this);return false;">CSV &darr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');

@@ -228,4 +228,38 @@ async function sendCodeEmail({ to, eventName, claimUrl, priceCents }) {
   return { sent: true, id: data?.id };
 }
 
-module.exports = { sendTicketEmail, sendClaimEmail, sendCodeEmail };
+/** The roster invite (the Serenity play): they registered through the
+ *  organizer's own system; this email hands them their keepsake claim link.
+ *  Warm, quiet copy — no prices, no hype; some recipients value discretion. */
+async function sendRosterEmail({ to, eventName, claimUrl }) {
+  const { Resend } = require("resend");
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { sent: false, reason: "RESEND_API_KEY not set" };
+  if (!to) return { sent: false, reason: "recipient missing" };
+  const from = process.env.FROM_EMAIL || "Ticklore <onboarding@resend.dev>";
+
+  const { data, error } = await new Resend(key).emails.send({
+    from,
+    to: [to],
+    subject: `Your keepsake from ${eventName} is waiting 🎟`,
+    html: `
+<div style="background:#0E262B;padding:36px 20px;font-family:Georgia,serif;color:#F1E9DD">
+  <div style="max-width:480px;margin:0 auto;text-align:center">
+    <div style="font-size:22px;font-weight:600;margin-bottom:4px">Tick<span style="font-style:italic;color:#E3C25E">lore</span></div>
+    <div style="font-style:italic;color:#E3C25E;font-size:14px;margin-bottom:26px">Every ticket has a story.</div>
+    <div style="font-size:19px;margin-bottom:8px">You're part of ${eventName}.</div>
+    <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">A permanent keepsake of it is yours to claim — one tap, your email, done.</div>
+    <a href="${claimUrl}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
+       padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px">Claim my keepsake &rarr;</a>
+    <div style="color:rgba(241,233,221,.55);font-size:12px;margin-top:24px;line-height:1.6">
+      This link is yours alone — please don't forward it.<br>
+      No wallet, no app, no cost. First name is plenty.</div>
+  </div>
+</div>`,
+    text: `You're part of ${eventName}. A permanent keepsake of it is yours to claim: ${claimUrl}\nThis link is yours alone — please don't forward it. No wallet, no app, no cost.`,
+  });
+  if (error) return { sent: false, reason: error.message || String(error) };
+  return { sent: true, id: data?.id };
+}
+
+module.exports = { sendTicketEmail, sendClaimEmail, sendCodeEmail, sendRosterEmail };

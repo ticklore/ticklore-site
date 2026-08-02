@@ -304,6 +304,9 @@ show();
     // The memory vault: public branded pages + concierge curation. Content
     // sits behind lib/vault-store.js — the seam Arweave fills after the freeze.
     require("./lib/vault").mountVault(app);
+    // Roster import — "keep your registration; send me the list": paste a
+    // registration export, every person gets an emailed claim link.
+    require("./lib/roster").mountRoster(app);
     // Off-chain stores are the custody ledger — get copies off this disk:
     // /admin/backup (full archive) + a nightly email snapshot (BACKUP_EMAIL).
     require("./lib/backup").mountBackup(app);
