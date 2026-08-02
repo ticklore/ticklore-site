@@ -420,7 +420,46 @@ codes exist, events' on-chain ids, vault entries). `lib/backup.js`:
 - **Alex's env (one line, recommended): `BACKUP_EMAIL=<his email>`** to turn the nightly on.
 - Note for future stores: a new JSON store must be added to `storeFiles()` in `lib/backup.js`.
 
-## 🥂 NYE GALA PILOT — CONFIRMED, planning stage (2026-08-01)
+## 🔒 PRIVACY & DISCRETION DEFAULTS — REQUIRED for pilot #1 (2026-08-01)
+**Both pilots are anonymity-sensitive recovery-community events.** Full spec: `docs/privacy-defaults.md`.
+**⚠️ POSITIONING RULE (Alex is firm): NEVER market as "the recovery ticketing platform"** — that
+discloses by association. Public language: "privacy-first / discreet." "Recovery friendly" is spoken
+only, in-community. These are platform capabilities for ANY event.
+The defaults: (1) **first name + last initial** on keepsakes ("Alex W.") — full surname never rendered,
+never on-chain; (2) **no public roster, ever**; (3) **neutral on-chain labelling** for sensitive events
+(the chain proves the keepsake exists; only the vault says what it was); (4) **gated vault** — photos
+AND write-ups visible only to keepsake holders, noindex, no public links; (5) per-event **soulbound**
+default ON for sensitive events; (6) **attendee data belongs to the organizer** — never marketed to,
+sold, or used (organizer-agreement language; sharpest anti-Eventbrite contrast); (7) photo submissions
+reviewed before entering the vault (built).
+**Build gaps: name normalizer at every mint seam · per-event gated-vault viewing (holder-verified,
+noindex) · concierge soulbound toggle + neutral-name hint (a one-tap "discreet event" preset) ·
+roster-leak audit.** Note: gated vaults must also stay OFF the public Arweave permaweb later — they
+take the ADR's anticipated private-vault path (server-side holder check), not the public core.
+
+## 🏕️ PILOT #1 = SERENITY ON THE SHORE (Oct 9–11, 2026) — NYE becomes pilot #2
+**17th-annual recovery-community campout, First Landing State Park, Virginia Beach.** Ozzy has a part
+in it (VBRE warm channel) and carries the pitch — first real co-founder BD test. **The pitch is the
+17 years: no permanent record of any of them.**
+- **They keep their EXISTING registration** (sotscampout.org). The ask: *"send me the list; everyone
+  gets a keepsake"* — low risk to them, and it tests the standalone-vault play for real.
+- Registration types (their pricing): Camper $35 pre/$40 on-site · RV $30/$35 · Non-Camper $25/$30.
+- **Needs essentially no new machinery beyond the privacy defaults + a ROSTER IMPORT:** paste/upload
+  the list (name + email) → codes generate → each camper gets an emailed claim link
+  (`sendCodeEmail` exists) → self-claim → keepsake + gated vault. Camp logistics are the park's problem.
+- Earlier + smaller + friendlier than the gala; NYE keeps the heavy mechanics (cash sellers, firm 150,
+  door kit) as pilot #2.
+
+## ⭐ NORTH-STAR FREEZE CONSTRAINTS (logged 2026-07-31 web chat; verified against V4)
+Long-term vision = the universal keepsake wallet (one wallet, a whole life of events, any organizer —
+NOT a near-term build; don't pivot, accumulate). What matters NOW: the contract design must not
+foreclose it. Verified already satisfied by the V4 design: (a) one person's tickets from many
+organizers under one wallet ✅ (ERC-721 ownership + Privy identity); (b) events are first-class objects
+creatable with no ticket sale ✅ (`createEvent` is independent); (c) vaults not coupled to payments ✅
+(keyed by event). Keep it that way through the final pass. Moderation never delegates to sponsors;
+uploads stay gated.
+
+## 🥂 NYE GALA PILOT — now PILOT #2, planning stage (2026-08-01)
 **First live pilot: New Year's Eve gala, firm cap 150, general admission.** Selling opens ~November;
 the planning committee meets in ~1–2 months — wrinkles ironed out BEFORE that meeting. Full spec:
 **`docs/nye-pilot-brief.md`** (from the web-chat planning session; read it before touching pilot code).
