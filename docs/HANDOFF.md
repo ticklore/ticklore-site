@@ -347,6 +347,15 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   leads partnerships and business development — driven by a servant's heart and a belief in second
   chances."
 
+## PRIORITY ORDER (agreed with the project room, 2026-08-02)
+1. **Resend domain verify** — smallest task, biggest failure risk: 200 invites from
+   `onboarding@resend.dev` land in spam, and there's exactly one first impression with that
+   community. One DNS record set. Do FIRST regardless of everything else.
+2. **Mainnet production bundle** — new contract deploy on Base mainnet + **the minter key rotation
+   carried since July finally closes here** + real gas + Privy production + env swap.
+3. **Serenity pitch** — Ozzy's move; machinery is ready.
+4. **NYE track** — has until November and is the biggest build; it does NOT jump the queue.
+
 ## Open items
 **Small-fry sweep — DONE (2026-08-01):** photo-consent line on the vault submit form; `gas` field in
 `/health` ("ok" / "LOW — top up" under 0.0005 ETH / "EMPTY"); square 512×512 PWA icon
