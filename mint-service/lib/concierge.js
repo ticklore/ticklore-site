@@ -21,18 +21,22 @@ const moderation = require("./moderation");
 const names = require("./names");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
+const ticklorev5 = require("./ticklore-v5");
 const privyLib = require("./privy");
 
-function mountConcierge(app, { chainV3, chainV4 }) {
+function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
 
   // The newest configured event-model contract does the work. V4 adds named
   // sections + the price-display switch; V3 (multi-sponsor only) is the
   // fallback until the flip.
-  const activeChain = chainV4 || chainV3;
-  const activeLib = chainV4 ? ticklorev4 : ticklorev3;
-  const activeVersion = chainV4 ? 4 : 3;
+  const activeChain = chainV5 || chainV4 || chainV3;
+  const activeLib = chainV5 ? ticklorev5 : (chainV4 ? ticklorev4 : ticklorev3);
+  const activeVersion = chainV5 ? 5 : (chainV4 ? 4 : 3);
+  // A token's ids only mean anything on the contract that created it.
+  const chainByVersion = { 5: chainV5, 4: chainV4, 3: chainV3 };
+  const libByVersion = { 5: ticklorev5, 4: ticklorev4, 3: ticklorev3 };
 
   // Privy (optional, env-gated like every other flip — see lib/privy.js).
   // When configured, the claim flow upgrades: email OTP proves the claimant
@@ -286,8 +290,8 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       try {
         // An event's ids only mean anything on the contract that created it —
         // mint on that version, not blindly on the newest.
-        const mintChain = details.onChainVersion === 4 ? chainV4 : chainV3;
-        const mintLib = details.onChainVersion === 4 ? ticklorev4 : ticklorev3;
+        const mintChain = chainByVersion[details.onChainVersion] || chainV3;
+        const mintLib = libByVersion[details.onChainVersion] || ticklorev3;
         if (!mintChain) throw new Error("This event's contract isn't configured right now.");
         const r = await mintLib.mintTicket(mintChain.contract, {
           eventId: details.onChainEventId,
@@ -392,8 +396,8 @@ function mountConcierge(app, { chainV3, chainV4 }) {
       if (rec.redeemedAt) {
         return res.status(409).json({ ok: false, error: "Already admitted.", redeemedAt: rec.redeemedAt });
       }
-      const redeemChain = details.onChainVersion === 4 ? chainV4 : chainV3;
-      const redeemLib = details.onChainVersion === 4 ? ticklorev4 : ticklorev3;
+      const redeemChain = chainByVersion[details.onChainVersion] || chainV3;
+      const redeemLib = libByVersion[details.onChainVersion] || ticklorev3;
       if (!redeemChain) throw new Error("Check-in isn't available right now.");
 
       try {

@@ -70,7 +70,7 @@ function listEvents() {
   return [...seeded, ...created];
 }
 
-function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
+function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5 }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
   const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 

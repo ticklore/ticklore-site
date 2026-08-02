@@ -15,8 +15,9 @@ const events = require("./events");
 const ticklorev2 = require("./ticklore-v2");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
+const ticklorev5 = require("./ticklore-v5");
 
-function mountOrganizer(app, { chain, chainV2, chainV3, chainV4 }) {
+function mountOrganizer(app, { chain, chainV2, chainV3, chainV4, chainV5 }) {
   const PASSWORD = process.env.ORGANIZER_PASSWORD;
 
   /** Timing-safe password check. The password rides in a header set by the
@@ -42,9 +43,9 @@ function mountOrganizer(app, { chain, chainV2, chainV3, chainV4 }) {
       let onChainEventId = null;
       // Prefer the newest configured event-model contract; older versions are
       // the fallback chain until the next flip.
-      const activeChain = chainV4 || chainV3 || chainV2;
-      const activeLib = chainV4 ? ticklorev4 : (chainV3 ? ticklorev3 : ticklorev2);
-      const onChainVersion = chainV4 ? 4 : (chainV3 ? 3 : (chainV2 ? 2 : null));
+      const activeChain = chainV5 || chainV4 || chainV3 || chainV2;
+      const activeLib = chainV5 ? ticklorev5 : (chainV4 ? ticklorev4 : (chainV3 ? ticklorev3 : ticklorev2));
+      const onChainVersion = chainV5 ? 5 : (chainV4 ? 4 : (chainV3 ? 3 : (chainV2 ? 2 : null)));
       if (activeChain) {
         const ev = await activeLib.createEvent(activeChain.contract, req.body);
         onChainEventId = ev.eventId;

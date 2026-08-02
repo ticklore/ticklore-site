@@ -73,6 +73,22 @@ contract breaks `/health` (V1 `nextTicketId()` reverts) — keep V1 where it is.
 **Demo mint cap:** 20/day default, override `DEMO_DAILY_MINT_CAP`; in-memory (resets UTC midnight +
 redeploy); over-cap = calm 429 "today's batch is full" page.
 
+## ❄️ V5 — THE FREEZE CANDIDATE (2026-08-01): built, deployed, wired (dormant)
+**`TickloreTicketV5.sol` at `0x508b9F249CC370f54271266123eC2Dfa01D35F8F`** (Base Sepolia, owner=minter).
+V5 = V4 + **the custody-delivery exemption**: a transfer FROM the contract owner (platform custody)
+is a keepsake ARRIVING at its holder — bypasses the anti-scalp window AND soulbound (a soulbound
+keepsake must reach its person; it can never leave them after). Everything else confirmed final.
+**27 forge tests green** (V4's 23 + 4 custody). **Live smoke proved the Serenity lifecycle on-chain:**
+soulbound custodial mint → delivered inside the window → holder locked forever after
+("permanently non-transferable"). Wired: `lib/ticklore-v5.js` (thin — V4's ABI + `transferTicket()`
+for future custody→Privy migration), `chainV5` everywhere (server/organizer/concierge/version maps).
+Local test: creates land on V5 (`onChainVersion:5`), claims mint + render `?v=5`, V4/V3 keepsakes
+survive. **FLIP (Alex): ADD `TICKLORE_CONTRACT_V5=0x508b9F249CC370f54271266123eC2Dfa01D35F8F`.**
+**With V5, the contract design pass is COMPLETE — the freeze now awaits only its trigger and the
+MAINNET DECISION (open, Alex's): pilots on Base mainnet (true "forever") vs Sepolia. Recommendation
+leans mainnet for real keepsakes; brings the production bundle (fresh minter key, real gas, Privy
+prod, Resend domain).**
+
 ## Contract lineage
 - **V1** `TickloreTicket.sol` (`0xc2D99c…`) — original 14-arg mint; powers `/health` only.
 - **V2** `TickloreTicketV2.sol` (`0xb953…`) — event model (events on-chain, organizer authority,

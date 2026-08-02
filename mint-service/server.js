@@ -35,6 +35,7 @@ const ticklore = require("./lib/ticklore");
 const ticklorev2 = require("./lib/ticklore-v2");
 const ticklorev3 = require("./lib/ticklore-v3");
 const ticklorev4 = require("./lib/ticklore-v4");
+const ticklorev5 = require("./lib/ticklore-v5");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
@@ -64,10 +65,12 @@ let chain = null;
 let chainV2 = null;   // set at startup when TICKLORE_CONTRACT_V2 is configured
 let chainV3 = null;   // set at startup when TICKLORE_CONTRACT_V3 is configured
 let chainV4 = null;   // set at startup when TICKLORE_CONTRACT_V4 is configured
+let chainV5 = null;   // set at startup when TICKLORE_CONTRACT_V5 is configured
 
 /** Every configured event-model source, newest first. */
 function ticketSources() {
   const list = [];
+  if (chainV5) list.push({ src: chainV5, lib: ticklorev5 });
   if (chainV4) list.push({ src: chainV4, lib: ticklorev4 });
   if (chainV3) list.push({ src: chainV3, lib: ticklorev3 });
   if (chainV2) list.push({ src: chainV2, lib: ticklorev2 });
@@ -85,7 +88,8 @@ function ticketSources() {
  *  fallback for unqualified links. */
 async function findTicket(id, versionPin) {
   if (versionPin) {
-    const byVersion = { 4: chainV4 && { src: chainV4, lib: ticklorev4 },
+    const byVersion = { 5: chainV5 && { src: chainV5, lib: ticklorev5 },
+                       4: chainV4 && { src: chainV4, lib: ticklorev4 },
                        3: chainV3 && { src: chainV3, lib: ticklorev3 },
                        2: chainV2 && { src: chainV2, lib: ticklorev2 } };
     return byVersion[versionPin] || null;
@@ -288,19 +292,29 @@ show();
       }
     }
 
+    // Optional V5 (the freeze candidate: custody delivery) — same gate.
+    if (process.env.TICKLORE_CONTRACT_V5) {
+      try {
+        chainV5 = await ticklorev5.connect();
+        console.log("  V5 model : connected", chainV5.address);
+      } catch (e) {
+        console.warn("  ⚠ V5 connect failed:", e.message);
+      }
+    }
+
     // Mounted first so the webhook's express.raw() sees unparsed bytes.
     // Always mounted, even without Stripe: /success and /order don't need it,
     // and the demo buy path lands on /success?demo=... to mint. The two routes
     // that truly need Stripe (/webhook, /checkout) guard themselves when it's
     // null, so a Stripe-less showroom still has a working success page.
-    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 });
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5 });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
-    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3, chainV4 });
+    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3, chainV4, chainV5 });
     // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs
     // V3+ for the on-chain sponsor list; prefers V4 (sections, price display).
-    require("./lib/concierge").mountConcierge(app, { chainV3, chainV4 });
+    require("./lib/concierge").mountConcierge(app, { chainV3, chainV4, chainV5 });
     // The memory vault: public branded pages + concierge curation. Content
     // sits behind lib/vault-store.js — the seam Arweave fills after the freeze.
     require("./lib/vault").mountVault(app);
