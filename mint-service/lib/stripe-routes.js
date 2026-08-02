@@ -282,7 +282,14 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4 }) {
   app.get("/order/:sessionId", (req, res) => {
     const order = store.findBySession(req.params.sessionId);
     if (!order) return res.json({ status: "pending" });
-    res.json(order);
+    // Whitelisted response: the success page needs status + ticket, nothing
+    // more. The raw record carries the buyer's email and wallet — personal
+    // data that has no business on an unauthenticated poll (S5 audit).
+    res.json({
+      status: order.status,
+      ticketId: order.ticketId ?? null,
+      custodial: order.custodial ?? true,
+    });
   });
 
   app.get("/success", async (req, res) => {

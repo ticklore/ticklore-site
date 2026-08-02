@@ -454,8 +454,14 @@ reviewed before entering the vault (built).
   link is yours alone", no prices/hype). Verified: messy-paste parse, idempotent re-import, live
   Resend pipeline (rejected test domains gracefully, queue intact), roster code claims + engraves its
   price, sheet excludes roster codes, CSV includes them, page JS parses.
-- Remaining in track: **S5 roster-leak audit** · Alex's live check: open a gated vault with his own
-  Privy login.
+- **S5 roster-leak audit — DONE (2026-08-01). The track is complete.** Seeded a distinctive identity
+  through the full flow (roster import → claim → mint on a discreet event), then grepped every public
+  surface: `/claim`, `/door`, `/activate`, `/ticket` + image, locked `/vault`, `/shop`, `/event`,
+  `/wallet` — **zero identity hits on all nine.** Fixed the one real leak found: `/order/:sessionId`
+  returned the raw order record including the buyer's email on an unauthenticated poll — now
+  whitelisted to `{status, ticketId, custodial}`. All five admin gates re-verified (401s).
+- Alex's live check remaining: open a gated vault with his own Privy login (the happy path my tests
+  can only deny-side simulate).
 Note: gated vaults must also stay OFF the public Arweave permaweb later — they take the ADR's
 anticipated private-vault path (server-side holder check), not the public core.
 
