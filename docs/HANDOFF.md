@@ -420,6 +420,26 @@ codes exist, events' on-chain ids, vault entries). `lib/backup.js`:
 - **Alex's env (one line, recommended): `BACKUP_EMAIL=<his email>`** to turn the nightly on.
 - Note for future stores: a new JSON store must be added to `storeFiles()` in `lib/backup.js`.
 
+## 🥂 NYE GALA PILOT — CONFIRMED, planning stage (2026-08-01)
+**First live pilot: New Year's Eve gala, firm cap 150, general admission.** Selling opens ~November;
+the planning committee meets in ~1–2 months — wrinkles ironed out BEFORE that meeting. Full spec:
+**`docs/nye-pilot-brief.md`** (from the web-chat planning session; read it before touching pilot code).
+- **Two channels, ONE 150-cap pool:** online (Stripe-sells-a-code, built) + ~5–6 volunteer sellers
+  with pre-printed claim-code stubs (cash → buyer scans → self-claims; built).
+- **Already satisfied from the brief** (spec'd against a stale code copy): random codes (72-bit),
+  the "sold" state (= seller activation, dormant→PIN-activate at sale), door check-in engine
+  (once-only redeem + ALREADY USED), online channel, CSV reconciliation.
+- **NYE build list (genuinely new):** (1) color+number labels per block (`BLUE 07`, restart per
+  color, 5×30) on stubs/sheets/CSV/door; (2) issued-to-seller tracking + reallocation; (3) capacity
+  dashboard vs the 150 cap (online + claimed + sold-unclaimed + issued-unsold + reserve → true
+  remaining, enforced across channels); (4) claim-on-behalf door override (code + email → mint);
+  (5) reserve blocks (~10 held back, releasable); (6) door kit upgrades: PIN access (NOT the admin
+  password), big green/red result + name/label/timestamp, running count, manual lookup by
+  name/label, fast-fail + printable fallback list (wifi will be saturated).
+- Pilot posture: flag duplicates, let a human decide — 150 neighbors, low fraud risk.
+- Open operational Qs (committee's): gatekeeper for stubs/cash (NOT Alex), ticket price, seller count.
+- Build order: Stage 1 = labels + seller/reserve tracking + capacity dashboard; Stage 2 = door kit.
+
 ## Testing discipline (learned 2026-08-01, the hard way)
 A one-character quote-escape bug in server-rendered inline JS shipped a SyntaxError that silently
 killed the entire admin console — routes tested green, page text tested green, but nobody ever
