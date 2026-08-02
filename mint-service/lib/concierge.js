@@ -111,10 +111,16 @@ function mountConcierge(app, { chainV3, chainV4 }) {
 
       const showPrice = !(body.showPrice === false || body.showPrice === "false");
 
+      // Discreet event (privacy defaults, docs/privacy-defaults.md): one flag
+      // sets the whole posture — soulbound keepsakes (can never leave the
+      // community), holders-only vault viewing AND submissions. The on-chain
+      // name should be neutral; the form reminds the admin before creating.
+      const discreet = body.discreet === true || body.discreet === "true";
+
       // 1) On-chain event (records the sponsor + section lists, permanent).
       const ev = await activeLib.createEvent(activeChain.contract, {
         name: body.name, venue: body.venue, date: body.date, palette: body.palette,
-        sponsors, sections, showPrice, inscriptionsAllowed: false, soulbound: false,
+        sponsors, sections, showPrice, inscriptionsAllowed: false, soulbound: discreet,
       });
 
       // 2) Store it as a sponsor-mode event (free; not shown in the public shop).
@@ -123,9 +129,10 @@ function mountConcierge(app, { chainV3, chainV4 }) {
         name: body.name, venue: body.venue, date: body.date, palette: body.palette,
         priceDollars: 0, sponsors, sections, showPrice, mode: "sponsor", blocks,
         onChainEventId: ev.eventId, onChainVersion: activeVersion,
-        allowInscription: false, soulbound: false,
+        allowInscription: false, soulbound: discreet,
         redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
-        vaultSubmissions: body.vaultSubmissions,
+        vaultSubmissions: discreet ? "holders" : body.vaultSubmissions,
+        vaultVisibility: discreet ? "holders" : "public",
         activationRequired,
       });
       const stored = events.get(key);
@@ -524,6 +531,17 @@ function adminPage() {
   </label>
   <div class="hint">Off = keepsake only. On = staff can mark each claimed ticket admitted at the door — the keepsake gains its permanent ADMITTED stamp. Never deletes or burns anything.</div>
 
+  <div class="section-label">Privacy</div>
+  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+    <input type="checkbox" id="f-discreet" style="width:auto">
+    <span style="font-size:.9rem;color:rgba(241,233,221,.8)"><b>Discreet event</b> — privacy-first posture, one tap</span>
+  </label>
+  <div class="hint">Sets everything at once: keepsakes are <b>permanently non-transferable</b> (they can
+  never leave the community), and the vault — photos AND write-ups — is <b>visible only to keepsake
+  holders</b>, never indexed, with holder-only submissions. Keepsake names always render first name +
+  last initial. <b>⚠ Use a NEUTRAL event name</b> — the name is engraved on a public ledger forever;
+  let the vault carry the meaning, not the chain.</div>
+
   <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;margin-top:14px">
     <input type="checkbox" id="f-activation" style="width:auto">
     <span style="font-size:.9rem;color:rgba(241,233,221,.8)">Require desk activation for printed cards (gift-card model)</span>
@@ -625,6 +643,7 @@ function adminPage() {
       blocks: blocks,
       redemptionEnabled: document.getElementById('f-redemption').checked,
       activationRequired: document.getElementById('f-activation').checked,
+      discreet: document.getElementById('f-discreet').checked,
       showPrice: document.getElementById('f-showprice').checked,
       vaultSubmissions: document.getElementById('f-holders').checked ? 'holders' : 'open'
     };
@@ -650,6 +669,7 @@ function adminPage() {
     ['f-name','f-venue','f-date'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('f-redemption').checked=false;
     document.getElementById('f-activation').checked=false;
+    document.getElementById('f-discreet').checked=false;
     document.getElementById('f-holders').checked=false;
     document.getElementById('f-showprice').checked=true;
     document.getElementById('block-list').innerHTML='';

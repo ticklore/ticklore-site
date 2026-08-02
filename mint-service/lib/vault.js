@@ -60,8 +60,40 @@ function mountVault(app) {
   /** The public vault page. Open reads, curated content. */
   app.get("/vault/:key", (req, res) => {
     const e = findEvent(req.params.key) || { name: "Your event", date: "", key: req.params.key };
+    // Gated vault (privacy default for sensitive events): the open web sees a
+    // discreet locked page — event name and date only, noindex, no content.
+    // Photos AND write-ups exist only behind the holder check below.
+    if (e.vaultVisibility === "holders") {
+      return res.type("html").send(lockedVaultPage(e, { vaultKey: req.params.key, privy: privyLib.config }));
+    }
     const entries = vaultStore.listByEvent(req.params.key, { publishedOnly: true });
     res.type("html").send(vaultPage(e, entries, { vaultKey: req.params.key, privy: privyLib.config }));
+  });
+
+  /** Holder-verified vault view: prove your login (Privy token) holds a
+   *  keepsake from THIS event, receive the full vault page. The address/email
+   *  comes from Privy's server API — never from the client. */
+  app.post("/vault/:key/view", express.json(), async (req, res) => {
+    try {
+      const e = findEvent(req.params.key);
+      if (!e) return res.status(404).json({ ok: false, error: "No such event." });
+      if (e.vaultVisibility !== "holders") return res.status(400).json({ ok: false, error: "This vault is public — just open it." });
+      if (!privyLib.config) return res.status(403).json({ ok: false, error: "Sign-in isn't available right now." });
+
+      const token = String((req.body && req.body.privyToken) || "");
+      if (!token) return res.status(401).json({ ok: false, error: "Sign in to open this vault." });
+      const who = await privyLib.walletFromToken(token); // throws on a bad/expired token
+      const held = claims.listByOwner({ email: who.email, address: who.address })
+        .some((c) => c.eventKey === req.params.key);
+      if (!held) {
+        return res.status(403).json({ ok: false, error: "This vault is private to the people who were there." });
+      }
+
+      const entries = vaultStore.listByEvent(req.params.key, { publishedOnly: true });
+      res.json({ ok: true, html: vaultPage(e, entries, { vaultKey: req.params.key, privy: privyLib.config, gated: true }) });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
   });
 
   /** Attendee memory submission — lands PENDING; the curator publishes.
@@ -178,7 +210,7 @@ function mountVault(app) {
 // The public vault page — the wallpaper test applies here too.
 // ---------------------------------------------------------------------------
 
-function vaultPage(e, entries, { vaultKey, privy } = {}) {
+function vaultPage(e, entries, { vaultKey, privy, gated } = {}) {
   const photos = entries.filter((x) => x.type === "photo");
   const letters = entries.filter((x) => x.type === "letter");
   const sponsors = Array.isArray(e.sponsors) ? e.sponsors.filter((s) => s && s.name) : [];
@@ -206,6 +238,7 @@ function vaultPage(e, entries, { vaultKey, privy } = {}) {
   return `<!doctype html>
 <html lang="en"><head>${head("The Vault — " + e.name)}
 <meta name="theme-color" content="#081619">
+${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
 <style>
   *{box-sizing:border-box}
   body{background:var(--ink-deep,#081619)}
@@ -481,6 +514,130 @@ function vaultPage(e, entries, { vaultKey, privy } = {}) {
     }
   </script>` : ""}
 </body></html>`;
+}
+
+/** The locked face of a gated vault: event name, date, and a keyhole. No
+ *  content, no roster, noindex — the open web learns nothing but that a night
+ *  existed. Holders sign in (or are remembered) and the real vault replaces
+ *  the page in place. */
+function lockedVaultPage(e, { vaultKey, privy } = {}) {
+  return `<!doctype html>
+<html lang="en"><head>${head("The Vault — " + e.name)}
+<meta name="theme-color" content="#081619">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  *{box-sizing:border-box}
+  body{background:var(--ink-deep,#081619);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+  .box{max-width:460px;width:100%;text-align:center}
+  .tag{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:2rem;line-height:1.1;margin-bottom:8px}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--sage);margin-bottom:30px}
+  .lockline{font-family:'Fraunces',serif;font-style:italic;color:rgba(241,233,221,.8);font-size:1.05rem;margin-bottom:26px}
+  input{width:100%;background:rgba(241,233,221,.05);border:1px solid var(--line);color:var(--parchment);
+    padding:13px 15px;border-radius:6px;font-size:1rem;text-align:center;margin-bottom:12px}
+  button{width:100%;background:var(--gold);color:var(--ink-deep);border:0;border-radius:6px;padding:14px;font-weight:600;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
+  .hint{color:rgba(241,233,221,.5);font-size:.84rem;margin-top:16px;line-height:1.6}
+</style></head>
+<body><div class="box">
+  <div class="tag">The Memory Vault</div>
+  <h1>${esc(e.name)}</h1>
+  <div class="meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>
+  <div class="lockline">This vault is private to the people who were there.</div>
+  ${privy ? `
+  <div id="step-email">
+    <input id="email" type="email" placeholder="you@email.com" autocomplete="email">
+    <button id="send" onclick="sendCode()">Sign in to open</button>
+  </div>
+  <div id="step-code" style="display:none">
+    <input id="otp" type="text" inputmode="numeric" placeholder="6-digit code" autocomplete="one-time-code" maxlength="6">
+    <button id="verify" onclick="verifyAndOpen()">Open the vault</button>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="hint" id="hint">Use the email that holds your keepsake. Nothing here is public.</div>
+  <script src="/privy.js"></script>
+  <script>
+    var KEY = ${JSON.stringify(vaultKey)};
+    var PRIVY_CFG = ${JSON.stringify(privy)};
+    var privy = null, booted = false, bootErr = null;
+
+    (async function boot(){
+      try {
+        privy = new TickPrivy.Privy({ appId: PRIVY_CFG.appId, clientId: PRIVY_CFG.clientId, storage: new TickPrivy.LocalStorage() });
+        if (privy.initialize) await privy.initialize();
+        var f = document.createElement('iframe');
+        f.src = await Promise.resolve(privy.embeddedWallet.getURL());
+        f.style.display = 'none';
+        document.body.appendChild(f);
+        privy.setMessagePoster(f.contentWindow);
+        window.addEventListener('message', function(ev){ try { privy.embeddedWallet.onMessage(ev.data); } catch(_){} });
+        booted = true;
+        // A remembered session opens the door without ceremony.
+        try {
+          var u = await privy.user.get();
+          if (u && (u.user || u.id)) { openVault(); }
+        } catch(_){}
+      } catch (er) { bootErr = er; }
+    })();
+
+    async function sendCode(){
+      var err = document.getElementById('err'); err.textContent = '';
+      var email = document.getElementById('email').value.trim();
+      if (!email || email.indexOf('@') < 1) { err.textContent = 'Enter a valid email.'; return; }
+      if (!booted) { err.textContent = bootErr ? 'Could not start sign-in. Refresh and try again.' : 'One moment…'; return; }
+      var btn = document.getElementById('send');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        await privy.auth.email.sendCode(email);
+        document.getElementById('step-email').style.display = 'none';
+        document.getElementById('step-code').style.display = 'block';
+        document.getElementById('hint').textContent = 'We emailed a 6-digit code to ' + email + '.';
+        document.getElementById('otp').focus();
+      } catch (er) {
+        btn.disabled = false; btn.textContent = 'Sign in to open';
+        err.textContent = 'Could not send the code — check the address and try again.';
+      }
+    }
+
+    async function verifyAndOpen(){
+      var err = document.getElementById('err'); err.textContent = '';
+      var email = document.getElementById('email').value.trim();
+      var otp = document.getElementById('otp').value.trim();
+      if (otp.length < 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
+      var btn = document.getElementById('verify');
+      btn.disabled = true; btn.textContent = 'Opening…';
+      try {
+        await privy.auth.email.loginWithCode(email, otp);
+        await openVault();
+        btn.disabled = false; btn.textContent = 'Open the vault';
+      } catch (er) {
+        btn.disabled = false; btn.textContent = 'Open the vault';
+        err.textContent = 'That code did not verify — check it and try again.';
+      }
+    }
+
+    async function openVault(){
+      var err = document.getElementById('err');
+      try {
+        var token = await privy.getAccessToken();
+        var r = await fetch('/vault/' + encodeURIComponent(KEY) + '/view', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privyToken: token })
+        });
+        var d = await r.json();
+        if (d.ok && d.html) {
+          document.open(); document.write(d.html); document.close();
+        } else if (err) {
+          err.textContent = d.error || 'Could not open the vault.';
+        }
+      } catch (er) { if (err) err.textContent = 'Could not reach the server.'; }
+    }
+    document.getElementById('otp').addEventListener('keydown', function(ev){ if (ev.key === 'Enter') verifyAndOpen(); });
+    document.getElementById('email').addEventListener('keydown', function(ev){ if (ev.key === 'Enter') sendCode(); });
+  </script>` : `
+  <div class="hint">Sign-in isn't available right now — check back soon.</div>`}
+</div></body></html>`;
 }
 
 // ---------------------------------------------------------------------------

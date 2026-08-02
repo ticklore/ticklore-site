@@ -432,10 +432,21 @@ AND write-ups visible only to keepsake holders, noindex, no public links; (5) pe
 default ON for sensitive events; (6) **attendee data belongs to the organizer** — never marketed to,
 sold, or used (organizer-agreement language; sharpest anti-Eventbrite contrast); (7) photo submissions
 reviewed before entering the vault (built).
-**Build gaps: name normalizer at every mint seam · per-event gated-vault viewing (holder-verified,
-noindex) · concierge soulbound toggle + neutral-name hint (a one-tap "discreet event" preset) ·
-roster-leak audit.** Note: gated vaults must also stay OFF the public Arweave permaweb later — they
-take the ADR's anticipated private-vault path (server-side holder check), not the public core.
+**BUILT (2026-08-01): S1 names + S2 gated vault + S3 discreet preset.**
+- **S1 `lib/names.js`** — "Alex Winfield"→"Alex W." server-side at the mint seam + vault auto-credit;
+  conservative rule leaves "Dave & Priya" / "The Sullivan family" untouched. 13 cases green.
+- **S2 gated vault** — `vaultVisibility: "public"|"holders"` per event. Holders-gated: the open web
+  gets a locked page (event name + date ONLY, noindex/nofollow, zero content, sign-in);
+  `POST /vault/:key/view` verifies the Privy token holds a claim record for THIS event and returns the
+  full vault HTML (auto-opens for remembered sessions). Verified: no content leak on the locked page,
+  401/400 on missing/garbage tokens, public vaults unchanged, inline JS parses.
+- **S3 "Discreet event" preset** — one checkbox on `/admin` create sets soulbound + holders-only vault
+  viewing AND submissions, with the neutral-name warning in the form. **Verified on-chain: a discreet
+  keepsake's transfer reverts "permanently non-transferable."**
+- Remaining in track: **S4 roster import** (paste list → codes → emailed claim links) · **S5
+  roster-leak audit** · Alex's live check: open a gated vault with his own Privy login.
+Note: gated vaults must also stay OFF the public Arweave permaweb later — they take the ADR's
+anticipated private-vault path (server-side holder check), not the public core.
 
 ## 🏕️ PILOT #1 = SERENITY ON THE SHORE (Oct 9–11, 2026) — NYE becomes pilot #2
 **17th-annual recovery-community campout, First Landing State Park, Virginia Beach.** Ozzy has a part

@@ -131,6 +131,11 @@ function create(input) {
   // gift-card model. A photographed or stolen card is worthless paper. The PIN
   // is per-event and deliberately NOT the admin password: desk volunteers never
   // hold the master key.
+  // Vault viewing: "public" (default) or "holders" — photos AND write-ups
+  // visible only to verified keepsake holders (privacy default for
+  // anonymity-sensitive events; see docs/privacy-defaults.md).
+  const vaultVisibility = input.vaultVisibility === "holders" ? "holders" : "public";
+
   const activationRequired = input.activationRequired === true || input.activationRequired === "true";
   const sellerPin = activationRequired
     ? (String(input.sellerPin || "").trim().slice(0, 12) || String(crypto.randomInt(100000, 1000000)))
@@ -196,7 +201,7 @@ function create(input) {
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
-    activationRequired, sellerPin,
+    vaultVisibility, activationRequired, sellerPin,
     createdAt: new Date().toISOString(),
   };
   write(data);
