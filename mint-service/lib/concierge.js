@@ -18,6 +18,7 @@ const QRCode = require("qrcode");
 const events = require("./events");
 const claims = require("./claims");
 const moderation = require("./moderation");
+const names = require("./names");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const privyLib = require("./privy");
@@ -246,8 +247,12 @@ function mountConcierge(app, { chainV3, chainV4 }) {
 
       // Personalization at claim — only when the organizer allowed it, and
       // ALWAYS through the moderation gate before anything mints (engravings
-      // are forever; a rejected line costs a rephrase, not a claim).
-      const buyerName = details.allowInscription ? String((req.body && req.body.buyerName) || "").trim().slice(0, 32) : "";
+      // are forever; a rejected line costs a rephrase, not a claim). Privacy
+      // default: full surnames never reach the chain — "Alex Winfield"
+      // becomes "Alex W." right here at the seam (see lib/names.js).
+      const buyerName = details.allowInscription
+        ? names.keepsakeName(String((req.body && req.body.buyerName) || "").trim().slice(0, 32))
+        : "";
       const inscription = details.allowInscription ? String((req.body && req.body.inscription) || "").trim().slice(0, 42) : "";
       const mod = moderation.checkInscription({ buyerName, inscription });
       if (!mod.ok) return res.status(400).json({ ok: false, error: mod.reason });
@@ -810,7 +815,7 @@ function claimPage({ code, rec, details, privy, prefill }) {
   const pfMsg = esc((prefill && prefill.msg) || "");
   const inscriptionFields = allowIns ? `
 <div id="insc" style="margin-bottom:2px">
-  <input id="in-name" type="text" maxlength="32" placeholder="Your name (optional)" value="${pfName}">
+  <input id="in-name" type="text" maxlength="32" placeholder="Your name (optional) — first name is plenty" value="${pfName}">
   <input id="in-msg" type="text" maxlength="42" placeholder="A line for the keepsake (optional)" value="${pfMsg}">
   <div style="font-size:.74rem;color:rgba(241,233,221,.45);margin:-4px 0 10px">Engraved on the keepsake forever — keep it kind.</div>
 </div>` : "";

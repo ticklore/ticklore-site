@@ -112,7 +112,10 @@ function mountVault(app) {
 
       const entry = vaultStore.add(req.params.key, {
         type: b.type, title: b.title, text: b.text,
-        credit: b.credit || b.name, // their name becomes the credit line unless they wrote one
+        // Their name becomes the credit line unless they wrote one — shortened
+        // to first name + last initial (privacy default; full surnames never
+        // publish). A deliberate credit they typed is normalized the same way.
+        credit: require("./names").keepsakeName(b.credit || b.name),
         imageData: b.imageData, publish: false, submitter,
       });
       res.json({ ok: true, pending: true, id: entry.id });
