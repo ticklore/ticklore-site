@@ -658,7 +658,7 @@ function adminPage() {
     // The one-way door, stated plainly at the moment of choice (spec: this
     // friction is deliberate — do not smooth it out).
     if (document.getElementById('f-visibility').value === 'public' && !document.getElementById('f-discreet').checked) {
-      if (!confirm('PUBLIC is effectively permanent.\n\nOnce search engines and archives index this event page, switching back to private later does NOT un-publish it — caches and archives keep copies forever.\n\nThe page will show: event name, date, venue, and sponsor names. Never attendee photos, names, or memories — those stay ticket-gated regardless.\n\nMake this event page public?')) return;
+      if (!confirm('PUBLIC is effectively permanent.\\n\\nOnce search engines and archives index this event page, switching back to private later does NOT un-publish it — caches and archives keep copies forever.\\n\\nThe page will show: event name, date, venue, and sponsor names. Never attendee photos, names, or memories — those stay ticket-gated regardless.\\n\\nMake this event page public?')) return;
     }
     if (document.getElementById('f-discreet').checked && document.getElementById('f-visibility').value === 'public') {
       out.className='result err'; out.textContent='A discreet event cannot have a public page — pick one.'; return;
