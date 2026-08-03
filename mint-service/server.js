@@ -42,6 +42,13 @@ const API_KEY = process.env.MINT_API_KEY;
 
 const app = express();
 
+// The app domain is functional, never marketing: nothing served here should
+// ever be indexed (docs/vault-urls-privacy-seo.md §4). SEO lives on
+// ticklore.com; keepsakes, claims, and vaults are for the people they belong
+// to, not for crawlers. Header on every response + a blanket robots.txt.
+app.use((req, res, next) => { res.set("X-Robots-Tag", "noindex, nofollow"); next(); });
+app.get("/robots.txt", (req, res) => res.type("text/plain").send("User-agent: *\nDisallow: /\n"));
+
 // Static assets (the logo, etc.). Cached hard — it's an immutable brand file.
 app.use(express.static(__dirname + "/public", { maxAge: "7d" }));
 
