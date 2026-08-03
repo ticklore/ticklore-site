@@ -347,6 +347,32 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   leads partnerships and business development — driven by a servant's heart and a belief in second
   chances."
 
+## 🚪 VISIBILITY v2 — BUILT (spec item 1, the pilot blocker) 2026-08-02
+The plaque/interior split is live in code. `/vault/:key` now ONLY ever serves the **plaque** (name,
+date, venue, sponsor credits, sign-in door, and — for open-submission events — a "leave a memory at
+the door" form that lands pending). The **interior** (photos, faces, memories, letters) is served
+exclusively by the holder-verified `/view` door, in EVERY state. Three states, **private by default
+(fail closed)**: private = slug alone returns an existence-hiding 404, the plaque needs the event's
+unguessable `vaultToken` (receipt emails and the wallet carry tokened links automatically); unlisted =
+direct link + noindex + generic `<title>`; public = rich head (title/description), **sponsor names as
+crawlable text**, no robots-meta (indexable when vaults move to ticklore.com — the app-domain
+X-Robots-Tag still covers today). Choosing public triggers the **one-way-door confirmation** in the
+admin (deliberate friction, per spec). **Legacy migration fails closed** — pre-v2 records carry no
+vaultToken (the tell): old "public" (open interior) → UNLISTED, old "holders" → private; nothing
+becomes index-visible without a fresh, confirmed choice. Verified: 404s hide existence, zero interior
+leakage in any state, /view gates all three, legacy mapping, admin friction, plaque JS parses.
+Queued from the spec: marketing-site SEO items 4–7 (Netlify side) · the `/vault/<organizer>/<event>`
+URL structure + slug utility (Option B ratified; builds when vaults move under ticklore.com).
+
+## DECISIONS RATIFIED (Alex, 2026-08-02)
+- **URL/slug resolution = OPTION B, RATIFIED.** The chain stores only the immutable eventId (the lot
+  number); Ticklore resolves it to the current URL (the county office). Already the built
+  architecture — V5 stores zero URLs on-chain. The middle path (Arweave canonical pointer, keyed by
+  eventId) bolts onto the VAULT contract post-freeze; the ticket contract never needs touching.
+  **The §2 mainnet blocker in docs/vault-urls-privacy-seo.md is CLOSED.**
+- **Vault consent authority = ORGANIZER ALONE** (curating on their community's behalf). The attendee-
+  say question is settled.
+
 ## PRIORITY ORDER (agreed with the project room, 2026-08-02)
 1. **Resend domain verify** — smallest task, biggest failure risk: 200 invites from
    `onboarding@resend.dev` land in spam, and there's exactly one first impression with that

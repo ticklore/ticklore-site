@@ -58,6 +58,11 @@ function mountWallet(app, { chain }) {
           // Which contract version this token lives on — token ids collide
           // across versions, so the art URL pins it (?v=N).
           version: e.onChainVersion || null,
+          // Private plaques need their token; this caller just PROVED they
+          // hold a keepsake from the event, so handing them the door key is
+          // exactly right.
+          vaultUrl: "/vault/" + encodeURIComponent(t.eventKey) +
+            (e.vaultVisibility === "private" && e.vaultToken ? "?k=" + e.vaultToken : ""),
         };
       });
       res.json({ ok: true, address: who.address, email: who.email, tickets });
@@ -281,7 +286,7 @@ function walletPrivyPage(privy) {
       var badges = (t.owned ? '<span class="badge badge--own">Yours</span>' : '<span class="badge badge--held">Held for you</span>')
         + (t.redeemed ? '<span class="badge badge--adm">Admitted</span>' : '');
       var vq = t.version ? '?v=' + t.version : '';
-      return '<a class="keep" href="/vault/' + encodeURIComponent(t.eventKey) + '" style="margin-bottom:18px">'
+      return '<a class="keep" href="' + escT(t.vaultUrl || ('/vault/' + encodeURIComponent(t.eventKey))) + '" style="margin-bottom:18px">'
         + '<div class="keep__art"><img src="/ticket/' + escT(t.tokenId) + '/image' + vq + '" alt="Keepsake #' + escT(t.tokenId) + '" loading="lazy"></div>'
         + '<div class="keep__foot"><div>'
         + '<div class="keep__name">' + escT(t.name) + badges + '</div>'

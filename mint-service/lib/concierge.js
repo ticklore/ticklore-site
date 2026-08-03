@@ -136,7 +136,9 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
         allowInscription: false, soulbound: discreet,
         redemptionEnabled: body.redemptionEnabled === true || body.redemptionEnabled === "true",
         vaultSubmissions: discreet ? "holders" : body.vaultSubmissions,
-        vaultVisibility: discreet ? "holders" : "public",
+        // Visibility v2: fail closed. Discreet forces private; otherwise the
+        // organizer's explicit choice (events.js validates; default private).
+        vaultVisibility: discreet ? "private" : body.vaultVisibility,
         activationRequired,
       });
       const stored = events.get(key);
@@ -312,7 +314,9 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
           eventName: details.name,
           ticketId: r.tokenId,
           claimUrl: `${PUBLIC_URL}/claim/${code}`,
-          vaultUrl: `${PUBLIC_URL}/vault/${encodeURIComponent(rec.eventKey)}`,
+          // Private plaques need their token — the slug alone opens nothing.
+          vaultUrl: `${PUBLIC_URL}/vault/${encodeURIComponent(rec.eventKey)}` +
+            (details.vaultVisibility === "private" ? `?k=${details.vaultToken || events.ensureVaultToken(rec.eventKey) || ""}` : ""),
           owned,
         }).then((m) => console.log(m.sent
           ? `  ✉ claim receipt → ${email} (${m.id})`
@@ -537,7 +541,18 @@ function adminPage() {
   <div class="hint">Off = keepsake only. On = staff can mark each claimed ticket admitted at the door — the keepsake gains its permanent ADMITTED stamp. Never deletes or burns anything.</div>
 
   <div class="section-label">Privacy</div>
-  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+  <div class="field">
+    <label for="f-visibility">Event page visibility</label>
+    <select id="f-visibility">
+      <option value="private" selected>Private — only ticket holders can even find the page (default)</option>
+      <option value="unlisted">Unlisted — reachable by direct link, never indexed</option>
+      <option value="public">Public — findable in search engines (permanent)</option>
+    </select>
+    <div class="hint">This governs the EVENT PAGE only — the plaque: name, date, venue, sponsors.
+    The vault interior (photos, faces, memories) is ticket-gated in <b>every</b> state. There is no
+    setting that makes people's faces public.</div>
+  </div>
+  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;margin-top:14px">
     <input type="checkbox" id="f-discreet" style="width:auto">
     <span style="font-size:.9rem;color:rgba(241,233,221,.8)"><b>Discreet event</b> — privacy-first posture, one tap</span>
   </label>
@@ -640,6 +655,14 @@ function adminPage() {
     out.className='result'; out.textContent='';
     var blocks=collectBlocks();
     if (!blocks.length){ out.className='result err'; out.textContent='Add at least one block with a ticket count.'; return; }
+    // The one-way door, stated plainly at the moment of choice (spec: this
+    // friction is deliberate — do not smooth it out).
+    if (document.getElementById('f-visibility').value === 'public' && !document.getElementById('f-discreet').checked) {
+      if (!confirm('PUBLIC is effectively permanent.\n\nOnce search engines and archives index this event page, switching back to private later does NOT un-publish it — caches and archives keep copies forever.\n\nThe page will show: event name, date, venue, and sponsor names. Never attendee photos, names, or memories — those stay ticket-gated regardless.\n\nMake this event page public?')) return;
+    }
+    if (document.getElementById('f-discreet').checked && document.getElementById('f-visibility').value === 'public') {
+      out.className='result err'; out.textContent='A discreet event cannot have a public page — pick one.'; return;
+    }
     var body = {
       name: document.getElementById('f-name').value,
       venue: document.getElementById('f-venue').value,
@@ -649,6 +672,7 @@ function adminPage() {
       redemptionEnabled: document.getElementById('f-redemption').checked,
       activationRequired: document.getElementById('f-activation').checked,
       discreet: document.getElementById('f-discreet').checked,
+      vaultVisibility: document.getElementById('f-visibility').value,
       showPrice: document.getElementById('f-showprice').checked,
       vaultSubmissions: document.getElementById('f-holders').checked ? 'holders' : 'open'
     };
@@ -675,6 +699,7 @@ function adminPage() {
     document.getElementById('f-redemption').checked=false;
     document.getElementById('f-activation').checked=false;
     document.getElementById('f-discreet').checked=false;
+    document.getElementById('f-visibility').value='private';
     document.getElementById('f-holders').checked=false;
     document.getElementById('f-showprice').checked=true;
     document.getElementById('block-list').innerHTML='';

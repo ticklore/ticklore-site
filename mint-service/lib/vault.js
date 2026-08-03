@@ -59,15 +59,24 @@ function mountVault(app) {
 
   /** The public vault page. Open reads, curated content. */
   app.get("/vault/:key", (req, res) => {
-    const e = findEvent(req.params.key) || { name: "Your event", date: "", key: req.params.key };
-    // Gated vault (privacy default for sensitive events): the open web sees a
-    // discreet locked page — event name and date only, noindex, no content.
-    // Photos AND write-ups exist only behind the holder check below.
-    if (e.vaultVisibility === "holders") {
-      return res.type("html").send(lockedVaultPage(e, { vaultKey: req.params.key, privy: privyLib.config }));
+    const e = findEvent(req.params.key);
+    // Visibility v2 (docs/vault-urls-privacy-seo.md): this route ONLY ever
+    // serves the PLAQUE — the interior (photos, faces, memories) lives behind
+    // the holder check in /view, in every state, with no exceptions.
+    //   private (default): the slug alone is never enough — the plaque needs
+    //     the event's unguessable token, and a miss looks like nothing exists.
+    //   unlisted/public: the plaque is reachable by link.
+    if (!e || e.vaultVisibility === "private") {
+      const token = e ? (e.vaultToken || events.ensureVaultToken(e.key)) : null;
+      const given = String(req.query.k || "");
+      const okToken = !!(e && token && given &&
+        given.length === token.length &&
+        crypto.timingSafeEqual(Buffer.from(given), Buffer.from(token)));
+      if (!okToken) {
+        return res.status(404).type("html").send(nothingHerePage());
+      }
     }
-    const entries = vaultStore.listByEvent(req.params.key, { publishedOnly: true });
-    res.type("html").send(vaultPage(e, entries, { vaultKey: req.params.key, privy: privyLib.config }));
+    res.type("html").send(plaquePage(e, { vaultKey: req.params.key, privy: privyLib.config }));
   });
 
   /** Holder-verified vault view: prove your login (Privy token) holds a
@@ -77,7 +86,7 @@ function mountVault(app) {
     try {
       const e = findEvent(req.params.key);
       if (!e) return res.status(404).json({ ok: false, error: "No such event." });
-      if (e.vaultVisibility !== "holders") return res.status(400).json({ ok: false, error: "This vault is public — just open it." });
+      // The interior door for EVERY visibility state — the ticket is the key.
       if (!privyLib.config) return res.status(403).json({ ok: false, error: "Sign-in isn't available right now." });
 
       const token = String((req.body && req.body.privyToken) || "");
@@ -516,15 +525,43 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
 </body></html>`;
 }
 
-/** The locked face of a gated vault: event name, date, and a keyhole. No
- *  content, no roster, noindex — the open web learns nothing but that a night
- *  existed. Holders sign in (or are remembered) and the real vault replaces
- *  the page in place. */
-function lockedVaultPage(e, { vaultKey, privy } = {}) {
+/** A 404 that confirms nothing: private plaques without the token look
+ *  exactly like addresses where nothing ever existed. */
+function nothingHerePage() {
   return `<!doctype html>
-<html lang="en"><head>${head("The Vault — " + e.name)}
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticklore</title><meta name="robots" content="noindex, nofollow">
+<style>body{background:#081619;color:rgba(241,233,221,.55);font-family:system-ui,sans-serif;min-height:100vh;
+display:flex;align-items:center;justify-content:center}</style></head>
+<body><div>There's nothing at this address.</div></body></html>`;
+}
+
+/** THE PLAQUE — the Event Page. Name, date, venue, sponsor credits: the
+ *  outside of the building, in every visibility state. The interior (photos,
+ *  faces, memories) is NEVER here — holders sign in (or are remembered) and
+ *  the interior replaces the page in place. Open-submission events also get a
+ *  "leave a memory at the door" form; entries land pending for the curator. */
+function plaquePage(e, { vaultKey, privy } = {}) {
+  const isPublic = e.vaultVisibility === "public";
+  const sponsors = Array.isArray(e.sponsors) ? e.sponsors.filter((s) => s && s.name) : [];
+  const openSubmit = (e.vaultSubmissions || "open") === "open";
+  // Head discipline (§6): full, descriptive head ONLY for public plaques —
+  // link previews are a leak vector for everything else.
+  const title = isPublic ? `${e.name} — Ticklore` : "The Vault — Ticklore";
+  const desc = isPublic
+    ? `<meta name="description" content="The permanent record of ${esc(e.name)}${e.date ? ", " + esc(formatDate(e.date)) : ""}.">`
+    : "";
+  const sponsorRows = sponsors.length ? `
+    <div class="plq-sect">
+      <div class="plq-label">The patrons of this night</div>
+      ${sponsors.map((s) => `<div class="sp"><span class="sp__lead">${esc(s.leadIn || "With thanks to")}</span><span class="sp__name">${esc(s.name)}</span></div>`).join("")}
+    </div>` : "";
+
+  return `<!doctype html>
+<html lang="en"><head>${head(title)}
+${desc}
 <meta name="theme-color" content="#081619">
-<meta name="robots" content="noindex, nofollow">
+${isPublic ? "" : `<meta name="robots" content="noindex, nofollow">`}
 <style>
   *{box-sizing:border-box}
   body{background:var(--ink-deep,#081619);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
@@ -539,6 +576,19 @@ function lockedVaultPage(e, { vaultKey, privy } = {}) {
   button:disabled{opacity:.6;cursor:wait}
   .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
   .hint{color:rgba(241,233,221,.5);font-size:.84rem;margin-top:16px;line-height:1.6}
+  .plq-sect{margin:30px 0 6px;text-align:left;border-top:1px solid var(--line);padding-top:20px}
+  .plq-label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;text-align:center}
+  .sp{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:10px 2px;border-bottom:1px solid var(--line)}
+  .sp__lead{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--sage)}
+  .sp__name{font-family:'Fraunces',serif;font-size:1.05rem;color:var(--gold-bright)}
+  .door-form{display:none;text-align:left;margin-top:14px}
+  .door-form.on{display:block}
+  .door-form label{display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--sage);margin:10px 0 5px}
+  .door-form textarea{width:100%;min-height:90px;background:rgba(241,233,221,.05);border:1px solid var(--line);color:var(--parchment);padding:10px;border-radius:6px;font-size:.94rem;resize:vertical}
+  .door-form input[type=text],.door-form input[type=email]{text-align:left}
+  .ghostbtn{width:100%;background:transparent;border:1px dashed var(--line);color:var(--gold-bright);border-radius:6px;padding:11px;font-size:.88rem;cursor:pointer;margin-top:26px}
+  .msg{min-height:1.2em;font-size:.88rem;margin-top:8px}
+  .msg.ok{color:var(--sage)} .msg.err{color:#E38A8A}
 </style></head>
 <body><div class="box">
   <div class="tag">The Memory Vault</div>
@@ -637,6 +687,52 @@ function lockedVaultPage(e, { vaultKey, privy } = {}) {
     document.getElementById('email').addEventListener('keydown', function(ev){ if (ev.key === 'Enter') sendCode(); });
   </script>` : `
   <div class="hint">Sign-in isn't available right now — check back soon.</div>`}
+  ${sponsorRows}
+  ${openSubmit ? `
+  <button class="ghostbtn" id="door-open" onclick="document.getElementById('door-form').classList.add('on');this.style.display='none'">Leave a memory at the door &rarr;</button>
+  <div class="door-form" id="door-form">
+    <label>A photo</label>
+    <input type="file" id="d-file" accept="image/*">
+    <label>Or a few words</label>
+    <textarea id="d-text" maxlength="4000" placeholder="What I'll remember about that night…"></textarea>
+    <label>Your name (optional)</label>
+    <input type="text" id="d-name" maxlength="60" placeholder="Aunt May">
+    <div class="hint" style="text-align:left">By sharing, you confirm you have the right to share this photo
+    or note, and that anyone pictured is okay appearing in this event's vault. The curator reviews
+    everything before it's published — nothing appears immediately.</div>
+    <button id="d-go" style="margin-top:12px" onclick="doorSubmit()">Send to the curator</button>
+    <div class="msg" id="d-msg"></div>
+  </div>
+  <script>
+    function doorSubmit(){
+      var msg = document.getElementById('d-msg'); msg.className = 'msg'; msg.textContent = '';
+      var btn = document.getElementById('d-go');
+      var f = document.getElementById('d-file').files[0];
+      var text = document.getElementById('d-text').value.trim();
+      var name = document.getElementById('d-name').value.trim();
+      if (!f && !text) { msg.className = 'msg err'; msg.textContent = 'Add a photo or a few words first.'; return; }
+      if (f && f.size > 8 * 1024 * 1024) { msg.className = 'msg err'; msg.textContent = 'Photos are capped at 8 MB for now.'; return; }
+      function send(payload){
+        btn.disabled = true; btn.textContent = 'Sending…';
+        fetch('/vault/' + encodeURIComponent(${JSON.stringify(vaultKey)}) + '/submit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        }).then(function(r){ return r.json(); }).then(function(d){
+          btn.disabled = false; btn.textContent = 'Send to the curator';
+          if (d.ok) {
+            msg.className = 'msg ok'; msg.textContent = 'Sent \\u2713 — it appears once the curator approves it.';
+            document.getElementById('d-file').value = ''; document.getElementById('d-text').value = '';
+          } else { msg.className = 'msg err'; msg.textContent = d.error || 'Could not send.'; }
+        }).catch(function(){ btn.disabled = false; btn.textContent = 'Send to the curator'; msg.className = 'msg err'; msg.textContent = 'Could not reach the server.'; });
+      }
+      if (f) {
+        var reader = new FileReader();
+        reader.onload = function(){ send({ type: 'photo', imageData: reader.result, title: text.slice(0, 80), name: name }); };
+        reader.readAsDataURL(f);
+      } else {
+        send({ type: 'letter', text: text, name: name });
+      }
+    }
+  </script>` : ""}
 </div></body></html>`;
 }
 

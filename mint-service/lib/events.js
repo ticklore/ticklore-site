@@ -42,15 +42,47 @@ function makeKey(name) {
   return `${base}-${suffix}`;
 }
 
+/** Fail-closed migration for records written before visibility v2: the old
+ *  "holders" state maps to private; the old open-interior "public" maps to
+ *  UNLISTED (its interior is now gated like everyone's, and nothing gets
+ *  index-visible without a fresh, deliberate choice); absent means private. */
+function normalizeVault(e) {
+  if (!e) return e;
+  // Records from before visibility v2 carry no vaultToken — that's the tell.
+  // Their old "public" meant an OPEN INTERIOR, which no longer exists; it maps
+  // to UNLISTED, because nothing becomes index-visible without a fresh,
+  // deliberate, confirmed choice. Old "holders" (and anything else) → private.
+  const legacy = !e.vaultToken;
+  if (legacy || !["private", "unlisted", "public"].includes(e.vaultVisibility)) {
+    e.vaultVisibility = legacy && e.vaultVisibility === "public" ? "unlisted" : "private";
+    if (!legacy) e.vaultVisibility = "private"; // v2 record with a bad value: fail closed
+  }
+  return e;
+}
+
 function list() {
   const data = read();
   return Object.entries(data.events)
-    .map(([key, e]) => ({ key, ...e }))
+    .map(([key, e]) => normalizeVault({ key, ...e }))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)); // newest first
 }
 
 function get(key) {
-  return read().events[key] || null;
+  const e = read().events[key] || null;
+  return e ? normalizeVault({ ...e, key }) : null;
+}
+
+/** The plaque token for a private event, generating one for legacy records
+ *  that predate it (persisted so emailed links stay stable). */
+function ensureVaultToken(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  if (!e.vaultToken) {
+    e.vaultToken = crypto.randomBytes(9).toString("base64url");
+    write(data);
+  }
+  return e.vaultToken;
 }
 
 /**
@@ -131,10 +163,17 @@ function create(input) {
   // gift-card model. A photographed or stolen card is worthless paper. The PIN
   // is per-event and deliberately NOT the admin password: desk volunteers never
   // hold the master key.
-  // Vault viewing: "public" (default) or "holders" — photos AND write-ups
-  // visible only to verified keepsake holders (privacy default for
-  // anonymity-sensitive events; see docs/privacy-defaults.md).
-  const vaultVisibility = input.vaultVisibility === "holders" ? "holders" : "public";
+  // Vault visibility v2 (docs/vault-urls-privacy-seo.md): three states, and
+  // they govern ONLY the Event Page — the plaque. The interior (photos, faces,
+  // memories) is ticket-gated in every state; no configuration makes it public.
+  //   private (DEFAULT, fail closed) — plaque unreachable without the token
+  //   unlisted — plaque reachable by direct link, never indexed
+  //   public   — plaque indexable (a deliberate, confirmed, one-way choice)
+  const vaultVisibility = ["private", "unlisted", "public"].includes(input.vaultVisibility)
+    ? input.vaultVisibility
+    : "private";
+  // The plaque key for private events: a slug must never be enough on its own.
+  const vaultToken = crypto.randomBytes(9).toString("base64url");
 
   const activationRequired = input.activationRequired === true || input.activationRequired === "true";
   const sellerPin = activationRequired
@@ -201,7 +240,7 @@ function create(input) {
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
-    vaultVisibility, activationRequired, sellerPin,
+    vaultVisibility, vaultToken, activationRequired, sellerPin,
     createdAt: new Date().toISOString(),
   };
   write(data);
@@ -231,4 +270,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, PLATFORM_MINIMUM_UNLOCK_DAYS };
