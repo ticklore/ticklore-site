@@ -328,6 +328,9 @@ show();
     // Roster import — "keep your registration; send me the list": paste a
     // registration export, every person gets an emailed claim link.
     require("./lib/roster").mountRoster(app);
+    // The organizer's read-only window: sold / claimed / through-the-door,
+    // counts never names, behind an unguessable share link.
+    require("./lib/organizer-dash").mountOrganizerDash(app);
     // Off-chain stores are the custody ledger — get copies off this disk:
     // /admin/backup (full archive) + a nightly email snapshot (BACKUP_EMAIL).
     require("./lib/backup").mountBackup(app);

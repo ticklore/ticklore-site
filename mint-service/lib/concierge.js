@@ -164,6 +164,8 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
       .map((e) => ({
         key: e.key, name: e.name, venue: e.venue, date: e.date,
         onChainEventId: e.onChainEventId, blocks: e.blocks || [],
+        // The read-only share link for the committee chair (counts, no names).
+        dashUrl: `/organizer/${encodeURIComponent(e.key)}?t=${e.orgToken || events.ensureOrgToken(e.key) || ""}`,
         ...claims.statsByEvent(e.key),
       }));
     res.json({ events: sponsorEvents });
@@ -720,6 +722,7 @@ function adminPage() {
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'
+          + '<a class="ev__sheet" href="'+esc(e.dashUrl||'#')+'" target="_blank" title="Read-only share link for the organizer — counts, never names">Live &rarr;</a>'
           + '<a class="ev__sheet" href="#" onclick="downloadCsv(this);return false;">CSV &darr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');

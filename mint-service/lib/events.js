@@ -85,6 +85,18 @@ function ensureVaultToken(key) {
   return e.vaultToken;
 }
 
+/** The organizer-dashboard token, generating one for legacy records. */
+function ensureOrgToken(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  if (!e.orgToken) {
+    e.orgToken = crypto.randomBytes(9).toString("base64url");
+    write(data);
+  }
+  return e.orgToken;
+}
+
 /**
  * Validate and store a new event. Returns { key } or throws with a message
  * safe to show the organizer.
@@ -174,6 +186,9 @@ function create(input) {
     : "private";
   // The plaque key for private events: a slug must never be enough on its own.
   const vaultToken = crypto.randomBytes(9).toString("base64url");
+  // The organizer dashboard share-link key: a read-only window (counts, never
+  // names) Alex hands the committee chair. A link, not a login.
+  const orgToken = crypto.randomBytes(9).toString("base64url");
 
   const activationRequired = input.activationRequired === true || input.activationRequired === "true";
   const sellerPin = activationRequired
@@ -240,7 +255,7 @@ function create(input) {
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
-    vaultVisibility, vaultToken, activationRequired, sellerPin,
+    vaultVisibility, vaultToken, orgToken, activationRequired, sellerPin,
     createdAt: new Date().toISOString(),
   };
   write(data);
@@ -270,4 +285,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, PLATFORM_MINIMUM_UNLOCK_DAYS };

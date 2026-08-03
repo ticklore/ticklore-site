@@ -347,6 +347,19 @@ rev 3 — vault keyed by `eventId`, open reads, privacy via curation not encrypt
   leads partnerships and business development — driven by a servant's heart and a belief in second
   chances."
 
+## 📊 ORGANIZER DASHBOARD — BUILT (2026-08-02): a window, not a login
+`/organizer/:key?t=<orgToken>` — the read-only share link Alex hands the committee chair. Live cards:
+**sold/registered · keepsakes claimed · through the door · unsold inventory**, per-channel table
+(printed cards / online / registered list — honest about what each channel can know: without desk
+activation, print sales are "at the desk"), vault published/awaiting counts, auto-refresh 30s,
+phone-friendly. **Counts, NEVER names** — the no-roster rule applies to organizer screens too; zero
+attendee identity on the page (verified). Token miss = existence-hiding 404. Every event carries an
+`orgToken` (legacy backfilled via `ensureOrgToken`); the **"Live →"** link in each `/admin` event row
+opens it (copy the URL from the browser to share; revoke by regenerating the token). This is the NYE
+capacity view pulled forward AND the seed of the eventual organizer panel. Wired: `lib/organizer-dash.js`,
+mounted in server.js; dashUrl in `/admin/events`. Verified end-to-end: mixed-channel event, activation,
+claim (minted on V5 locally), door check-in → all counts exact; token gating; 12-page JS audit clean.
+
 ## 🚪 VISIBILITY v2 — BUILT (spec item 1, the pilot blocker) 2026-08-02
 The plaque/interior split is live in code. `/vault/:key` now ONLY ever serves the **plaque** (name,
 date, venue, sponsor credits, sign-in door, and — for open-submission events — a "leave a memory at
