@@ -387,9 +387,14 @@ URL structure + slug utility (Option B ratified; builds when vaults move under t
   say question is settled.
 
 ## PRIORITY ORDER (agreed with the project room, 2026-08-02)
-1. **Resend domain verify** — smallest task, biggest failure risk: 200 invites from
-   `onboarding@resend.dev` land in spam, and there's exactly one first impression with that
-   community. One DNS record set. Do FIRST regardless of everything else.
+1. ✅ **Resend — COMPLETE (2026-08-02).** Domain `ticklore.com` verified (MX/SPF/DKIM at GoDaddy —
+   remember: host names WITHOUT the domain suffix there), `RESEND_API_KEY` + `FROM_EMAIL =
+   Ticklore <tickets@ticklore.com>` live in Render, `tickets@` aliased to Alex's real mailbox for
+   replies. **Proven end-to-end: a roster invite delivered to a real inbox from the real name.**
+   Debugging lessons for the log: the live server NEVER had a Resend key before tonight (that was
+   every "email didn't arrive" mystery — nothing was ever sent); Resend API keys are visible ONLY at
+   creation (copy then, or mint a fresh one); FROM needs `Name <addr>` — brackets without the display
+   name are rejected. First impressions with the Serenity community are now protected.
 2. **Mainnet production bundle** — new contract deploy on Base mainnet + **the minter key rotation
    carried since July finally closes here** + real gas + Privy production + env swap.
 3. **Serenity pitch** — Ozzy's move; machinery is ready.
