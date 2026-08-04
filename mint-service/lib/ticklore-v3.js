@@ -48,7 +48,7 @@ const PALETTE_INDEX = { teal: 0, midnight: 1, burgundy: 2, forest: 3, plum: 4 };
 const MAX_SPONSORS = 128;
 
 async function connect({ password } = {}) {
-  const rpcUrl = process.env.RPC_URL;
+  const rpcUrl = process.env.TICKLORE_RPC_V3 || process.env.RPC_URL;
   const address =
     process.env.TICKLORE_CONTRACT_V3 ||
     process.env.TICKLORE_CONTRACT_V2 ||

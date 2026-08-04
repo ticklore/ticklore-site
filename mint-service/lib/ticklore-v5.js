@@ -18,7 +18,9 @@ const { getSigner } = require("./ticklore");
 const v4 = require("./ticklore-v4");
 
 async function connect({ password } = {}) {
-  const rpcUrl = process.env.RPC_URL;
+  // Per-version RPC: V5 lives on Base MAINNET while the older generations stay
+  // readable on Sepolia — the rehearsal keepsakes are history, not casualties.
+  const rpcUrl = process.env.TICKLORE_RPC_V5 || process.env.RPC_URL;
   const address =
     process.env.TICKLORE_CONTRACT_V5 ||
     process.env.TICKLORE_CONTRACT_V4 ||

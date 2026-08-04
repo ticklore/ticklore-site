@@ -37,7 +37,7 @@ const ABI = [
 const PALETTE_INDEX = { teal: 0, midnight: 1, burgundy: 2, forest: 3, plum: 4 };
 
 async function connect({ password } = {}) {
-  const rpcUrl = process.env.RPC_URL;
+  const rpcUrl = process.env.TICKLORE_RPC_V2 || process.env.RPC_URL;
   const address = process.env.TICKLORE_CONTRACT_V2 || process.env.TICKLORE_CONTRACT;
   if (!rpcUrl) throw new Error("Missing RPC_URL in .env");
   if (!address) throw new Error("Missing TICKLORE_CONTRACT_V2 (or TICKLORE_CONTRACT) in .env");

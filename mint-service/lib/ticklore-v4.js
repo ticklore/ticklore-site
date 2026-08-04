@@ -54,7 +54,7 @@ const MAX_SPONSORS = 128;
 const MAX_SECTIONS = 128;
 
 async function connect({ password } = {}) {
-  const rpcUrl = process.env.RPC_URL;
+  const rpcUrl = process.env.TICKLORE_RPC_V4 || process.env.RPC_URL;
   const address =
     process.env.TICKLORE_CONTRACT_V4 ||
     process.env.TICKLORE_CONTRACT_V3 ||
