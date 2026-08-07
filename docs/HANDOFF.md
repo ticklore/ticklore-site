@@ -603,3 +603,14 @@ Console rows: **Invite 📋** copies the organizer dashboard link; **⟳** revok
 instantly, new one lands on the clipboard). Organizer flow stays a bearer link — no accounts. Sold math
 per channel: activated stubs (or claims when no activation), online allocations, full roster. JS audit
 now permanently covers 15 pages.
+
+## 💳 STRIPE CONNECT — BUILT (2026-08-04, a752969), dormant until keys
+Alex met the trigger ("must land with them"): card sales run ON the organizer's own Stripe (Connect
+Standard, organizer = merchant of record), platform fee 5%+$0.99 (env: TICKLORE_FEE_PCT/
+TICKLORE_FEE_FLAT_CENTS, capped at price) peeled at source. No organizer accounts: the "Connect your
+Stripe" card rides the bearer-link dashboard -> Stripe OAuth -> we store only stripeAccountId on the
+event. Checkout uses {stripeAccount} + application_fee_amount when connected; platform-collect
+otherwise. Webhook: account secret first, then STRIPE_WEBHOOK_SECRET_CONNECT (Connect endpoints sign
+differently — register BOTH endpoint types in Stripe). TO LIGHT IT (Alex, test mode first): enable
+Connect in Stripe dashboard; env: STRIPE_SECRET_KEY, STRIPE_CONNECT_CLIENT_ID (ca_...),
+STRIPE_WEBHOOK_SECRET (+_CONNECT). Then dry-run with the 4242 card.
