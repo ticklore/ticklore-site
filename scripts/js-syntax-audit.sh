@@ -66,6 +66,10 @@ check "/wallet"               "http://localhost:3131/wallet"
 check "/shop"                 "http://localhost:3131/shop"
 check "/event page"           "http://localhost:3131/event/$KEY"
 check "/viewer"               "http://localhost:3131/viewer"
+DASH=$(curl -s --max-time 20 -H "x-admin-password: admin123" http://localhost:3131/admin/events | node -e 'let d=JSON.parse(require("fs").readFileSync(0));console.log(d.events[0]?d.events[0].dashUrl:"")')
+check "/admin overview"       "http://localhost:3131/admin/overview"
+check "/organizer dashboard"  "http://localhost:3131$DASH"
+check "/roster console"       "http://localhost:3131/admin/roster/$KEY"
 echo "=== RESULT: $PASS pages clean, $FAIL broken ==="
 
 kill $SVPID 2>/dev/null

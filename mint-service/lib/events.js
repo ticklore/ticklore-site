@@ -85,6 +85,17 @@ function ensureVaultToken(key) {
   return e.vaultToken;
 }
 
+/** Revoke & reissue the organizer-dashboard link: the old URL dies the moment
+ *  this runs (leaked link, changed chair — one click, clean slate). */
+function rotateOrgToken(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  e.orgToken = crypto.randomBytes(9).toString("base64url");
+  write(data);
+  return e.orgToken;
+}
+
 /** The organizer-dashboard token, generating one for legacy records. */
 function ensureOrgToken(key) {
   const data = read();
@@ -285,4 +296,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, rotateOrgToken, PLATFORM_MINIMUM_UNLOCK_DAYS };

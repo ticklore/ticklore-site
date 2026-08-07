@@ -171,6 +171,14 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
     res.json({ events: sponsorEvents });
   });
 
+  /** Revoke & reissue an event's organizer-dashboard link. The old URL stops
+   *  working the moment this returns. */
+  app.post("/admin/event/:key/rotate-dash", checkPassword, (req, res) => {
+    const token = events.rotateOrgToken(req.params.key);
+    if (!token) return res.status(404).json({ ok: false, error: "No such event." });
+    res.json({ ok: true, dashUrl: `/organizer/${encodeURIComponent(req.params.key)}?t=${token}` });
+  });
+
   /** Delete a sponsor event and its claim codes. */
   app.post("/admin/delete", express.json(), checkPassword, (req, res) => {
     const key = (req.body && req.body.key) || "";
@@ -505,7 +513,7 @@ function adminPage() {
 
 <header>
   <div class="brand">Tick<em>lore</em></div>
-  <div class="tag">Concierge · Sponsor Keepsakes</div>
+  <div class="tag">Concierge · Sponsor Keepsakes · <a href="/admin/overview" style="color:var(--gold-bright);text-decoration:none">Mission Control &rarr;</a></div>
 </header>
 
 <div class="wrap">
@@ -723,11 +731,34 @@ function adminPage() {
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'
           + '<a class="ev__sheet" href="'+esc(e.dashUrl||'#')+'" target="_blank" title="Read-only share link for the organizer — counts, never names">Live &rarr;</a>'
+          + '<a class="ev__sheet" href="#" data-dash="'+esc(e.dashUrl||'')+'" onclick="copyInvite(this);return false;" title="Copy the organizer dashboard link to send them">Invite &#128203;</a>'
+          + '<a class="ev__sheet" href="#" onclick="rotateInvite(this);return false;" title="Revoke the old dashboard link and issue a fresh one">&#8635;</a>'
           + '<a class="ev__sheet" href="#" onclick="downloadCsv(this);return false;">CSV &darr;</a>'
           + '<button class="ev__del" type="button" onclick="delEvent(this)">Delete</button></div>';
       }).join('');
     });
   }
+  function copyInvite(link){
+    var url = location.origin + link.getAttribute('data-dash');
+    navigator.clipboard.writeText(url).then(function(){
+      var old = link.innerHTML; link.textContent = 'Copied ✓';
+      setTimeout(function(){ link.innerHTML = old; }, 1600);
+    }).catch(function(){ prompt('Copy the invite link:', url); });
+  }
+
+  function rotateInvite(link){
+    var row = link.closest('.ev'), key = row.getAttribute('data-key');
+    if (!confirm('Revoke this event\\u2019s dashboard link and issue a fresh one?\\n\\nThe OLD link stops working immediately \\u2014 anyone holding it loses access until you send the new one.')) return;
+    fetch('/admin/event/' + encodeURIComponent(key) + '/rotate-dash', { method: 'POST', headers: { 'x-admin-password': PW } })
+      .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok){
+          navigator.clipboard.writeText(location.origin + d.dashUrl).catch(function(){});
+          alert('New link issued and copied to your clipboard — send it to the organizer.');
+          loadEvents();
+        } else { alert(d.error || 'Could not rotate.'); }
+      }).catch(function(){ alert('Could not reach the server.'); });
+  }
+
   function downloadCsv(link){
     var key = link.closest('.ev').getAttribute('data-key');
     fetch('/admin/event/'+encodeURIComponent(key)+'/claims.csv', { headers: { 'x-admin-password': PW } })
