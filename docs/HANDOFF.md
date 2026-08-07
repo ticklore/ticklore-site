@@ -595,3 +595,11 @@ every inline script block, `node --check`s each. Also remember: template literal
 ---
 _Consolidated 2026-07-30 from the Code session's live-state log and the web chat's 2026-07-28/29
 decision updates. Supersedes both `ticklore-handoff-CANONICAL-2026-07-27*.md` files in Downloads._
+
+## Mission Control + organizer-invite tooling (2026-08-04, fd4f980)
+`/admin/overview` — founder one-screen: totals (codes/sold/keepsakes/check-ins/awaiting-curation), per-event
+table w/ dashboard jump links, system chips (gas both chains, backup age, email readiness), 30s refresh.
+Console rows: **Invite 📋** copies the organizer dashboard link; **⟳** revokes + reissues it (old link dies
+instantly, new one lands on the clipboard). Organizer flow stays a bearer link — no accounts. Sold math
+per channel: activated stubs (or claims when no activation), online allocations, full roster. JS audit
+now permanently covers 15 pages.
