@@ -331,6 +331,8 @@ show();
     // Roster import — "keep your registration; send me the list": paste a
     // registration export, every person gets an emailed claim link.
     require("./lib/roster").mountRoster(app);
+    // Stripe Connect onboarding — card money lands with the ORGANIZER.
+    require("./lib/connect").mountConnect(app, { stripe });
     // The organizer's read-only window: sold / claimed / through-the-door,
     // counts never names, behind an unguessable share link.
     require("./lib/organizer-dash").mountOrganizerDash(app);

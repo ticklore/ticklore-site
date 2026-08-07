@@ -83,11 +83,11 @@ function mountOrganizerDash(app) {
 <style>body{background:#081619;color:rgba(241,233,221,.55);font-family:system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}</style></head>
 <body><div>There's nothing at this address.</div></body></html>`);
     }
-    res.type("html").send(dashPage(e.key, String(req.query.t || ""), stats(e)));
+    res.type("html").send(dashPage(e.key, String(req.query.t || ""), stats(e), e));
   });
 }
 
-function dashPage(key, token, s) {
+function dashPage(key, token, s, e) {
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   return `<!doctype html>
@@ -138,6 +138,13 @@ function dashPage(key, token, s) {
   </table>
 
   <div class="vrow"><span>Memory vault</span><div><b id="d-vpub">–</b> published · <b id="d-vpen">–</b> awaiting review</div></div>
+
+  ${(s.channels && s.channels.online && s.channels.online.total) ? (
+    e && e.stripeAccountId
+      ? `<div class="vrow"><span>Card sales</span><div style="color:var(--sage)">deposit directly to <b>your Stripe</b> ✓</div></div>`
+      : `<div class="vrow"><span>Card sales</span><div><a href="/connect/${encodeURIComponent(key)}?t=${encodeURIComponent(token)}" style="color:var(--gold-bright)">Connect your Stripe &rarr;</a>
+         <span style="color:rgba(241,233,221,.5);font-size:.8rem"> so ticket money lands in your account</span></div></div>`
+  ) : ""}
 
   <div class="asof" id="d-asof"></div>
   <div class="foot">Ticklore · counts only, never names</div>

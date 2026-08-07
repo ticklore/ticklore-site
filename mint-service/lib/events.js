@@ -85,6 +85,17 @@ function ensureVaultToken(key) {
   return e.vaultToken;
 }
 
+/** Record (or clear) the organizer's connected Stripe account for an event. */
+function setStripeAccount(key, accountId) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  e.stripeAccountId = accountId ? String(accountId) : null;
+  e.stripeConnectedAt = accountId ? new Date().toISOString() : null;
+  write(data);
+  return e.stripeAccountId;
+}
+
 /** Revoke & reissue the organizer-dashboard link: the old URL dies the moment
  *  this runs (leaked link, changed chair — one click, clean slate). */
 function rotateOrgToken(key) {
@@ -267,6 +278,10 @@ function create(input) {
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
     vaultVisibility, vaultToken, orgToken, activationRequired, sellerPin,
+    // Stripe Connect: when set, card sales run ON the organizer's own Stripe
+    // (they are merchant of record; our fee peels off automatically). Null =
+    // platform-collect pilot mode or a free event.
+    stripeAccountId: null,
     createdAt: new Date().toISOString(),
   };
   write(data);
@@ -296,4 +311,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, rotateOrgToken, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, rotateOrgToken, setStripeAccount, PLATFORM_MINIMUM_UNLOCK_DAYS };

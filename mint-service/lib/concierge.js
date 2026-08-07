@@ -166,6 +166,7 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
         onChainEventId: e.onChainEventId, blocks: e.blocks || [],
         // The read-only share link for the committee chair (counts, no names).
         dashUrl: `/organizer/${encodeURIComponent(e.key)}?t=${e.orgToken || events.ensureOrgToken(e.key) || ""}`,
+        stripeConnected: !!e.stripeAccountId,
         ...claims.statsByEvent(e.key),
       }));
     res.json({ events: sponsorEvents });
@@ -726,7 +727,7 @@ function adminPage() {
       list.innerHTML = evs.map(function(e){
         return '<div class="ev" data-key="'+esc(e.key)+'">'
           + '<div class="ev__main"><div class="ev__name">'+esc(e.name)+'</div>'
-          + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+'</div></div>'
+          + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+(e.stripeConnected?' &middot; &#128179; connected':'')+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'

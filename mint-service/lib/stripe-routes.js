@@ -96,11 +96,17 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // Verifies that this really came from Stripe and was not altered.
       // Without this check, anyone who found the URL could post a fake
       // "payment succeeded" and mint themselves free tickets.
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        req.get("stripe-signature"),
-        WEBHOOK_SECRET
-      );
+      // Connect note: Stripe signs "events on your account" and "events on
+      // connected accounts" with DIFFERENT endpoint secrets — try the account
+      // secret first, then the Connect one (STRIPE_WEBHOOK_SECRET_CONNECT).
+      const sig = req.get("stripe-signature");
+      try {
+        event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
+      } catch (first) {
+        const CONNECT_SECRET = process.env.STRIPE_WEBHOOK_SECRET_CONNECT;
+        if (!CONNECT_SECRET) throw first;
+        event = stripe.webhooks.constructEvent(req.body, sig, CONNECT_SECRET);
+      }
     } catch (err) {
       console.error("  ✗ webhook signature verification failed:", err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -383,7 +389,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       if (lane.remaining < 1) return res.status(409).json({ error: "Online tickets are sold out — cards may still be available at the door." });
       if (!lane.block.priceCents) return res.status(400).json({ error: "This event's online tickets aren't priced." });
 
-      const session = await stripe.checkout.sessions.create({
+      const params = {
         mode: "payment",
         payment_method_types: ["card"],
         line_items: [{
@@ -400,7 +406,18 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         metadata: { codeSale: "true", eventKey: req.params.key },
         success_url: `${PUBLIC_URL}/bought?key=${encodeURIComponent(req.params.key)}`,
         cancel_url: `${PUBLIC_URL}/buy/${encodeURIComponent(req.params.key)}`,
-      });
+      };
+      const opts = {};
+      // Connect: when the organizer has linked their Stripe, the charge runs
+      // ON THEIR ACCOUNT (they are merchant of record; the money is theirs the
+      // moment it's paid) and the platform fee peels off at the source.
+      if (lane.details.stripeAccountId) {
+        params.payment_intent_data = {
+          application_fee_amount: require("./connect").platformFeeCents(lane.block.priceCents),
+        };
+        opts.stripeAccount = lane.details.stripeAccountId;
+      }
+      const session = await stripe.checkout.sessions.create(params, opts);
       res.json({ url: session.url });
     } catch (err) {
       console.error("  ✗ code-sale checkout failed:", err.message);
