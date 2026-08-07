@@ -614,3 +614,5 @@ otherwise. Webhook: account secret first, then STRIPE_WEBHOOK_SECRET_CONNECT (Co
 differently — register BOTH endpoint types in Stripe). TO LIGHT IT (Alex, test mode first): enable
 Connect in Stripe dashboard; env: STRIPE_SECRET_KEY, STRIPE_CONNECT_CLIENT_ID (ca_...),
 STRIPE_WEBHOOK_SECRET (+_CONNECT). Then dry-run with the 4242 card.
+
+**Stripe env LIVE (2026-08-06, sandbox/test mode):** all four vars planted in Render (sk_test / two distinct whsec — ticklore=account, adventurous-glow=connected / ca_ pending-verify) inside the VBRE sandbox; server detector confirms the engine is live. Redirect URI must be registered in sandbox Connect OAuth settings: https://app.ticklore.com/connect/callback. NEXT: the dress rehearsal — test paid event -> Connect a sandbox account via the dashboard link -> buy with 4242 -> fee split + claim email. Stripe UI notes for the log: webhooks are now "Event destinations" (Add destination), the account-vs-connected choice is called "Event destination scope", and sandbox keys live inside the sandbox (black banner = right universe; acct_1T852XPeeGIX4sbJ = VBRE sandbox fingerprint).
