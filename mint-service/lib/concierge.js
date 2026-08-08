@@ -489,6 +489,7 @@ function adminPage() {
   .b-online{display:flex;align-items:center;gap:5px;font-size:.74rem;color:var(--sage);white-space:nowrap;cursor:pointer}
   .b-online input{width:auto;margin:0}
   .block-row input{width:100%}
+  .blk-h{font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--sage);opacity:.85}
   .blk-del{background:transparent;border:1px solid rgba(227,138,138,.4);color:#E38A8A;border-radius:6px;height:42px;padding:0 12px;cursor:pointer}
   .blk-del:hover{background:rgba(227,138,138,.12)}
   .add-block{background:transparent;border:1px dashed var(--line);color:var(--gold-bright);border-radius:6px;
@@ -538,6 +539,12 @@ function adminPage() {
   </div>
 
   <div class="section-label">Ticket blocks</div>
+  <div class="block-row" style="margin-bottom:4px">
+    <span class="blk-h">Sponsor lead-in</span><span class="blk-h">Sponsor name</span>
+    <span class="blk-h">Qty</span><span class="blk-h">Price $</span>
+    <span class="blk-h">Section</span><span class="blk-h">Stub label</span>
+    <span class="blk-h"></span><span class="blk-h"></span>
+  </div>
   <div id="block-list"></div>
   <button type="button" class="add-block" onclick="addBlock()">+ Add a block</button>
   <div class="hint">Each row is a block of tickets. <b>Sponsor is optional</b> — leave it blank for plain
