@@ -50,7 +50,13 @@ function generate(eventKey, blocks, { activationRequired = false } = {}) {
   for (const b of blocks) {
     const count = Math.max(0, Math.floor(Number(b.count) || 0));
     const online = b.online === true;
+    // Human stub labels ("BLUE 105"…): prefix + running number with the
+    // typed zero-padding preserved. Null when the block wasn't labeled.
+    const hasLabel = b.labelStart != null || (b.labelPrefix && String(b.labelPrefix).length);
     for (let i = 0; i < count; i++) {
+      const label = hasLabel
+        ? `${b.labelPrefix ? b.labelPrefix + " " : ""}${String((Number(b.labelStart) || 1) + i).padStart(Number(b.labelPad) || 2, "0")}`
+        : null;
       let code = newCode();
       while (data.codes[code]) code = newCode(); // astronomically unlikely, still cheap to guard
       data.codes[code] = {
@@ -64,6 +70,8 @@ function generate(eventKey, blocks, { activationRequired = false } = {}) {
         // The named section this block belongs to ("Table 7"); 0/"" = none.
         sectionRef: Number(b.sectionRef) || 0,
         section: b.section || "",
+        // The human inventory label ("BLUE 105") — for stubs, desks, disputes.
+        label,
         // "print" codes go on the QR sheet; "online" codes are sold through the
         // card payment gate and are NEVER printed — the webhook emails them out.
         channel: online ? "online" : "print",

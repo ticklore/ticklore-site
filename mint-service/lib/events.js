@@ -189,6 +189,10 @@ function create(input) {
         // Online blocks are sold through the card payment gate: their codes are
         // never printed — the webhook hands them out by email, one per payment.
         online: b.online === true || b.online === "true",
+        // Stub-label scheme for this block ("BLUE" starting at 105, padded).
+        labelPrefix: String(b.labelPrefix || "").slice(0, 16),
+        labelStart: b.labelStart != null ? Number(b.labelStart) : null,
+        labelPad: Number(b.labelPad) || 2,
       }))
     : [];
 

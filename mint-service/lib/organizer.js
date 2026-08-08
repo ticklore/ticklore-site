@@ -249,6 +249,20 @@ function organizerPage() {
       </label>
     </div>
 
+    <div class="section-label">Sponsor credit — optional</div>
+    <div class="row">
+      <div class="field">
+        <label for="f-sponsor-label">Lead-in</label>
+        <input type="text" id="f-sponsor-label" placeholder="Supported by" maxlength="28" oninput="draw()">
+        <div class="hint">e.g. "Supported by", "In honor of", "Brought to you by".</div>
+      </div>
+      <div class="field">
+        <label for="f-sponsor-name">Sponsor name</label>
+        <input type="text" id="f-sponsor-name" placeholder="The Acme Foundation" maxlength="44" oninput="draw()">
+        <div class="hint">One graceful line, engraved on every ticket forever. Leave blank for none.</div>
+      </div>
+    </div>
+
     <div class="section-label">Ticket design</div>
     <div class="row">
       <div class="field">
@@ -406,6 +420,8 @@ function organizerPage() {
       name: document.getElementById('f-name').value,
       tier: document.getElementById('f-tier').value,
       price: document.getElementById('f-price').value,
+      sponsorLabel: document.getElementById('f-sponsor-label').value,
+      sponsorName: document.getElementById('f-sponsor-name').value,
       palette: document.getElementById('f-palette').value,
       style: document.getElementById('f-style').value
     });
@@ -422,6 +438,8 @@ function organizerPage() {
       date: document.getElementById('f-date').value,
       unlockDays: document.getElementById('f-unlock').value || 30,
       blurb: document.getElementById('f-blurb').value,
+      sponsorLabel: document.getElementById('f-sponsor-label').value,
+      sponsorName: document.getElementById('f-sponsor-name').value,
       nonTransferable: document.getElementById('f-nontransfer').checked,
       palette: document.getElementById('f-palette').value,
       style: document.getElementById('f-style').value,
@@ -460,7 +478,7 @@ function organizerPage() {
   // Clear the form and re-arm Publish, so making a second event is a deliberate
   // act rather than an accidental double-click.
   function resetForm(){
-    ['f-name','f-venue','f-tier','f-price','f-date','f-blurb'].forEach(function(id){
+    ['f-name','f-venue','f-tier','f-price','f-date','f-blurb','f-sponsor-label','f-sponsor-name'].forEach(function(id){
       document.getElementById(id).value = '';
     });
     document.getElementById('f-unlock').value = '30';

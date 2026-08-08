@@ -100,11 +100,21 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
         // are never printed; the webhook emails them out one per payment.
         const online = b.online === true || b.online === "true";
 
+        // Stub labels: "BLUE 105" → BLUE 105, BLUE 106… (start honored, zero-
+        // padding preserved: "BLUE 07" pads to 2). Plain "BLUE" starts at 1.
+        // Labels are for humans — inventory, reconciliation, matching stock
+        // already printed; the claim CODE stays the machine's random key.
+        const labelRaw = String(b.label || "").trim().slice(0, 20);
+        const lm = labelRaw ? labelRaw.match(/^(.*?)[\s\-#]*(\d+)?$/) : null;
+        const labelPrefix = lm ? lm[1].trim().toUpperCase() : "";
+        const labelStart = lm && lm[2] ? parseInt(lm[2], 10) : (labelRaw ? 1 : null);
+        const labelPad = lm && lm[2] ? lm[2].length : 2;
+
         if (name) {
           sponsors.push({ leadIn, name });
-          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents, sectionRef, section, online });
+          blocks.push({ sponsorRef: sponsors.length, count, sponsorName: name, priceCents, sectionRef, section, online, labelPrefix, labelStart, labelPad });
         } else {
-          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents, sectionRef, section, online });
+          blocks.push({ sponsorRef: 0, count, sponsorName: "", priceCents, sectionRef, section, online, labelPrefix, labelStart, labelPad });
         }
       }
       if (!blocks.length) throw new Error("Add at least one block with a ticket count of 1 or more.");
@@ -202,7 +212,7 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
         const url = `${PUBLIC_URL}/claim/${c.code}`;
         let qr = "";
         try { qr = await QRCode.toString(url, { type: "svg", margin: 1 }); } catch { /* leave blank */ }
-        return { code: c.code, sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, priceCents: c.priceCents || 0, section: c.section || "", status: c.status, url, qr };
+        return { code: c.code, label: c.label || "", sponsorRef: c.sponsorRef, sponsorName: c.sponsorName, priceCents: c.priceCents || 0, section: c.section || "", status: c.status, url, qr };
       })
     );
     res.json({ name: e.name, venue: e.venue, date: e.date, codes });
@@ -219,12 +229,12 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const rows = [[
-      "code", "channel", "status", "active", "sponsor", "section", "price",
+      "code", "label", "channel", "status", "active", "sponsor", "section", "price",
       "email", "wallet", "ticket", "claimedAt", "admittedAt", "soldOnlineTo",
     ].join(",")];
     for (const c of claims.listByEvent(req.params.key)) {
       rows.push([
-        c.code, c.channel || "print", c.status, c.active === false ? "dormant" : "active",
+        c.code, c.label || "", c.channel || "print", c.status, c.active === false ? "dormant" : "active",
         c.sponsorName || "", c.section || "", c.priceCents ? (c.priceCents / 100).toFixed(2) : "0",
         c.email || "", c.address || "", c.tokenId || "", c.claimedAt || "", c.redeemedAt || "",
         c.assignedTo || "",
@@ -475,7 +485,7 @@ function adminPage() {
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--gold);margin:24px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .block-row{display:grid;grid-template-columns:1fr 1.2fr 70px 85px 110px auto auto;gap:8px;margin-bottom:10px;align-items:center}
+  .block-row{display:grid;grid-template-columns:1fr 1.2fr 62px 78px 100px 105px auto auto;gap:7px;margin-bottom:10px;align-items:center}
   .b-online{display:flex;align-items:center;gap:5px;font-size:.74rem;color:var(--sage);white-space:nowrap;cursor:pointer}
   .b-online input{width:auto;margin:0}
   .block-row input{width:100%}
@@ -626,6 +636,7 @@ function adminPage() {
       '<input type="number" class="b-count" placeholder="Qty" min="1" step="1" oninput="tally()">' +
       '<input type="number" class="b-price" placeholder="Price $" min="0" step="1" oninput="tally()">' +
       '<input type="text" class="b-section" placeholder="Section (opt.)" maxlength="32" oninput="tally()">' +
+      '<input type="text" class="b-label" placeholder="Label (opt.)" maxlength="20" title="Stub labels for this block, e.g. BLUE 105 → BLUE 105, BLUE 106… Numbers continue from your start; plain BLUE starts at 1.">' +
       '<label class="b-online" title="Sold through the card payment gate — never printed"><input type="checkbox" class="b-onl" onchange="tally()">online</label>' +
       '<button type="button" class="blk-del" title="Remove" onclick="removeBlock(this)">&#10005;</button>';
     document.getElementById('block-list').appendChild(row);
@@ -646,7 +657,8 @@ function adminPage() {
       var price=parseFloat(rows[i].querySelector('.b-price').value)||0;
       var section=rows[i].querySelector('.b-section').value.trim();
       var online=rows[i].querySelector('.b-onl').checked;
-      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price, section:section, online:online });
+      var label=rows[i].querySelector('.b-label').value.trim();
+      if (count>0) out.push({ leadIn:leadIn, name:name, count:count, priceDollars:price, section:section, online:online, label:label });
     }
     return out;
   }
@@ -880,6 +892,7 @@ function sheetPage(key) {
       return '<div class="sponsor"><h2>'+esc(k)+' — '+groups[k].length+' ticket'+(groups[k].length===1?'':'s')+'</h2><div class="cards">'
         + groups[k].map(function(c){
             return '<div class="card'+(c.status==='claimed'?' claimed':'')+'"><div class="spn">'+esc(k)+'</div>'
+              + (c.label ? '<div style="font-weight:800;font-size:1.15rem;letter-spacing:.06em;margin-bottom:4px">'+esc(c.label)+'</div>' : '')
               + (c.qr||'')
               + '<div class="code">'+esc(c.code)+'</div><div class="url">'+esc(c.url)+'</div>'
               + (c.status==='claimed'?'<div class="tag">claimed</div>':'')+'</div>';
@@ -1148,7 +1161,7 @@ function doorPage({ code, rec, details }) {
   }
 
   return head + `<h1>${evName}</h1>${venue}
-<div class="tk">Ticket #${esc(rec.tokenId)} · claimed, not yet admitted</div>
+<div class="tk">Ticket #${esc(rec.tokenId)}${rec.label ? ` · ${esc(rec.label)}` : ""} · claimed, not yet admitted</div>
 <input id="pw" type="password" placeholder="Staff password" autofocus>
 <button id="go" onclick="redeem()">Admit &amp; stamp the keepsake</button>
 <div class="err" id="err"></div>
@@ -1208,7 +1221,7 @@ function activatePage({ code, rec, details }) {
   }
 
   return head + `<h1>${evName}</h1>${venue}
-<div class="tk">Dormant card · ${esc(rec.sponsorName || "General")} · ${esc(price)}</div>
+<div class="tk">Dormant card${rec.label ? ` · ${esc(rec.label)}` : ""} · ${esc(rec.sponsorName || "General")} · ${esc(price)}</div>
 <input id="pin" type="password" inputmode="numeric" placeholder="Seller PIN" autofocus>
 <button id="go" onclick="activate()">Mark as sold &amp; activate</button>
 <div class="err" id="err"></div>

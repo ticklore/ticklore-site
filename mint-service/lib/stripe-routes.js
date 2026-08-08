@@ -320,8 +320,12 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // into their own wallet, receipt in their inbox. Everything a paying
       // customer experiences except the card swipe itself.
       if (details.onChainEventId && (details.onChainVersion === 3 || details.onChainVersion === 4)) {
+        // If the organizer set a sponsor credit on this event, every ticket
+        // carries it — the event's on-chain sponsor list has it at index 1.
+        const hasSponsor = !!(details.sponsorName || (Array.isArray(details.sponsors) && details.sponsors.length));
         const [rec] = claims.generate(req.query.demo, [{
-          sponsorRef: 0, count: 1, sponsorName: "",
+          sponsorRef: hasSponsor ? 1 : 0, count: 1,
+          sponsorName: details.sponsorName || (details.sponsors && details.sponsors[0] && details.sponsors[0].name) || "",
           priceCents: details.priceCents || 0, sectionRef: 0, section: "",
         }]);
         // Personalization typed on the shop form rides along as a PREFILL —
