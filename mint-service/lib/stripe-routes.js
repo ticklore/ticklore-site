@@ -30,6 +30,7 @@ const ticklore = require("./ticklore");
 const ticklorev2 = require("./ticklore-v2");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
+const ticklorev5 = require("./ticklore-v5");
 const store = require("./store");
 const events = require("./events");
 const claims = require("./claims");
@@ -186,7 +187,32 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // together with tape until Privy replaces this properly.
       const recipient = session.metadata?.wallet || chain.signer.address;
 
-      const result = await ticklore.mintTicket(chain.contract, {
+      // Mint on the contract the EVENT lives on — token ids collide across
+      // versions, so minting and display must agree on the universe. Events
+      // with an on-chain id use their own generation; seeds fall back to V1.
+      const vmap = {
+        5: chainV5 && [chainV5, ticklorev5],
+        4: chainV4 && [chainV4, ticklorev4],
+        3: chainV3 && [chainV3, ticklorev3],
+      };
+      let result, mintedVersion;
+      const pair = details.onChainEventId ? vmap[details.onChainVersion] : null;
+      if (pair) {
+        const [mc, ml] = pair;
+        const hasSponsor = !!(details.sponsorName || (Array.isArray(details.sponsors) && details.sponsors.length));
+        const r = await ml.mintTicket(mc.contract, {
+          eventId: details.onChainEventId,
+          to: recipient,
+          price: session.amount_total,
+          buyerName: "",
+          inscription: "",
+          sponsorRef: hasSponsor ? 1 : 0,
+          sectionRef: 0,
+        });
+        result = { ticketId: r.tokenId, txHash: r.txHash };
+        mintedVersion = details.onChainVersion;
+      } else {
+      result = await ticklore.mintTicket(chain.contract, {
         to: recipient,
         eventName: details.name,
         tier: details.tier,
@@ -197,12 +223,17 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         palette: details.palette,
         style: details.style,
       });
+      mintedVersion = 1;
+      }
 
       store.completeSession(session.id, {
         ticketId: result.ticketId,
         txHash: result.txHash,
         recipient,
         custodial: !session.metadata?.wallet,
+        // The token's home contract — the success page pins its art with ?v=
+        // so a V1 seed ticket never wears a V5 token's face (id collision).
+        version: mintedVersion,
       });
 
       console.log(`  ✓ paid ${session.id} → ticket #${result.ticketId} → ${recipient}`);
@@ -515,7 +546,7 @@ function successPage(opts) {
     (function poll(){
       tries++;
       fetch('/order/'+sid).then(function(r){return r.json()}).then(function(d){
-        if(d.status==='minted'){ reveal(d.ticketId, d.custodial); return; }
+        if(d.status==='minted'){ reveal(d.ticketId, d.custodial, d.version); return; }
         if(d.status==='failed'){ fail('Your payment went through, but issuing the ticket hit a snag. Nothing is lost — we are on it.'); return; }
         if(tries>40){ document.getElementById('s').textContent='Still working. Your payment is safe; the ticket will appear shortly.'; return; }
         setTimeout(poll, 1500);

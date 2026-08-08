@@ -98,7 +98,8 @@ async function findTicket(id, versionPin) {
     const byVersion = { 5: chainV5 && { src: chainV5, lib: ticklorev5 },
                        4: chainV4 && { src: chainV4, lib: ticklorev4 },
                        3: chainV3 && { src: chainV3, lib: ticklorev3 },
-                       2: chainV2 && { src: chainV2, lib: ticklorev2 } };
+                       2: chainV2 && { src: chainV2, lib: ticklorev2 },
+                       1: chain && { src: chain, lib: ticklore } };
     return byVersion[versionPin] || null;
   }
   for (let attempt = 1; attempt <= 4; attempt++) {
