@@ -70,6 +70,22 @@ function ticketSvg({ name, venue, priceCents, number = "—", used = false }) {
 }
 
 /** Shared <head>: fonts + the full design system. Every buyer page uses this. */
+/** The site nav: brand + inline links on desktop; under 720px the links
+ *  collapse into a hamburger opening a branded dropdown with tap-sized rows.
+ *  links = [{ href, label, style? }] */
+function navBar(links) {
+  const a = (l) => `<a href="${l.href}"${l.style ? ` style="${l.style}"` : ""}>${l.label}</a>`;
+  return `<nav class="nav">
+    <a href="/" class="brand nav__brand" style="text-decoration:none;display:flex;align-items:center">
+      <img src="/logo.png" alt="Ticklore — every ticket has a story">
+    </a>
+    <span class="nav__links">${links.map(a).join("")}</span>
+    <button class="nav__burger" aria-label="Open menu" aria-expanded="false"
+      onclick="var m=document.getElementById('mnav');var on=m.classList.toggle('on');this.setAttribute('aria-expanded',on);this.textContent=on?'\\u2715':'\\u2630'">\u2630</button>
+    <div class="nav__menu" id="mnav">${links.map((l) => `<a href="${l.href}">${l.label}</a>`).join("")}</div>
+  </nav>`;
+}
+
 function head(title) {
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -108,7 +124,26 @@ const BASE_CSS = `
   .btn:disabled{opacity:.6;cursor:wait;transform:none}
   .btn--ghost{background:transparent;color:var(--parchment);border:1px solid var(--line)}
   .btn--ghost:hover{background:transparent;border-color:var(--gold)}
-  .nav{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;
+  html,body{max-width:100%;overflow-x:hidden}
+  img,svg,video{max-width:100%}
+  .nav__brand img{height:72px;width:auto;display:block}
+  .nav__links{display:flex;gap:22px;align-items:center}
+  .nav__burger{display:none;background:none;border:1px solid var(--line);color:var(--gold-bright);
+    font-size:1.25rem;line-height:1;padding:8px 13px;border-radius:9px;cursor:pointer}
+  .nav__menu{display:none}
+  @media (max-width:720px){
+    .nav__brand img{height:52px}
+    .nav__links{display:none}
+    .nav__burger{display:block}
+    .nav__menu.on{display:block;position:absolute;top:100%;left:12px;right:12px;z-index:60;
+      background:rgba(8,22,25,.97);border:1px solid var(--line);border-radius:14px;padding:8px;
+      backdrop-filter:blur(10px);box-shadow:0 26px 60px -20px rgba(0,0,0,.85)}
+    .nav__menu a{display:block;padding:15px 18px;font-size:1.02rem;border-radius:9px;
+      color:var(--parchment);text-decoration:none}
+    .nav__menu a:active{background:rgba(241,233,221,.07)}
+    .nav__menu a + a{border-top:1px solid var(--line)}
+  }
+  .nav{position:relative;z-index:30;display:flex;align-items:center;justify-content:space-between;
     max-width:960px;margin:0 auto;padding:22px 24px}
   .nav .brand{font-size:1.4rem}
   .nav a{text-decoration:none;font-size:.9rem;color:rgba(241,233,221,.7)}
@@ -116,4 +151,4 @@ const BASE_CSS = `
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
 
-module.exports = { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, BASE_CSS };
+module.exports = { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, BASE_CSS };

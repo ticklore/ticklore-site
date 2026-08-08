@@ -12,7 +12,7 @@
 const express = require("express");
 const ticklore = require("./ticklore");
 const { getEvent, listEvents } = require("./stripe-routes");
-const { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, BASE_CSS } = require("./ui");
+const { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, BASE_CSS } = require("./ui");
 const { rateLimit } = require("./ratelimit");
 
 function mountStorefront(app, { chain, stripeEnabled }) {
@@ -137,7 +137,9 @@ function landingPage(events) {
 <style>
   .hero{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:40px 24px 20px;
     display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;min-height:70vh}
+  .hero>*{min-width:0}
   @media (max-width:860px){.hero{grid-template-columns:1fr;gap:36px;text-align:center;padding-top:20px}}
+  @media (max-width:480px){.hero__title{font-size:2.1rem}.hero__cta{gap:10px}.hero__cta .btn{flex:1;text-align:center}}
   .hero__eyebrow{font-family:'IBM Plex Mono',monospace;font-size:.74rem;letter-spacing:.22em;
     text-transform:uppercase;color:var(--gold);margin-bottom:20px}
   .hero__title{font-family:'Fraunces',serif;font-weight:600;font-size:3.4rem;line-height:1.04;
@@ -169,17 +171,12 @@ function landingPage(events) {
   footer{position:relative;z-index:1;text-align:center;padding:0 24px 50px;color:rgba(241,233,221,.4);font-size:.82rem}
 </style></head>
 <body>
-  <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center">
-      <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block">
-    </a>
-    <span style="display:flex;gap:22px;align-items:center">
-      <a href="https://ticklore.com" style="opacity:.75">← ticklore.com</a>
-      <a href="/wallet">Wallet</a>
-      <a href="/organize">Organizer demo</a>
-      <a href="/shop">Browse events →</a>
-    </span>
-  </nav>
+  ${navBar([
+    { href: "https://ticklore.com", label: "← ticklore.com", style: "opacity:.75" },
+    { href: "/wallet", label: "Wallet" },
+    { href: "/organize", label: "Organizer demo" },
+    { href: "/shop", label: "Browse events →" },
+  ])}
 
   <section class="hero">
     <div class="hero__copy">
@@ -274,13 +271,11 @@ function shopPage(events, stripeEnabled, demoEnabled) {
   .empty{text-align:center;color:rgba(241,233,221,.5);padding:60px 24px}
 </style></head>
 <body>
-  <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a>
-    <span style="display:flex;gap:22px;align-items:center">
-      <a href="https://ticklore.com" style="opacity:.75">← ticklore.com</a>
-      <a href="/shop">All events</a>
-    </span>
-  </nav>
+  ${navBar([
+    { href: "https://ticklore.com", label: "← ticklore.com", style: "opacity:.75" },
+    { href: "/wallet", label: "Wallet" },
+    { href: "/shop", label: "All events" },
+  ])}
   <main>
     <div class="head">
       <h1>Choose your chapter</h1>
@@ -335,7 +330,7 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
 </style></head>
 <body>
   <nav class="nav">
-    <a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a>
+    <a href="/" class="brand nav__brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story"></a>
     <a href="/shop">← All events</a>
   </nav>
   <main>
