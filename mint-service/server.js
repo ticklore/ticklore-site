@@ -49,6 +49,10 @@ const app = express();
 app.use((req, res, next) => { res.set("X-Robots-Tag", "noindex, nofollow"); next(); });
 app.get("/robots.txt", (req, res) => res.type("text/plain").send("User-agent: *\nDisallow: /\n"));
 
+// The NYE Gala's landing page (Oceanfront 12 & 12) — unlisted, shared by
+// link. Buy buttons get wired to /buy/<eventKey> once the Gala event exists.
+app.get("/gala", (req, res) => res.sendFile(__dirname + "/public/gala.html"));
+
 // Static assets (the logo, etc.). Cached hard — it's an immutable brand file.
 app.use(express.static(__dirname + "/public", { maxAge: "7d" }));
 

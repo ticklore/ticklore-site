@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Year's Eve Gala — Oceanfront 12 &amp; 12</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="New Year's Eve Gala, Thursday December 31, 2026. Wyndham Virginia Beach Oceanfront. $60 per person, 150 seats.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --midnight:#080E1C;
+    --midnight-2:#0E1729;
+    --sea:#1B3149;
+    --gold:#D4A94A;
+    --gold-bright:#F2D896;
+    --champagne:#F5EDDC;
+    --champagne-dim:#B9AE97;
+    --measure:36rem;
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+
+  html{
+    -webkit-text-size-adjust:100%;
+    scroll-behavior:smooth;
+    color-scheme:dark;
+    background:#080E1C !important;
+  }
+
+  /* fixed backdrop — survives hosts that override body background */
+  .backdrop{
+    position:fixed;
+    inset:0;
+    z-index:-10;
+    background:#080E1C;
+    pointer-events:none;
+  }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:#080E1C !important;
+    color:var(--champagne) !important;
+    font-family:"Work Sans",system-ui,sans-serif;
+    font-size:1.0625rem;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  .wrap{max-width:58rem;margin:0 auto;padding:0 1.5rem}
+
+  :focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:2px}
+
+  /* ---------------- hero + the light ---------------- */
+  .hero{
+    position:relative;
+    text-align:center;
+    padding:5.5rem 0 4.5rem;
+    isolation:isolate;
+  }
+  /* radiating rays, echoing the sunburst on the flyer */
+  .hero::before{
+    content:"";
+    position:absolute;
+    z-index:-2;
+    top:-22rem;left:50%;
+    width:80rem;height:80rem;
+    transform:translateX(-50%);
+    background:repeating-conic-gradient(from 0deg,
+      rgba(212,169,74,.16) 0deg .5deg,
+      transparent .5deg 5.5deg);
+    -webkit-mask-image:radial-gradient(closest-side, #000 0%, rgba(0,0,0,.55) 32%, transparent 62%);
+    mask-image:radial-gradient(closest-side, #000 0%, rgba(0,0,0,.55) 32%, transparent 62%);
+    pointer-events:none;
+  }
+  /* warm bloom */
+  .hero::after{
+    content:"";
+    position:absolute;
+    z-index:-1;
+    top:-14rem;left:50%;
+    width:56rem;height:56rem;
+    transform:translateX(-50%);
+    background:radial-gradient(closest-side, rgba(212,169,74,.22), rgba(212,169,74,.06) 45%, transparent 70%);
+    pointer-events:none;
+  }
+
+  .group{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.75rem;
+    letter-spacing:.28em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 2.25rem;
+  }
+
+  h1{
+    font-family:Fraunces,Georgia,serif;
+    font-weight:700;
+    font-size:clamp(2.9rem,10vw,5.75rem);
+    line-height:.94;
+    letter-spacing:-.03em;
+    margin:0;
+    color:var(--champagne);
+    text-shadow:0 0 3rem rgba(212,169,74,.35);
+  }
+  h1 .yr{
+    display:block;
+    font-weight:400;
+    font-style:italic;
+    font-size:.42em;
+    letter-spacing:.01em;
+    color:var(--gold-bright);
+    margin-top:.85rem;
+  }
+
+  .date-line{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.8125rem;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--champagne-dim);
+    margin:2rem 0 0;
+  }
+
+  /* countdown — the one live thing on the page */
+  .countdown{
+    display:inline-flex;
+    gap:2.25rem;
+    margin:2.75rem 0 0;
+    padding:1.25rem 2.25rem;
+    border-top:1px solid rgba(212,169,74,.3);
+    border-bottom:1px solid rgba(212,169,74,.3);
+  }
+  .cd-unit{text-align:center}
+  .cd-num{
+    display:block;
+    font-family:Fraunces,Georgia,serif;
+    font-weight:600;
+    font-size:1.9rem;
+    line-height:1;
+    color:var(--gold-bright);
+    font-variant-numeric:tabular-nums;
+  }
+  .cd-lab{
+    display:block;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.625rem;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--champagne-dim);
+    margin-top:.5rem;
+  }
+  .cd-tail{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.6875rem;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--champagne-dim);
+    margin:1rem 0 0;
+  }
+
+  .buy{
+    margin-top:3rem;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:.9rem;
+  }
+  .btn{
+    display:inline-block;
+    background:linear-gradient(180deg,var(--gold-bright),var(--gold));
+    color:#241A05;
+    text-decoration:none;
+    font-family:"Work Sans",sans-serif;
+    font-weight:600;
+    font-size:1.0625rem;
+    padding:1rem 2.75rem;
+    border-radius:2px;
+    box-shadow:0 .75rem 2rem rgba(212,169,74,.25);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 1rem 2.5rem rgba(212,169,74,.35)}
+  .buy .terms{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.75rem;
+    letter-spacing:.1em;
+    color:var(--champagne-dim);
+    margin:0;
+  }
+
+  /* ---------------- sections ---------------- */
+  section{padding:4.5rem 0}
+  .divider{
+    height:1px;
+    background:linear-gradient(90deg,transparent,rgba(212,169,74,.35),transparent);
+    border:0;margin:0;
+  }
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.6875rem;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0;
+  }
+  h2{
+    font-family:Fraunces,Georgia,serif;
+    font-weight:600;
+    font-size:clamp(1.75rem,5vw,2.5rem);
+    line-height:1.12;
+    letter-spacing:-.02em;
+    margin:.75rem 0 1.75rem;
+  }
+  p{margin:0 0 1.15rem;max-width:var(--measure)}
+  .lede{font-size:1.1875rem;color:var(--champagne)}
+
+  /* details grid */
+  .details{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+    gap:1px;
+    background:rgba(212,169,74,.22);
+    border:1px solid rgba(212,169,74,.22);
+  }
+  .detail{background:var(--midnight-2);padding:1.6rem 1.4rem}
+  .detail dt{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.625rem;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:.6rem;
+  }
+  .detail dd{
+    margin:0;
+    font-family:Fraunces,Georgia,serif;
+    font-size:1.15rem;
+    line-height:1.35;
+  }
+  .detail dd small{
+    display:block;
+    font-family:"Work Sans",sans-serif;
+    font-size:.875rem;
+    color:var(--champagne-dim);
+    margin-top:.3rem;
+  }
+
+  /* schedule */
+  .schedule{list-style:none;margin:0;padding:0;max-width:var(--measure)}
+  .schedule li{
+    display:grid;
+    grid-template-columns:6.75rem 1fr;
+    gap:1.5rem;
+    padding:1.05rem 0;
+    border-bottom:1px solid rgba(245,237,220,.1);
+    align-items:baseline;
+  }
+  .schedule li:last-child{border-bottom:0}
+  .schedule time,.schedule .step{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.8125rem;
+    letter-spacing:.08em;
+    color:var(--gold);
+    text-transform:uppercase;
+  }
+  .what{font-family:Fraunces,Georgia,serif;font-size:1.2rem;line-height:1.3}
+  .who{
+    display:block;
+    font-family:"Work Sans",sans-serif;
+    font-size:.9375rem;
+    color:var(--champagne-dim);
+    margin-top:.2rem;
+  }
+
+  /* keepsake */
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(14.5rem,1fr));
+    gap:1px;
+    background:rgba(212,169,74,.22);
+    border:1px solid rgba(212,169,74,.22);
+    margin-top:2.25rem;
+  }
+  .card{background:var(--midnight-2);padding:1.85rem 1.55rem}
+  .card h3{
+    font-family:Fraunces,Georgia,serif;
+    font-weight:600;
+    font-size:1.2rem;
+    margin:0 0 .65rem;
+    color:var(--gold-bright);
+  }
+  .card p{margin:0;font-size:.9688rem;color:var(--champagne-dim)}
+
+  .venue{
+    border:1px solid rgba(212,169,74,.22);
+    background:var(--midnight-2);
+    padding:2rem 1.85rem;
+    max-width:var(--measure);
+  }
+  .venue .name{
+    font-family:Fraunces,Georgia,serif;
+    font-size:1.45rem;
+    font-weight:600;
+    margin:0 0 .35rem;
+  }
+  .venue .addr{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.8125rem;
+    letter-spacing:.06em;
+    color:var(--champagne-dim);
+    margin:0 0 1.25rem;
+  }
+
+  footer{
+    padding:3.5rem 0 4.5rem;
+    color:var(--champagne-dim);
+    font-size:.9375rem;
+    text-align:center;
+  }
+  .credit{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:1.1rem;
+    margin:2.5rem 0 0;
+  }
+  .credit img{
+    width:3.75rem;
+    height:auto;
+    opacity:.85;
+  }
+  .credit .grp{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.6875rem;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--champagne-dim);
+    text-align:left;
+    line-height:1.7;
+  }
+  footer .mark{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.6875rem;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:#6E6552;
+    margin:2rem 0 0;
+  }
+
+  /* motion */
+  .rise{animation:rise .8s cubic-bezier(.2,.7,.3,1) both}
+  .d1{animation-delay:.1s}.d2{animation-delay:.22s}.d3{animation-delay:.34s}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .rise{animation:none}
+    *{transition:none !important}
+    html{scroll-behavior:auto}
+  }
+
+  @media (max-width:44rem){
+    .hero{padding:3.5rem 0 3.25rem}
+    .countdown{gap:1.35rem;padding:1rem 1.25rem;width:100%;justify-content:center}
+    .cd-num{font-size:1.5rem}
+    section{padding:3.25rem 0}
+    .schedule li{grid-template-columns:1fr;gap:.3rem}
+  }
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <!-- ==================== HERO ==================== -->
+  <header class="hero">
+    <p class="group rise">Oceanfront 12 &amp; 12</p>
+
+    <h1 class="rise d1">New Year's Eve Gala<span class="yr">2027</span></h1>
+
+    <p class="date-line rise d1">Thursday, December 31 &nbsp;·&nbsp; Virginia Beach</p>
+
+    <div class="countdown rise d2" id="countdown" aria-live="off">
+      <div class="cd-unit"><span class="cd-num" id="cd-d">—</span><span class="cd-lab">Days</span></div>
+      <div class="cd-unit"><span class="cd-num" id="cd-h">—</span><span class="cd-lab">Hours</span></div>
+      <div class="cd-unit"><span class="cd-num" id="cd-m">—</span><span class="cd-lab">Minutes</span></div>
+    </div>
+    <p class="cd-tail" id="cd-tail">Until midnight</p>
+
+    <div class="buy rise d3">
+      <!-- REPLACE href with the live checkout link once the Gala event exists in /admin -->
+      <a class="btn" href="#">Get your ticket — $60</a>
+      <p class="terms">150 seats · Semi-formal</p>
+    </div>
+  </header>
+
+  <hr class="divider">
+
+  <!-- ==================== DETAILS ==================== -->
+  <section>
+    <dl class="details">
+      <div class="detail"><dt>Date</dt><dd>Thu, Dec 31<small>2026</small></dd></div>
+      <div class="detail"><dt>Doors</dt><dd>7:00 PM<small>Come early</small></dd></div>
+      <div class="detail"><dt>Attire</dt><dd>Semi-formal<small>Dress for a party</small></dd></div>
+      <div class="detail"><dt>Ticket</dt><dd>$60<small>Per person</small></dd></div>
+    </dl>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== THE NIGHT ==================== -->
+  <section>
+    <p class="eyebrow">The night</p>
+    <h2>Dinner, a speaker, and dancing<br>into the new year</h2>
+    <!-- Placeholder running order: last year shifted +1hr. Organizers to confirm/adjust. -->
+    <ol class="schedule">
+      <li>
+        <time>7:00 PM</time>
+        <span class="what">Doors open<span class="who">Find your table, say hello</span></span>
+      </li>
+      <li>
+        <time>7:30 PM</time>
+        <span class="what">Italian dinner<span class="who">Served in the ballroom</span></span>
+      </li>
+      <li>
+        <time>9:00 PM</time>
+        <span class="what">Speaker<span class="who">To be announced</span></span>
+      </li>
+      <li>
+        <time>10:00 PM</time>
+        <span class="what">Dancing with DJ Jrand<span class="who">Straight through the countdown</span></span>
+      </li>
+    </ol>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== THE KEEPSAKE ==================== -->
+  <section>
+    <p class="eyebrow">New this year</p>
+    <h2>Your ticket is your way<br>into the photo album</h2>
+
+    <p class="lede">
+      Every ticket comes with a code. Enter it and the ticket becomes yours to keep —
+      a permanent record of the night that nobody can take down or delete.
+    </p>
+    <p>
+      After the gala, ticket holders can add their photos to a shared album for the
+      evening. Years from now, the ticket still opens it.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <h3>It stays yours</h3>
+        <p>The ticket doesn't expire and doesn't vanish when a website changes. It's yours after the night the same as it was before it.</p>
+      </div>
+      <div class="card">
+        <h3>Only people who were there</h3>
+        <p>The album is closed. Photos are visible to ticket holders — the people who were in the room — and to nobody else.</p>
+      </div>
+      <div class="card">
+        <h3>Nothing to install</h3>
+        <p>No app, no account to remember. An email address and your code is the whole of it.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== CLAIMING ==================== -->
+  <section>
+    <p class="eyebrow">Three steps</p>
+    <h2>Claiming your ticket</h2>
+    <ol class="schedule">
+      <li>
+        <span class="step">One</span>
+        <span class="what">Find the code on your ticket<span class="who">Printed on the stub you were handed, or emailed to you if you bought online</span></span>
+      </li>
+      <li>
+        <span class="step">Two</span>
+        <span class="what">Enter it here with an email address<span class="who">You'll get a short code by email to confirm it's you</span></span>
+      </li>
+      <li>
+        <span class="step">Three</span>
+        <span class="what">That's it — the ticket is yours<span class="who">Do it before the gala if you can. It works after, too</span></span>
+      </li>
+    </ol>
+    <p style="margin-top:1.85rem">
+      Your stub gets you in the door on the night whether you've claimed it or not.
+    </p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== VENUE ==================== -->
+  <section>
+    <p class="eyebrow">Getting there</p>
+    <h2>Wyndham Oceanfront</h2>
+    <div class="venue">
+      <p class="name">Wyndham Virginia Beach Oceanfront</p>
+      <p class="addr">5700 Atlantic Ave · Virginia Beach, VA 23451</p>
+      <p style="margin:0 0 1.5rem">
+        Seating is limited to 150 and tickets have gone early before. Getting yours
+        now is the safe move.
+      </p>
+      <!-- REPLACE href with the live checkout link once the Gala event exists in /admin -->
+      <a class="btn" href="#">Get your ticket — $60</a>
+    </div>
+  </section>
+
+  <footer>
+    <p style="max-width:var(--measure);margin-left:auto;margin-right:auto">
+      Questions about the gala? Reach out to the organizers directly — they'll get you
+      sorted on tables, tickets, and anything else.
+    </p>
+    <div class="credit">
+      <!-- Drop the group's logo at mint-service/public/aa-mark.png and it appears; hidden until then -->
+      <img src="aa-mark.png" alt="Alcoholics Anonymous" onerror="this.style.display='none'">
+      <p class="grp">Oceanfront 12 &amp; 12<br>Virginia Beach</p>
+    </div>
+
+    <p class="mark">Keepsake tickets by Ticklore</p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  // Midnight, Jan 1 2027, Eastern Standard Time
+  var target = new Date("2027-01-01T00:00:00-05:00").getTime();
+  var d = document.getElementById("cd-d"),
+      h = document.getElementById("cd-h"),
+      m = document.getElementById("cd-m"),
+      tail = document.getElementById("cd-tail"),
+      box = document.getElementById("countdown");
+
+  function pad(n){ return n < 10 ? "0" + n : String(n); }
+
+  function tick(){
+    var left = target - Date.now();
+    if (left <= 0){
+      box.style.display = "none";
+      tail.textContent = "Happy New Year";
+      return;
+    }
+    var mins = Math.floor(left / 60000);
+    d.textContent = Math.floor(mins / 1440);
+    h.textContent = pad(Math.floor(mins / 60) % 24);
+    m.textContent = pad(mins % 60);
+  }
+
+  tick();
+  setInterval(tick, 30000);
+})();
+</script>
+</body>
+</html>
