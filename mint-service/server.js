@@ -146,24 +146,67 @@ function requireApiKey(req, res, next) {
 // Routes
 // ---------------------------------------------------------------------------
 
-/** Is the service up, and what is it pointed at? Open on purpose. */
+/** Is the service up, and what is it pointed at? Open on purpose.
+ *
+ *  GAS IS REPORTED FOR THE CHAIN THAT ACTUALLY MINTS, not for V1.
+ *  Once V5 lives on Base mainnet and the older generations stay readable on
+ *  Sepolia, the two are different chains with different balances behind the
+ *  same minter address. Reading V1's balance would have this endpoint report
+ *  "gas: ok" while the wallet paying for tonight's door ran dry — the exact
+ *  failure nobody notices until a queue is forming. So: `gas` and
+ *  `minting` describe the newest connected model; the top-level V1 fields
+ *  stay put for anything already watching them. */
 app.get("/health", async (req, res) => {
+  const { formatEther } = require("ethers");
+  // A mint costs ~0.00002 ETH on Base. The default 0.0005 is ~25 mints of
+  // runway — fine for a demo, thin for a 150-seat gala. MIN_GAS_ETH raises the
+  // warning line so an event day gets its warning with weeks to spare.
+  const floor = Number(process.env.MIN_GAS_ETH || 0.0005);
+  const verdict = (eth) =>
+    eth <= 0 ? "EMPTY — mints will fail" : eth < floor ? "LOW — top up the minter soon" : "ok";
+
   try {
     const balance = await chain.provider.getBalance(chain.signer.address);
     const next = await chain.contract.nextTicketId();
-    // The minter pays gas for every mint and nobody watches it at 3am. A mint
-    // costs ~0.00002 ETH on Base Sepolia, so 0.0005 is ~25 mints of runway —
-    // enough warning to hit a faucet before an event day goes dark.
-    const eth = Number(require("ethers").formatEther(balance));
-    const gas = eth <= 0 ? "EMPTY — mints will fail" : eth < 0.0005 ? "LOW — top up the minter soon" : "ok";
+    const legacyEth = Number(formatEther(balance));
+
+    // The newest connected model is the one that mints today.
+    const active = chainV5 ? { v: 5, c: chainV5 }
+                 : chainV4 ? { v: 4, c: chainV4 }
+                 : chainV3 ? { v: 3, c: chainV3 }
+                 : chainV2 ? { v: 2, c: chainV2 }
+                 : { v: 1, c: chain };
+
+    let minting;
+    try {
+      const b = active.v === 1
+        ? balance
+        : await active.c.provider.getBalance(active.c.signer.address);
+      const eth = Number(formatEther(b));
+      minting = {
+        version: active.v,
+        chainId: active.c.network.chainId.toString(),
+        contract: active.c.address,
+        minter: active.c.signer.address,
+        balanceEth: formatEther(b),
+        gas: verdict(eth),
+      };
+    } catch (err) {
+      // The minting chain being unreachable is worse news than V1 being fine.
+      // Say so out loud rather than inheriting V1's healthy-looking numbers.
+      minting = { version: active.v, gas: "unreachable — " + err.message };
+    }
+
     res.json({
       status: "ok",
       chainId: chain.network.chainId.toString(),
       contract: chain.address,
       minter: chain.signer.address,
-      minterBalanceEth: require("ethers").formatEther(balance),
-      gas,
+      minterBalanceEth: formatEther(balance),
+      gas: minting.gas,
+      legacyGas: verdict(legacyEth),
       nextTicketId: next.toString(),
+      minting,
     });
   } catch (err) {
     res.status(503).json({ status: "degraded", error: err.message });
