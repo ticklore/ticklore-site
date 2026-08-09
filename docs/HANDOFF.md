@@ -622,3 +622,34 @@ STRIPE_WEBHOOK_SECRET (+_CONNECT). Then dry-run with the 4242 card.
 ## 🎆 THE NYE GALA IS CONFIRMED (2026-08-08) — TICKLORE'S FIRST REAL EVENT
 The committee said YES. Pilot #1 is real: New Year's Eve Gala, Dec 31 2026. This fires the countdown on:
 (1) **Door kit** (Stage 2: PIN access not admin-pw, big green/red scan result, running count, manual lookup, printable fallback) — must exist by Dec 31; (2) **claim-on-behalf + reserve blocks** (Stage 1 leftovers; labels/capacity dashboard already built); (3) **THE MAINNET DECISION + production bundle** — real people keeping real keepsakes = the freeze trigger per Alex's own rule (fresh minter key funded and waiting at 0x668e62D9…ecf3); (4) **Stripe LIVE-mode migration** (current setup = sandbox; needs live keys, live Connect client id + redirect URI, live webhook destinations) AND the still-pending **sandbox dress rehearsal** (Connect a test account → 4242 buy → fee split → claim email); (5) gathering the committee's operational answers: final price, seller count, cash/card split, gatekeeper for stubs+cash (NOT Alex), whose Stripe receives card money (they must Connect), sponsor blocks if any.
+
+**Committee answers arriving (2026-08-09).** Much of the operational spec rode in inside the gala page
+itself: **$60 · 150 seats · Wyndham Virginia Beach Oceanfront · Oceanfront 12 & 12 · doors 7:00 · Italian
+dinner 7:30 · speaker 9:00 · DJ Jrand 10:00 · semi-formal.** Confirmed same day: **the organization is a
+registered 501(c)** (subsection TBC — matters only for whether Stripe's discounted nonprofit rate applies,
+which is (c)(3)-specific and must be applied for, never automatic). This CLOSES the "whose bank account"
+question in the cleanest way: the **entity onboards to Connect with its EIN**, funds land in the
+organization's own account, and the **treasurer** is the person who clicks the dashboard link. No
+volunteer's personal account, no mingled funds. Unchanged by nonprofit status: Stripe still KYCs a human
+**representative** (name/DOB/address/SSN) — tell the treasurer up front so the form isn't a surprise.
+Our $3.99 platform fee on a $60 ticket is unaffected either way; a nonprofit rate would only shrink
+Stripe's own ~$2.04. **Caution logged: keep tax-deductibility language OFF the gala page** unless their
+treasurer/accountant supplies it — a dinner ticket generally isn't deductible in full (the meal has fair
+market value). Not Ticklore's call to draft.
+
+**AA marks removed from /gala (2026-08-09, d52b600), permanently.** The Twelve Traditions cut against
+lending the AA name or symbol to an outside enterprise and against public-media identification. The logo
+slot and its CSS are deleted outright — not hidden behind an `onerror`, so there is nothing to
+accidentally restore later. The footer credits the group by its own name only (Oceanfront 12 & 12,
+Virginia Beach). **Standing rule for every surface we build for this community: no AA marks, ever.**
+Same commit run: the footer's Ticklore mark became a link to ticklore.com (new tab) so a curious buyer
+can find out who we are without losing their place mid-purchase (f54e56b). A duplicate `/nyegalavb` page
+was staged and then removed — **`/gala` is the one and only Gala page.**
+
+**Rehearsal script written: `docs/stripe-rehearsal.md` (557ca02).** Every click and expected value for the
+sandbox dress rehearsal, grounded in the code. Two things it exists to prevent: (1) rehearse on a
+**THROWAWAY event** — `/admin` create writes on-chain and we are still on Sepolia with the mainnet
+decision open, so the REAL Gala event waits (and the two `#` buy buttons on /gala stay parked until it
+exists); (2) register **BOTH** webhook destinations — a connected-account sale fires on the connected
+account, so without that scope Stripe never sends the event, the payment succeeds, and no claim email
+arrives. That failure impersonates a broken email pipeline and will cost an hour in Resend for nothing.
