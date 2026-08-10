@@ -913,6 +913,44 @@ function sheetPage(key) {
 
 /** The public claim page for one code. */
 function claimPage({ code, rec, details, privy, prefill }) {
+  // WHERE THE GUEST GOES NEXT.
+  //
+  // Claiming used to end at a ticket number and a picture — a wall. The two
+  // things a guest actually wants at that exact moment are the vault (the
+  // reason the keepsake is interesting before the night) and something to show
+  // at the door. Both are computed here, server-side, so they're ready the
+  // instant the claim returns.
+  //
+  // Private vaults are the default, so the link carries its token. ENSURE it —
+  // the token is minted lazily, and reading a missing one produced the dead
+  // link this page is meant to open.
+  const vaultKey = details && details.key;
+  const vaultHref = vaultKey
+    ? "/vault/" + encodeURIComponent(vaultKey) +
+      (details.vaultVisibility === "private"
+        ? "?k=" + encodeURIComponent(events.ensureVaultToken(vaultKey) || "")
+        : "")
+    : "";
+  const doorOpen = !!(details && details.redemptionEnabled);
+
+  /** Shown the moment a claim succeeds, on both the OTP and the email path. */
+  const nextSteps = `
+<div id="next" hidden style="margin-top:20px;border-top:1px solid var(--line);padding-top:18px">
+  ${vaultHref ? `<a href="${vaultHref}" style="display:block;background:var(--gold);color:var(--ink-deep);
+     text-decoration:none;padding:14px;border-radius:8px;font-weight:600">Open the memory vault &rarr;</a>` : ""}
+  ${doorOpen ? `<button type="button" onclick="togglePass(this)" style="width:100%;margin-top:10px;background:transparent;
+     color:var(--gold-bright);border:1px solid var(--line);border-radius:8px;padding:13px;font:inherit;cursor:pointer">Show door pass</button>
+  <div id="passwrap" hidden style="background:#fff;border-radius:10px;padding:14px;margin-top:10px">
+    <img src="/pass/${encodeURIComponent(code)}.svg" alt="Door pass" style="display:block;width:100%;max-width:230px;margin:0 auto;height:auto">
+    <div style="color:#4a4a4a;font-size:.75rem;margin-top:9px;line-height:1.5">Show this at the door on the night.</div>
+  </div>` : ""}
+  <a href="/wallet" style="display:block;margin-top:14px;color:rgba(241,233,221,.6);font-size:.85rem">It's saved in your wallet too &rarr;</a>
+</div>`;
+
+  const nextScript = `
+  function showNext(){ var n=document.getElementById('next'); if(n) n.hidden=false; }
+  function togglePass(btn){ var w=document.getElementById('passwrap');
+    w.hidden=!w.hidden; btn.textContent = w.hidden ? 'Show door pass' : 'Hide door pass'; }`;
   // Optional personalization fields — only when the organizer allowed
   // inscriptions. Values are set via attributes (escaped); the server
   // re-validates and moderates on POST regardless.
@@ -1009,8 +1047,10 @@ ${inscriptionFields}
 <div class="err" id="err"></div>
 <div class="ticket" id="ticket"></div>
 <div class="hint" id="hint">No app, no seed phrase — your email is your key.</div>
+${nextSteps}
 <script src="/privy.js"></script>
 <script>
+  ${nextScript}
   var CODE = ${JSON.stringify(code)};
   var PRIVY_CFG = ${JSON.stringify(privy)};
   var privy = null, booted = false, bootErr = null;
@@ -1081,6 +1121,7 @@ ${inscriptionJs}
           : 'Ticket #' + d.tokenId + ' — held for you.';
         var img = new Image(); img.src = '/ticket/' + d.tokenId + '/image' + (d.version ? '?v=' + d.version : '');
         img.onload = function(){ document.getElementById('ticket').appendChild(img); };
+        showNext();
       } else {
         btn.disabled = false; btn.textContent = 'Verify & claim';
         err.textContent = d.error || 'Could not claim.';
@@ -1103,7 +1144,9 @@ ${inscriptionFields}
 <div class="err" id="err"></div>
 <div class="ticket" id="ticket"></div>
 <div class="hint" id="hint">Free — no wallet or app needed.</div>
+${nextSteps}
 <script>
+  ${nextScript}
   var CODE = ${JSON.stringify(code)};
 ${inscriptionJs}
   function claim(){
@@ -1119,6 +1162,7 @@ ${inscriptionJs}
           document.getElementById('hint').textContent='Ticket #'+d.tokenId+' — held for you. No wallet needed.';
           var img=new Image(); img.src='/ticket/'+d.tokenId+'/image'+(d.version?'?v='+d.version:'');
           img.onload=function(){ document.getElementById('ticket').appendChild(img); };
+          showNext();
         } else { btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent=d.error||'Could not claim.'; }
       }).catch(function(){ btn.disabled=false; btn.textContent='Claim my keepsake'; err.textContent='Could not reach the server.'; });
   }
