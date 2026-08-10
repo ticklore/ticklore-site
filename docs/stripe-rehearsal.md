@@ -197,3 +197,82 @@ real domain · the claim mints · the wallet finds it.
 **What is still NOT proven, and needs its own pass before real sales:** live-mode
 keys, a live Connect client id + redirect URI, live webhook destinations, and the
 mainnet contract. Sandbox proves the wiring, never the wiring's production twin.
+
+---
+
+# Stage 2 — the real-money proof (still on testnet)
+
+**The thing to understand before anything else: Stripe mode and blockchain are
+independent axes.** Stripe sandbox/live and Sepolia/mainnet are two separate
+switches that have nothing to do with each other. Real cards, a real bank account
+and real payouts all work perfectly well while the keepsake mints on Base Sepolia —
+the payment path never touches the chain. The webhook allocates a claim code; the
+mint happens later, at claim, on whatever chain the event lives on.
+
+**So do the whole money proof on testnet.** Go to mainnet at exactly one moment:
+before the real Gala event is created and real guests start keeping keepsakes.
+
+## You need TWO Stripe accounts. This surprises people.
+
+| Role | Whose | What it does |
+|---|---|---|
+| **Platform** | Ticklore's | Holds the `sk_live`, the `ca_` Connect id, and RECEIVES the $3.99 fee |
+| **Connected** | the organizer's | Receives the $60. Merchant of record. Their bank, their payouts |
+
+For the real Gala, the connected account is the **501(c)'s**, onboarded with its EIN,
+with the treasurer as the representative. For your own proof run, use a second Stripe
+account of your own as the pretend organizer. **They cannot be the same account** —
+an account can't pay an application fee to itself.
+
+## ⚠️ Open question this raises: what entity receives the platform fee?
+
+Live mode requires Ticklore's **platform** account to be a fully activated Stripe
+account — legal entity name, tax ID, and its own bank account, because that's where
+the $3.99 per ticket actually lands. Sandbox never asks this. This is a real
+pre-live decision (Ticklore ™ under an existing entity? a new one?) and it is
+Alex's to make with whoever does his books. **Nothing else on the live-mode list can
+be finished until it's answered.**
+
+## The ladder, in order
+
+**Rung 1 — sandbox (Stage 1 above).** Free. Proves the wiring. Make your mistakes here.
+
+**Rung 2 — live mode, your own money, testnet chain.** This is the "now I know what
+I actually have to do" run:
+
+1. Activate the Ticklore platform account in **live** mode (entity, tax ID, bank).
+2. Enable Connect in live mode; get the **live** `ca_…` client id; register the live
+   redirect URI `https://app.ticklore.com/connect/callback`.
+3. Register **both** live webhook destinations (account + connected accounts) and put
+   their signing secrets in Render.
+4. Swap Render to the live `sk_live…` key.
+5. Create a throwaway event priced at **$1** — enough to prove the split, cheap
+   enough to not care.
+6. Open the organizer dashboard link, click **Connect with Stripe**, and onboard your
+   *second* account for real: entity, representative identity, routing + account
+   number off a check or the banking app. **This is the exact experience the
+   treasurer will have** — time it, note where it's confusing, and you'll be able to
+   walk them through it from memory.
+7. Buy the ticket with a real card.
+8. Verify: $1 in the connected account · the fee in the platform account · a payout
+   scheduled to the connected bank. **First payouts on a brand-new Stripe account
+   commonly take 7–14 days**, not the usual ~2 — don't read that delay as a fault.
+9. Refund yourself from the connected account's dashboard when done.
+
+Throughout rung 2 the chain stays **Sepolia**. The keepsake that mints is a testnet
+keepsake, and that is fine — you are proving money movement, not permanence.
+
+**Rung 3 — mainnet.** Only after rung 2 passes and the freeze decision is made.
+Deploy V5 to Base mainnet, fund the fresh minter key, swap `MINTER_PRIVATE_KEY`, add
+`TICKLORE_CONTRACT_V5` + `TICKLORE_RPC_V5` (mainnet), leave `RPC_URL` on Sepolia so
+every earlier keepsake keeps resolving. Raise `MIN_GAS_ETH` above a 150-mint runway.
+*Then* create the real Gala event and wire the `/gala` buy buttons to `/buy/<key>`.
+
+## What the organizer actually experiences, start to finish
+
+You send **one link** (the dashboard bearer link, from **Invite 📋** in `/admin`).
+They click **Connect your Stripe →**, land on Stripe's own site, spend 5–10 minutes
+on a form, and come back to a page reading **Connected ✓**. From that moment every
+card sale for their event is a charge on their own Stripe account, with Ticklore's
+fee peeled at the source. No account with us, no password, no banker involved —
+their bank's only role is passively receiving deposits.
