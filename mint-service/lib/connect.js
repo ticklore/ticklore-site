@@ -84,10 +84,20 @@ function mountConnect(app, { stripe }) {
   });
 }
 
-/** The platform fee on a price, per the decided model: 5% + $0.99, env-tunable. */
-function platformFeeCents(priceCents) {
-  const pct = Number(process.env.TICKLORE_FEE_PCT || 5);
-  const flat = Number(process.env.TICKLORE_FEE_FLAT_CENTS || 99);
+/** The platform fee on a price, per the decided model: 5% + $0.99.
+ *
+ *  Tunable per event first, then by env, and ZERO IS A LEGITIMATE ANSWER —
+ *  a pilot run where Ticklore takes no cut is a real business decision, not a
+ *  misconfiguration. Note `??` rather than `||` throughout: a configured 0 must
+ *  survive, where `||` would silently fall back to 5% and quietly bill an
+ *  organizer who was promised free.
+ *
+ *  When this returns 0 the caller omits application_fee_amount entirely rather
+ *  than sending a zero — an unambiguous "no fee" instead of a fee of nothing. */
+function platformFeeCents(priceCents, event) {
+  const pct = Number(event?.feePct ?? process.env.TICKLORE_FEE_PCT ?? 5);
+  const flat = Number(event?.feeFlatCents ?? process.env.TICKLORE_FEE_FLAT_CENTS ?? 99);
+  if (!(pct > 0) && !(flat > 0)) return 0;
   return Math.min(priceCents, Math.round(priceCents * (pct / 100)) + flat);
 }
 
@@ -101,16 +111,23 @@ function minimalPage(text) {
 function connectPage(e, { ready, token, error, justConnected } = {}) {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const connected = !!e.stripeAccountId;
+  // Never promise a fee that isn't charged. On a no-cut event the page has to
+  // say so — the treasurer reads this before she trusts us with a bank form.
+  const feeFree = platformFeeCents(10000, e) === 0;
+  const feeLine = feeFree
+    ? "Ticklore takes no fee on this event — every dollar of it is yours. Ticket money never passes through Ticklore."
+    : "Ticklore's platform fee comes out of each sale automatically. Ticket money never passes through Ticklore.";
   const body = connected
       ? `<div class="big">${justConnected ? "Connected ✓" : "Stripe connected ✓"}</div>
          <div class="line">Card sales for <b>${esc(e.name)}</b> now deposit <b>directly into your Stripe account</b>.
          You are the merchant of record — your dashboard, your payouts, your refunds.</div>
-         <div class="hint">Ticklore's platform fee comes out of each sale automatically. Ticket money never passes through Ticklore.</div>`
+         <div class="hint">${feeLine}</div>`
     : !ready
       ? `<div class="line">Card payments aren't switched on for this event yet — your Ticklore concierge will let you know when they are.</div>`
       : `<div class="line">Connect your Stripe account and card sales for <b>${esc(e.name)}</b> deposit
-         <b>directly to you</b> — your account, your payouts, your dashboard. Ticklore's platform fee
-         comes out of each sale automatically; your ticket money never touches Ticklore.</div>
+         <b>directly to you</b> — your account, your payouts, your dashboard. ${feeFree
+           ? "Ticklore takes no fee on this event; your ticket money never touches Ticklore."
+           : "Ticklore's platform fee comes out of each sale automatically; your ticket money never touches Ticklore."}</div>
          ${error ? `<div class="err">${esc(error)}</div>` : ""}
          <a class="btn" href="/connect/${encodeURIComponent(e.key)}/start?t=${encodeURIComponent(token)}">Connect with Stripe &rarr;</a>
          <div class="hint">You'll sign in (or sign up) on Stripe's own site — Ticklore never sees your banking details.</div>`;

@@ -447,9 +447,11 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // ON THEIR ACCOUNT (they are merchant of record; the money is theirs the
       // moment it's paid) and the platform fee peels off at the source.
       if (lane.details.stripeAccountId) {
-        params.payment_intent_data = {
-          application_fee_amount: require("./connect").platformFeeCents(lane.block.priceCents),
-        };
+        // A zero fee is sent as NO fee at all, not as a fee of zero — on a
+        // no-cut pilot the whole ticket price is theirs and the charge should
+        // say so plainly.
+        const feeCents = require("./connect").platformFeeCents(lane.block.priceCents, lane.details);
+        if (feeCents > 0) params.payment_intent_data = { application_fee_amount: feeCents };
         opts.stripeAccount = lane.details.stripeAccountId;
       }
       const session = await stripe.checkout.sessions.create(params, opts);
