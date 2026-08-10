@@ -408,7 +408,12 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // the claim page: email (or sign-in), mint at claim, possibly straight
       // into their own wallet, receipt in their inbox. Everything a paying
       // customer experiences except the card swipe itself.
-      if (details.onChainEventId && (details.onChainVersion === 3 || details.onChainVersion === 4)) {
+      // A RANGE, never a list. This was `=== 3 || === 4`, and the moment V5
+      // went live every new event silently fell past it into the legacy seed
+      // showcase below: instant mint, no claim code, no email, no wallet — a
+      // buyer who "paid" and got nothing. Any event-model contract (V3 and up)
+      // walks the real road, so V6 cannot reintroduce this.
+      if (details.onChainEventId && Number(details.onChainVersion) >= 3) {
         // If the organizer set a sponsor credit on this event, every ticket
         // carries it — the event's on-chain sponsor list has it at index 1.
         const hasSponsor = !!(details.sponsorName || (Array.isArray(details.sponsors) && details.sponsors.length));
