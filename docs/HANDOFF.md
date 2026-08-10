@@ -646,6 +646,35 @@ Same commit run: the footer's Ticklore mark became a link to ticklore.com (new t
 can find out who we are without losing their place mid-purchase (f54e56b). A duplicate `/nyegalavb` page
 was staged and then removed — **`/gala` is the one and only Gala page.**
 
+**✅ V5 FLIP DONE (Alex, 2026-08-09) — CONFIRMED LIVE.** `/health` reports
+`minting.version: 5` on `0x508b9F249CC370f54271266123eC2Dfa01D35F8F`. The app now mints on the freeze
+candidate, so the Stripe rehearsal exercises the same contract generation that goes to mainnet. Still
+Base Sepolia (84532); mainnet is the deliberate next step. Also set: `TICKLORE_FEE_PCT=0` +
+`TICKLORE_FEE_FLAT_CENTS=0` — **the Gala is a NO-CUT pilot at Alex's call** (see zero-fee commit e8330b7;
+`??` not `||`, so a configured 0 survives instead of silently reverting to 5%).
+
+**`/health` now judges the CHAIN THAT MINTS (b436e40).** Gas was read from V1's provider — correct until
+V5 moves to mainnet, at which point the same minter address has two balances on two chains and /health
+would report "gas: ok" from the wrong one while the wallet paying for the door ran dry. New `minting`
+block names version/chain/contract/balance; V1 fields kept for anything watching them, its verdict now
+`legacyGas`. Threshold is `MIN_GAS_ETH` (default 0.0005 ≈ 25 mints) — **raise it before the Gala; 150
+seats needs more runway than the default warns at.** Mission Control already did this correctly; /health
+was the one a monitor polls at 3am, and the one lying.
+
+**💝 GIVING — BUILT (3361834, live).** Two ways: an optional donation on the ticket page (its own line
+item on the same payment, presets $25/$50/$100/other, pay button relabels to the total) and standalone
+`/donate/:key` for a gift with no ticket. **The trap that shaped it:** any session not tagged `codeSale`
+falls through to the legacy mint path, so a naive donation would have minted a real keepsake for someone
+who bought no seat — the donation branch now comes FIRST in the webhook and returns. Gifts allocate no
+code and never count against the 150. Kept structurally apart from ticket money (separate line item,
+`lib/donations.js` + `donations.json` **registered in backups**, own dashboard row, totals split
+alone-vs-with-ticket) because a $60 dinner ticket is a quid pro quo and a $20 gift is not — only the org
+can say what each means on a receipt. **The donation surface stays DARK until the organizer has connected
+Stripe** (enforced in code): otherwise a charitable gift lands in Ticklore's account with the donor's
+receipt naming the wrong entity. Platform fee is computed from the ticket price alone; **no fee ever
+attaches to a gift.** The thank-you email makes **no deductibility claim** — that letter is the
+treasurer's. Alex env when persistence matters: `DONATION_STORE=/var/data/donations.json`.
+
 **Rehearsal script written: `docs/stripe-rehearsal.md` (557ca02).** Every click and expected value for the
 sandbox dress rehearsal, grounded in the code. Two things it exists to prevent: (1) rehearse on a
 **THROWAWAY event** — `/admin` create writes on-chain and we are still on Sepolia with the mainnet
