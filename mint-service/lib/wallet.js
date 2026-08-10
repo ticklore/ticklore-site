@@ -61,8 +61,16 @@ function mountWallet(app, { chain }) {
           // Private plaques need their token; this caller just PROVED they
           // hold a keepsake from the event, so handing them the door key is
           // exactly right.
+          //
+          // ENSURE, don't read. The token is minted lazily by the vault route,
+          // so on a fresh event `e.vaultToken` is still undefined — reading it
+          // produced a link with no ?k=, which the private-by-default plaque
+          // answers with a 404. A holder pressing their own keepsake and
+          // landing on "nothing here" is the worst version of this product.
           vaultUrl: "/vault/" + encodeURIComponent(t.eventKey) +
-            (e.vaultVisibility === "private" && e.vaultToken ? "?k=" + e.vaultToken : ""),
+            (e.vaultVisibility === "private" && e.key
+              ? "?k=" + (e.vaultToken || events.ensureVaultToken(e.key) || "")
+              : ""),
         };
       });
       res.json({ ok: true, address: who.address, email: who.email, tickets });
