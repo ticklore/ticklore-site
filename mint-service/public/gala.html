@@ -186,6 +186,19 @@
     transition:transform .18s ease, box-shadow .18s ease;
   }
   .btn:hover{transform:translateY(-2px);box-shadow:0 1rem 2.5rem rgba(212,169,74,.35)}
+  /* Giving is offered, never pushed — outlined so it can't outshout the ticket. */
+  .btn-quiet{
+    background:transparent;
+    color:var(--gold-bright);
+    border:1px solid rgba(212,169,74,.45);
+    box-shadow:none;
+    font-weight:500;
+  }
+  .btn-quiet:hover{
+    background:rgba(212,169,74,.08);
+    border-color:var(--gold);
+    box-shadow:none;
+  }
   .buy .terms{
     font-family:"IBM Plex Mono",monospace;
     font-size:.75rem;
@@ -515,6 +528,25 @@
       <!-- REPLACE href with the live checkout link once the Gala event exists in /admin -->
       <a class="btn" href="#">Get your ticket — $60</a>
     </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== GIVING ==================== -->
+  <section>
+    <p class="eyebrow">Another way to help</p>
+    <h2>Give to the evening</h2>
+    <p class="lede">
+      Not everyone can come, and not everyone who comes can give the same. If you'd
+      like to support the night itself, you can do that here — a gift, with no
+      ticket attached.
+    </p>
+    <p>
+      You can also add a donation to your ticket at checkout. Either way it goes
+      straight to the organizers.
+    </p>
+    <!-- REPLACE href with /donate/<eventKey> once the Gala event exists in /admin -->
+    <a class="btn btn-quiet" href="#">Make a donation</a>
   </section>
 
   <footer>
