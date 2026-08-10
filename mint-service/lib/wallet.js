@@ -26,6 +26,28 @@ const privyLib = require("./privy");
 function mountWallet(app, { chain }) {
   const express = require("express");
 
+  /** The door pass: a QR of this code's door URL, as an SVG.
+   *
+   *  Printed stubs carry their QR on paper. Someone who bought online has no
+   *  paper at all — before this route they arrived at the door with nothing to
+   *  present, which is the same as not having a ticket.
+   *
+   *  Handing the code to whoever holds it is not a weakening: /door is staff-
+   *  gated, so scanning your own pass cannot admit you, and the code is already
+   *  claimed — the keepsake is minted and cannot be claimed out from under them.
+   *  It is also exactly what the printed stub does. */
+  app.get("/pass/:code.svg", async (req, res) => {
+    const rec = claims.get(req.params.code);
+    if (!rec) return res.status(404).type("text/plain").send("no such pass");
+    try {
+      const url = (process.env.PUBLIC_URL || "") + "/door/" + encodeURIComponent(req.params.code);
+      const svg = await require("qrcode").toString(url, { type: "svg", margin: 1 });
+      res.type("image/svg+xml").set("Cache-Control", "private, max-age=300").send(svg);
+    } catch (err) {
+      res.status(500).type("text/plain").send("could not draw the pass");
+    }
+  });
+
   app.get("/wallet", (req, res) => {
     if (privyLib.config) {
       res.type("html").send(walletPrivyPage(privyLib.config));
@@ -58,6 +80,13 @@ function mountWallet(app, { chain }) {
           // Which contract version this token lives on — token ids collide
           // across versions, so the art URL pins it (?v=N).
           version: e.onChainVersion || null,
+          // What the door scans. Only present once claimed, and only ever sent
+          // to the verified holder.
+          code: t.code || null,
+          // Claiming and redeeming are different acts: a keepsake claimed in
+          // November still walks through the door on December 31. This flag
+          // just tells the card whether to offer the pass.
+          doorOpen: !!e.redemptionEnabled,
           // Private plaques need their token; this caller just PROVED they
           // hold a keepsake from the event, so handing them the door key is
           // exactly right.
@@ -147,6 +176,15 @@ function walletShell({ title, headerRight, body, extraScript }) {
     border:1px solid var(--line);background:rgba(241,233,221,.02);
     box-shadow:0 18px 40px -26px rgba(0,0,0,.8);transition:transform .14s ease}
   .keep:active{transform:scale(.985)}
+  /* The door pass. Deliberately plain — it is a turnstile, not a keepsake. */
+  .pass{margin:8px 0 18px;text-align:center}
+  .pass__btn{width:100%;background:transparent;color:var(--gold-bright,#E3C25E);
+    border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;
+    font-size:.92rem;cursor:pointer}
+  .pass__btn:active{transform:scale(.99)}
+  .pass__qr{background:#fff;border-radius:12px;padding:16px;margin-top:10px}
+  .pass__qr img{display:block;width:100%;max-width:260px;margin:0 auto;height:auto}
+  .pass__hint{color:#4a4a4a;font-size:.76rem;line-height:1.5;margin-top:10px}
   .keep__art{width:100%;aspect-ratio:800/500;overflow:hidden}
   .keep__art svg,.keep__art img{display:block;width:100%;height:100%}
   .keep__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px 15px}
@@ -294,13 +332,27 @@ function walletPrivyPage(privy) {
       var badges = (t.owned ? '<span class="badge badge--own">Yours</span>' : '<span class="badge badge--held">Held for you</span>')
         + (t.redeemed ? '<span class="badge badge--adm">Admitted</span>' : '');
       var vq = t.version ? '?v=' + t.version : '';
-      return '<a class="keep" href="' + escT(t.vaultUrl || ('/vault/' + encodeURIComponent(t.eventKey))) + '" style="margin-bottom:18px">'
+      var pass = (t.code && t.doorOpen && !t.redeemed)
+        ? '<div class="pass"><button class="pass__btn" type="button" onclick="togglePass(this)">Show door pass</button>'
+          + '<div class="pass__qr" hidden><img src="/pass/' + encodeURIComponent(t.code) + '.svg" alt="Door pass for keepsake ' + escT(t.tokenId) + '">'
+          + '<div class="pass__hint">Show this at the door. Claiming already happened — this is just the way in.</div></div></div>'
+        : '';
+      return '<a class="keep" href="' + escT(t.vaultUrl || ('/vault/' + encodeURIComponent(t.eventKey))) + '">'
         + '<div class="keep__art"><img src="/ticket/' + escT(t.tokenId) + '/image' + vq + '" alt="Keepsake #' + escT(t.tokenId) + '" loading="lazy"></div>'
         + '<div class="keep__foot"><div>'
         + '<div class="keep__name">' + escT(t.name) + badges + '</div>'
         + '<div class="keep__date">#' + escT(t.tokenId) + (t.date ? ' &middot; ' + escT(t.date) : '') + '</div>'
-        + '</div><span class="keep__go">Open vault &rarr;</span></div></a>';
+        + '</div><span class="keep__go">Open vault &rarr;</span></div></a>'
+        + pass;
     }).join('');
+  }
+
+  /** The pass stays folded away until it's needed — a QR sitting open on the
+   *  screen invites someone to photograph it over a shoulder. */
+  function togglePass(btn){
+    var qr = btn.nextElementSibling;
+    qr.hidden = !qr.hidden;
+    btn.textContent = qr.hidden ? 'Show door pass' : 'Hide door pass';
   }
 
   function signOut(){

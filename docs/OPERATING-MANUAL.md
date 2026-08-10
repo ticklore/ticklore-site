@@ -98,6 +98,34 @@ lookup" line in the Stage 2 door kit.)*
 
 ---
 
+## 2a. Claiming early is the point — it is not "using" the ticket
+
+**Claiming and redeeming are two different acts, and confusing them is the easiest
+mistake to make here.**
+
+- **Claim** = the keepsake mints and becomes theirs. Can happen the moment they buy,
+  months before the event. Opens their vault access.
+- **Redeem** = staff scan them in at the door on the night. Separate, later, and
+  done by staff.
+
+A keepsake claimed in November still walks through the door on December 31. Nothing
+about claiming early consumes the ticket, and everything about it is good: it gets
+the "is this working?" moment out of the way while there's time to fix it, instead
+of in a queue on New Year's Eve.
+
+**So: encourage guests to claim as soon as they buy.** Then they have their keepsake,
+their vault, and their door pass — all before the night.
+
+### "Activated at purchase" vs seller activation
+
+Leave **Require activation OFF** and codes are born active — bought is active,
+confirmed at the door. That is the normal setup and almost certainly what you want.
+
+Activation exists for one narrow case: **printed stubs handed to volunteers to sell
+for cash.** Those cards are born dormant so a stolen or photographed stub is
+worthless paper until the desk activates it with the seller PIN. If your sellers
+aren't walking around with pre-printed stubs, you don't need it.
+
 ## 3. Claiming — what the guest does
 
 1. Scan the stub's QR, or click the link in their email.
@@ -121,8 +149,24 @@ their own ticket. Staff do, at the door.**
 There is no redeem button in the wallet and there shouldn't be — a ticket that
 guests can mark "used" themselves is not a door check.
 
+**What the guest presents:**
+
+| How they bought | What they show at the door |
+|---|---|
+| printed stub | the QR printed on the stub |
+| online / emailed | **the door pass in their wallet** — `/wallet` → **Show door pass** |
+
+The door pass is a QR of that keepsake's door URL, added 2026-08-09. Before it,
+an online buyer arrived with nothing to present, which is the same as not having a
+ticket. It appears only on a claimed keepsake, only for the verified holder, and
+only while the event has redemption on and the ticket hasn't been used. Handing the
+holder their own code weakens nothing: `/door` is staff-gated, so scanning your own
+pass cannot admit you — it is exactly what the printed stub already does.
+
+**Steps:**
+
 - Turn on **redemption** for the event.
-- Staff open **`/door/<code>`** — by scanning the guest's stub QR, same code.
+- Staff open **`/door/<code>`** — by scanning the stub QR *or* the guest's door pass.
 - The page calls the contract's `redeem`, and the keepsake gets a permanent
   **ADMITTED** stamp rendered into its art forever.
 - Scanning a second time shows it's already been used.

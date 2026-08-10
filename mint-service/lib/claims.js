@@ -276,6 +276,11 @@ function listByOwner({ email, address }) {
       owned: !!(a && c.address && c.address.toLowerCase() === a),
       redeemedAt: c.redeemedAt || null,
       claimedAt: c.claimedAt,
+      // The code is what the door scans. Returning it here is safe by
+      // construction: this list is only ever built for someone Privy has
+      // already vouched for as this keepsake's holder, and the code is
+      // already claimed — it can't be redeemed a second time by knowing it.
+      code: c.code,
     }))
     .sort((x, y) => (x.claimedAt < y.claimedAt ? 1 : -1));
 }
