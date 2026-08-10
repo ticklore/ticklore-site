@@ -36,6 +36,7 @@ const events = require("./events");
 const claims = require("./claims");
 const mintCap = require("./mint-cap");
 const moderation = require("./moderation");
+const donations = require("./donations");
 
 // Seed events — the two demo events, available on a fresh install so /shop is
 // never empty. Organizer-created events (in the event store) are merged on top.
@@ -141,6 +142,47 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
     }
 
     // ------------------------------------------------------------------
+    // A GIFT, with no ticket attached.
+    //
+    // This branch must come first and must RETURN. Every session that isn't
+    // explicitly a code sale falls through to the legacy mint path at the
+    // bottom of this handler — so without this, a donation would either mint a
+    // keepsake for someone who bought no seat, or die as "Unknown event". A
+    // gift buys nothing, allocates no code, and never touches the seat count.
+    // ------------------------------------------------------------------
+    if (session.metadata?.donation === "true") {
+      try {
+        const eventKey = session.metadata.eventKey || null;
+        const donorEmail = session.customer_details?.email || null;
+        const { recorded } = donations.record({
+          sessionId: session.id,
+          eventKey,
+          amountCents: session.amount_total,
+          email: donorEmail,
+          name: session.customer_details?.name || null,
+          withTicket: false,
+        });
+        store.completeSession(session.id, {
+          donation: true, amountCents: session.amount_total, recipient: donorEmail,
+        });
+        // `recorded` is false on a Stripe retry — the gift is already on the
+        // books and the donor should not be thanked twice for one gift.
+        if (recorded) {
+          const details = getEvent(eventKey);
+          const emailResult = await require("./email").sendDonationEmail({
+            to: donorEmail, eventName: details?.name || null, amountCents: session.amount_total,
+          });
+          console.log(`  ♥ gift ${session.id} → $${(session.amount_total / 100).toFixed(2)}` +
+            `${eventKey ? ` (${eventKey})` : ""} ${emailResult.sent ? `(✉ ${emailResult.id})` : `(⚠ email: ${emailResult.reason})`}`);
+        }
+      } catch (err) {
+        console.error(`  ✗ gift failed for ${session.id}: ${err.message}`);
+        store.releaseSession(session.id, err.message);
+      }
+      return;
+    }
+
+    // ------------------------------------------------------------------
     // Code sale (the Gala lane): the payment buys a CLAIM CODE, not a mint.
     // Allocate an unsold online code and email the claim link — from there
     // the buyer walks the same claim flow as every cash buyer. No mint here;
@@ -169,6 +211,22 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         });
         store.completeSession(session.id, { code: rec.code, recipient: buyerEmail, custodial: true });
         console.log(`  ✓ code sale ${session.id} → ${rec.code} → ${buyerEmail} ${emailResult.sent ? `(✉ ${emailResult.id})` : `(⚠ email: ${emailResult.reason})`}`);
+
+        // A gift that rode along with the ticket. Its own try/catch on purpose:
+        // a bookkeeping failure must never stand between a buyer and the ticket
+        // they already paid for.
+        const giftCents = Number(session.metadata?.donationCents || 0);
+        if (giftCents > 0) {
+          try {
+            donations.record({
+              sessionId: session.id, eventKey, amountCents: giftCents,
+              email: buyerEmail, name: session.customer_details?.name || null, withTicket: true,
+            });
+            console.log(`  ♥ gift with ticket ${session.id} → $${(giftCents / 100).toFixed(2)}`);
+          } catch (e) {
+            console.error(`  ⚠ gift NOT recorded for ${session.id} ($${(giftCents / 100).toFixed(2)}): ${e.message}`);
+          }
+        }
       } catch (err) {
         console.error(`  ✗ code sale failed for ${session.id}: ${err.message}`);
         store.releaseSession(session.id, err.message);
@@ -411,9 +469,36 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
     return { details, block, remaining: claims.onlineRemaining(key) };
   }
 
+  // A gift is only ever collected INTO THE ORGANIZER'S OWN STRIPE. Until they
+  // have connected, a "donate" button would route a charitable gift into
+  // Ticklore's account and issue the donor a receipt from the wrong entity —
+  // untidy for a ticket, a real problem for a 501(c)(3). So the whole donation
+  // surface stays dark until `stripeAccountId` exists. This is the guard, not
+  // the advice: nothing downstream has to remember it.
+  function giftsOpen(details) {
+    return !!(stripe && details && details.stripeAccountId);
+  }
+
+  const MIN_GIFT_CENTS = 100;        // $1 — below this, fees eat the gift
+  const MAX_GIFT_CENTS = 1000000;    // $10,000 — a typo guard, not a policy
+
+  /** Validate a client-supplied gift. Returns cents, or throws with a reason.
+   *  Never trust the browser with an amount: this is the only place that decides. */
+  function giftCents(raw) {
+    if (raw === undefined || raw === null || raw === "" || Number(raw) === 0) return 0;
+    const cents = Math.round(Number(raw));
+    if (!Number.isFinite(cents) || cents <= 0) throw new Error("That donation amount isn't a number.");
+    if (cents < MIN_GIFT_CENTS) throw new Error("The smallest donation is $1.");
+    if (cents > MAX_GIFT_CENTS) throw new Error("For gifts above $10,000, please contact the organizers directly.");
+    return cents;
+  }
+
   app.get("/buy/:key", (req, res) => {
     const lane = onlineLane(req.params.key);
-    res.type("html").send(buyPage({ key: req.params.key, lane, stripeReady: !!stripe }));
+    res.type("html").send(buyPage({
+      key: req.params.key, lane, stripeReady: !!stripe,
+      giftsOpen: giftsOpen(lane && lane.details),
+    }));
   });
 
   app.post("/buy/:key/checkout", express.json(), async (req, res) => {
@@ -423,6 +508,14 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       if (!lane) return res.status(404).json({ error: "This event doesn't sell tickets online." });
       if (lane.remaining < 1) return res.status(409).json({ error: "Online tickets are sold out — cards may still be available at the door." });
       if (!lane.block.priceCents) return res.status(400).json({ error: "This event's online tickets aren't priced." });
+
+      // The gift rides as its OWN line item, never folded into the ticket
+      // price. A treasurer has to be able to separate the two — the ticket is
+      // a quid pro quo with a dinner attached, the gift is a gift.
+      const gift = giftCents(req.body && req.body.donationCents);
+      if (gift > 0 && !giftsOpen(lane.details)) {
+        return res.status(409).json({ error: "Donations aren't switched on for this event yet." });
+      }
 
       const params = {
         mode: "payment",
@@ -442,10 +535,28 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         success_url: `${PUBLIC_URL}/bought?key=${encodeURIComponent(req.params.key)}`,
         cancel_url: `${PUBLIC_URL}/buy/${encodeURIComponent(req.params.key)}`,
       };
+      if (gift > 0) {
+        params.line_items.push({
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: gift,
+            product_data: {
+              name: "Donation",
+              description: `A gift to ${lane.details.name}, over and above the ticket.`,
+            },
+          },
+        });
+        params.metadata.donationCents = String(gift);
+      }
+
       const opts = {};
       // Connect: when the organizer has linked their Stripe, the charge runs
       // ON THEIR ACCOUNT (they are merchant of record; the money is theirs the
       // moment it's paid) and the platform fee peels off at the source.
+      //
+      // NOTE the fee is computed from the TICKET price alone, never the session
+      // total — Ticklore does not skim a charitable gift.
       if (lane.details.stripeAccountId) {
         // A zero fee is sent as NO fee at all, not as a fee of zero — on a
         // no-cut pilot the whole ticket price is theirs and the charge should
@@ -460,6 +571,59 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       console.error("  ✗ code-sale checkout failed:", err.message);
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Giving, with no ticket attached.
+  // -------------------------------------------------------------------------
+
+  app.get("/donate/:key", (req, res) => {
+    const details = getEvent(req.params.key);
+    res.type("html").send(donatePage({ key: req.params.key, details, open: giftsOpen(details) }));
+  });
+
+  app.post("/donate/:key/checkout", express.json(), async (req, res) => {
+    if (!stripe) return res.status(503).json({ error: "Card payments aren't configured yet." });
+    try {
+      const details = getEvent(req.params.key);
+      if (!details) return res.status(404).json({ error: "Unknown event." });
+      if (!giftsOpen(details)) {
+        return res.status(409).json({ error: "Donations aren't switched on for this event yet." });
+      }
+      const gift = giftCents(req.body && req.body.donationCents);
+      if (gift <= 0) return res.status(400).json({ error: "Choose an amount to give." });
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [{
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: gift,
+            product_data: {
+              name: `Donation — ${details.name}`,
+              description: "A gift to the evening. No ticket is included.",
+            },
+          },
+        }],
+        // Deliberately NOT codeSale, and no application fee anywhere below:
+        // this buys nothing, allocates no seat, and Ticklore takes no part of
+        // a gift under any fee configuration.
+        metadata: { donation: "true", eventKey: req.params.key },
+        success_url: `${PUBLIC_URL}/gave?key=${encodeURIComponent(req.params.key)}`,
+        cancel_url: `${PUBLIC_URL}/donate/${encodeURIComponent(req.params.key)}`,
+      }, { stripeAccount: details.stripeAccountId });
+
+      res.json({ url: session.url });
+    } catch (err) {
+      console.error("  ✗ donation checkout failed:", err.message);
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.get("/gave", (req, res) => {
+    res.type("html").send(gavePage(getEvent(String(req.query.key || ""))));
   });
 
   /** Where the buyer lands after paying: the ticket is in their email. */
@@ -583,12 +747,51 @@ function gateHead(title) {
   button:disabled{opacity:.6;cursor:wait}
   .err{color:#E38A8A;font-size:.9rem;min-height:1.2em;margin-top:10px}
   .hint{color:rgba(241,233,221,.55);font-size:.85rem;margin-top:16px;line-height:1.6}
+  .gift{border-top:1px solid var(--line);margin:20px 0 18px;padding-top:16px;text-align:left}
+  .giftrow{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.95rem}
+  .giftrow input{width:17px;height:17px;accent-color:var(--gold);cursor:pointer}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+  .chip{width:auto;flex:1 1 auto;min-width:66px;background:transparent;color:var(--parchment);
+    border:1px solid var(--line);border-radius:8px;padding:11px 8px;font-size:.95rem;font-weight:500}
+  .chip.on{background:var(--gold);color:var(--ink-deep);border-color:var(--gold);font-weight:600}
+  .other{width:100%;margin-top:10px;background:var(--ink-deep);color:var(--parchment);
+    border:1px solid var(--line);border-radius:8px;padding:12px;font-size:1rem}
+  .giftnote{color:rgba(241,233,221,.5);font-size:.8rem;margin-top:11px;line-height:1.55}
 </style></head><body><div class="box">
 <div class="brand">Tick<em>lore</em></div><div class="tag">Every ticket has a story.</div>`;
 }
 const gateFoot = `</div></body></html>`;
 
-function buyPage({ key, lane, stripeReady }) {
+/** The gift controls, shared by the ticket page and the standalone donate page.
+ *  Presets plus "other"; nothing selected until the giver chooses. The amount
+ *  the browser reports is only ever a suggestion — the server decides. */
+function giftControls({ note }) {
+  return `<div class="chips">
+  <button type="button" class="chip" onclick="pick(2500,this)">$25</button>
+  <button type="button" class="chip" onclick="pick(5000,this)">$50</button>
+  <button type="button" class="chip" onclick="pick(10000,this)">$100</button>
+  <button type="button" class="chip" onclick="pickOther(this)">Other</button>
+</div>
+<input id="other" class="other" type="number" min="1" step="1" placeholder="Amount in dollars" oninput="otherTyped()" hidden>
+<div class="giftnote">${note}</div>`;
+}
+
+/** The client-side half of the gift controls. Kept as one string so the two
+ *  pages cannot drift apart. `onPick` runs after every amount change. */
+function giftScript(onPick) {
+  return `
+  var gift=0;
+  function chips(){ return document.querySelectorAll('.chip'); }
+  function clearChips(){ var c=chips(); for(var i=0;i<c.length;i++){ c[i].classList.remove('on'); } }
+  function pick(cents,el){ clearChips(); el.classList.add('on');
+    document.getElementById('other').hidden=true; gift=cents; ${onPick} }
+  function pickOther(el){ clearChips(); el.classList.add('on');
+    var o=document.getElementById('other'); o.hidden=false; o.focus();
+    gift=Math.round((Number(o.value)||0)*100); ${onPick} }
+  function otherTyped(){ gift=Math.round((Number(document.getElementById('other').value)||0)*100); ${onPick} }`;
+}
+
+function buyPage({ key, lane, stripeReady, giftsOpen }) {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   if (!lane) {
     return gateHead("Ticklore") + `<h1>Not available</h1><div class="hint">This event doesn't sell tickets online. If you have a printed card, scan its QR instead.</div>` + gateFoot;
@@ -603,25 +806,103 @@ function buyPage({ key, lane, stripeReady }) {
     return gateHead("Ticklore") + `<h1>${esc(details.name)}</h1><div class="venue">${esc(details.venue || "")}</div>
 <div class="hint">Online tickets are <b>sold out</b> — printed tickets may still be available at the door.</div>` + gateFoot;
   }
+  const gift = giftsOpen ? `<div class="gift">
+  <label class="giftrow"><input type="checkbox" id="addgift" onchange="toggleGift()">
+    <span>Add a donation to the evening</span></label>
+  <div id="giftbox" hidden>${giftControls({
+    note: "Your gift goes to the organizers in full, separately from the ticket price — it isn't a Ticklore fee.",
+  })}</div>
+</div>` : "";
+
   return gateHead("Buy a ticket — " + esc(details.name)) + `<h1>${esc(details.name)}</h1>
 <div class="venue">${esc(details.venue || "")}</div>
 <div class="price">${price}</div>
 <div class="left">${remaining} available online</div>
+${gift}
 <button id="go" onclick="pay()">Pay by card &rarr;</button>
 <div class="err" id="err"></div>
 <div class="hint">Secure payment by Stripe. Your ticket arrives by email the moment payment lands —
 it becomes a permanent keepsake when you claim it. No wallet, no app, no crypto anything.</div>
 <script>
+  var TICKET=${lane.block.priceCents};
+  ${giftsOpen ? giftScript("label();") : "var gift=0;"}
+  function money(c){ return '$'+(c/100).toFixed(2).replace(/\\.00$/,''); }
+  function label(){
+    var btn=document.getElementById('go');
+    btn.textContent = gift>0 ? 'Pay '+money(TICKET+gift)+' by card \\u2192' : 'Pay by card \\u2192';
+  }
+  function toggleGift(){
+    var on=document.getElementById('addgift').checked;
+    document.getElementById('giftbox').hidden=!on;
+    if(!on){ gift=0; clearChips(); document.getElementById('other').hidden=true; }
+    label();
+  }
   function pay(){
     var btn=document.getElementById('go'), err=document.getElementById('err');
     err.textContent=''; btn.disabled=true; btn.textContent='Opening secure checkout…';
-    fetch('/buy/${encodeURIComponent(key)}/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+    fetch('/buy/${encodeURIComponent(key)}/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({donationCents:gift})})
       .then(function(r){return r.json()}).then(function(d){
         if(d.url){ location.href=d.url; }
-        else { btn.disabled=false; btn.textContent='Pay by card \\u2192'; err.textContent=d.error||'Could not start checkout.'; }
-      }).catch(function(){ btn.disabled=false; btn.textContent='Pay by card \\u2192'; err.textContent='Could not reach the server.'; });
+        else { btn.disabled=false; label(); err.textContent=d.error||'Could not start checkout.'; }
+      }).catch(function(){ btn.disabled=false; label(); err.textContent='Could not reach the server.'; });
   }
 </script>` + gateFoot;
+}
+
+/** Giving on its own — no ticket, no seat, no code. */
+function donatePage({ key, details, open }) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  if (!details) {
+    return gateHead("Ticklore") + `<h1>Not available</h1>
+<div class="hint">There's nothing to give to at this address.</div>` + gateFoot;
+  }
+  if (!open) {
+    return gateHead("Ticklore") + `<h1>${esc(details.name)}</h1>
+<div class="venue">${esc(details.venue || "")}</div>
+<div class="hint">Online giving isn't switched on for this event yet. The organizers can take your
+gift directly — and they'd love to hear from you.</div>` + gateFoot;
+  }
+  return gateHead("Donate — " + esc(details.name)) + `<h1>${esc(details.name)}</h1>
+<div class="venue">${esc(details.venue || "")}</div>
+<div class="hint" style="margin:14px 0 4px;font-size:.95rem;color:rgba(241,233,221,.8)">
+Give to the evening. This is a gift only — it doesn't include a ticket or a seat.</div>
+<div class="gift" style="border-top:0;padding-top:6px">${giftControls({
+    note: "Your gift goes to the organizers in full. Ticklore takes no part of it.",
+  })}</div>
+<button id="go" onclick="give()" disabled>Choose an amount</button>
+<div class="err" id="err"></div>
+<div class="hint">Secure payment by Stripe, straight to the organizers' own account.
+Any receipt for tax purposes comes from them, not from Ticklore.</div>
+<script>
+  ${giftScript("label();")}
+  function money(c){ return '$'+(c/100).toFixed(2).replace(/\\.00$/,''); }
+  function label(){
+    var btn=document.getElementById('go');
+    btn.disabled = !(gift>0);
+    btn.textContent = gift>0 ? 'Give '+money(gift)+' \\u2192' : 'Choose an amount';
+  }
+  function give(){
+    var btn=document.getElementById('go'), err=document.getElementById('err');
+    err.textContent=''; btn.disabled=true; btn.textContent='Opening secure checkout…';
+    fetch('/donate/${encodeURIComponent(key)}/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({donationCents:gift})})
+      .then(function(r){return r.json()}).then(function(d){
+        if(d.url){ location.href=d.url; }
+        else { label(); err.textContent=d.error||'Could not start checkout.'; }
+      }).catch(function(){ label(); err.textContent='Could not reach the server.'; });
+  }
+</script>` + gateFoot;
+}
+
+function gavePage(details) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return gateHead("Thank you — Ticklore") + `<h1>Thank you. ♥</h1>
+<div class="venue">${details ? esc(details.name) : ""}</div>
+<div class="hint" style="font-size:1rem;color:rgba(241,233,221,.8);margin-top:18px">
+Your gift went straight to the organizers. A receipt from Stripe is on its way to your email.</div>
+<div class="hint">This was a gift, so there's no ticket attached to it — if you meant to buy a seat
+as well, you can still do that.</div>` + gateFoot;
 }
 
 function boughtPage(details) {

@@ -262,4 +262,40 @@ async function sendRosterEmail({ to, eventName, claimUrl }) {
   return { sent: true, id: data?.id };
 }
 
-module.exports = { sendTicketEmail, sendClaimEmail, sendCodeEmail, sendRosterEmail };
+/** Thanks for a gift. Deliberately says NOTHING about tax deductibility:
+ *  whether a gift is deductible depends on the organization's status and on
+ *  what the giver received in return, and that is their treasurer's letter to
+ *  write, not ours. We confirm the amount and point at them. */
+async function sendDonationEmail({ to, eventName, amountCents }) {
+  const { Resend } = require("resend");
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return { sent: false, reason: "RESEND_API_KEY not set" };
+  if (!to) return { sent: false, reason: "donor email missing" };
+  const from = process.env.FROM_EMAIL || "Ticklore <onboarding@resend.dev>";
+  const amount = `$${(amountCents / 100).toFixed(2).replace(/\.00$/, "")}`;
+  const forWhat = eventName ? ` to ${eventName}` : "";
+
+  const { data, error } = await new Resend(key).emails.send({
+    from,
+    to: [to],
+    subject: `Thank you for your gift${forWhat}`,
+    html: `
+<div style="background:#0E262B;padding:36px 20px;font-family:Georgia,serif;color:#F1E9DD">
+  <div style="max-width:480px;margin:0 auto;text-align:center">
+    <div style="font-size:22px;font-weight:600;margin-bottom:4px">Tick<span style="font-style:italic;color:#E3C25E">lore</span></div>
+    <div style="font-style:italic;color:#E3C25E;font-size:14px;margin-bottom:26px">Every ticket has a story.</div>
+    <div style="font-size:19px;margin-bottom:8px">Thank you for your gift of ${amount}${forWhat}.</div>
+    <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">
+      It went directly to the organizers — Ticklore took no part of it.</div>
+    <div style="color:rgba(241,233,221,.55);font-size:12px;line-height:1.6">
+      Your card receipt comes from Stripe. For anything else the organizers are the
+      people to ask — the gift is theirs, and so are their records.</div>
+  </div>
+</div>`,
+    text: `Thank you for your gift of ${amount}${forWhat}. It went directly to the organizers — Ticklore took no part of it. Your card receipt comes from Stripe; for anything further, the organizers hold the records.`,
+  });
+  if (error) return { sent: false, reason: error.message || String(error) };
+  return { sent: true, id: data?.id };
+}
+
+module.exports = { sendTicketEmail, sendClaimEmail, sendCodeEmail, sendRosterEmail, sendDonationEmail };

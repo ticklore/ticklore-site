@@ -64,6 +64,8 @@ function mountOrganizerDash(app) {
         published: vaultAll.filter((x) => x.status === "published").length,
         awaiting: vaultAll.filter((x) => x.status === "pending").length,
       },
+      // Reported alongside ticket counts, never added to them.
+      donations: require("./donations").totals(e.key),
       asOf: new Date().toISOString(),
     };
   }
@@ -139,6 +141,13 @@ function dashPage(key, token, s, e) {
 
   <div class="vrow"><span>Memory vault</span><div><b id="d-vpub">–</b> published · <b id="d-vpen">–</b> awaiting review</div></div>
 
+  <!-- Gifts are shown apart from ticket money on purpose. A ticket is a seat at
+       a dinner; a gift is a gift, and only the organization can say what each
+       one means on a receipt. Blending them here would be the first step to
+       blending them there. -->
+  <div class="vrow" id="d-giftrow" hidden><span>Donations</span>
+    <div><b id="d-gift">–</b> <span style="color:rgba(241,233,221,.5);font-size:.8rem" id="d-giftbreak"></span></div></div>
+
   ${(s.channels && s.channels.online && s.channels.online.total) ? (
     e && e.stripeAccountId
       ? `<div class="vrow"><span>Card sales</span><div style="color:var(--sage)">deposit directly to <b>your Stripe</b> ✓</div></div>`
@@ -163,6 +172,13 @@ function dashPage(key, token, s, e) {
     document.getElementById('d-rows').innerHTML = rows || '<tr><td colspan="4" style="color:rgba(241,233,221,.4)">No tickets yet.</td></tr>';
     document.getElementById('d-vpub').textContent = s.vault.published;
     document.getElementById('d-vpen').textContent = s.vault.awaiting;
+    if (s.donations && s.donations.count) {
+      var d = s.donations, money = function(c){ return '$' + (c/100).toFixed(2).replace(/\.00$/,''); };
+      document.getElementById('d-giftrow').hidden = false;
+      document.getElementById('d-gift').textContent = money(d.cents) + ' from ' + d.count + (d.count === 1 ? ' gift' : ' gifts');
+      document.getElementById('d-giftbreak').textContent =
+        d.withTicketCount ? '(' + money(d.aloneCents) + ' given on its own · ' + money(d.withTicketCents) + ' added to tickets)' : '';
+    }
     document.getElementById('d-asof').textContent = 'updated ' + new Date(s.asOf).toLocaleTimeString();
   }
   paint(${JSON.stringify(s)});

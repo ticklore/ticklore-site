@@ -36,6 +36,7 @@ function storeFiles() {
     { name: "claims.json", file: process.env.CLAIM_STORE || path.join(base, "claims.json") },
     { name: "vault.json", file: process.env.VAULT_STORE || path.join(base, "vault.json") },
     { name: "orders.json", file: process.env.ORDER_STORE || path.join(base, "orders.json") },
+    { name: "donations.json", file: process.env.DONATION_STORE || path.join(base, "donations.json") },
   ].filter((s) => fs.existsSync(s.file));
 }
 
