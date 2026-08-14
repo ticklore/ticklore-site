@@ -142,7 +142,7 @@ const LOCKUP_CSS = `
   .lockup__words{display:flex;flex-direction:column;align-items:center;gap:calc(var(--lk) * .07)}
   /* WORDMARK — Option 5, Outfit Light. Contemporary and even-toned, with
      enough tracking to feel considered and enough weight to stay legible
-     small. TICK in ivory, LORE in the symbol's own light gold (#F1D17D is
+     small. TICK in ivory, LORE in the symbol's own light gold (#F1C765 is
      lifted straight out of the ticket art, so the two agree exactly).
      TO SWITCH OPTIONS: this rule and .lockup__tag are the only blocks that
      change, plus the family in LOCKUP_FONT_LINK. */
@@ -153,7 +153,7 @@ const LOCKUP_CSS = `
        gap and the box equals what the eye sees. */
     margin-right:-.14em}
   .lockup__tick{color:var(--parchment)}
-  .lockup__lore{color:#F1D17D}
+  .lockup__lore{color:#F1C765}
   .lockup__tag{font-family:'Outfit',system-ui,sans-serif;font-weight:300;
     font-size:calc(var(--lk) * .135);letter-spacing:.24em;text-transform:uppercase;
     color:rgba(241,233,221,.5);white-space:nowrap;margin-right:-.24em}
