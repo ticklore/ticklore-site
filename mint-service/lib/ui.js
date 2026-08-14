@@ -136,23 +136,27 @@ const LOCKUP_CSS = `
   /* Everything scales off --lk, the mark's height. */
   .lockup{display:inline-flex;align-items:center;gap:calc(var(--lk) * .17);line-height:1}
   .lockup__mark{height:var(--lk);width:auto;display:block;flex:none}
-  .lockup__words{display:flex;flex-direction:column;gap:calc(var(--lk) * .07)}
-  /* WORDMARK — Option 1, Tenor Sans. Wide, light, unhurried: quiet luxury
-     rather than a tech logo, which is the right register for something whose
-     whole argument is that it's worth keeping.
-     TO SWITCH OPTIONS: this rule and .lockup__tag below are the only two
-     blocks that change (plus the family in LOCKUP_FONT_LINK). The TICK/LORE
-     spans are kept even though Option 1 is a single colour, so a two-tone
-     option can be restored without touching any markup. */
-  .lockup__word{font-family:'Tenor Sans',Optima,Candara,system-ui,sans-serif;font-weight:400;
-    font-size:calc(var(--lk) * .40);letter-spacing:.30em;white-space:nowrap;display:block;
-    /* Tracking adds a trailing gap after the last letter; the indent puts the
-       same space back at the front so the word sits optically centred. */
-    text-indent:.30em}
-  .lockup__tick,.lockup__lore{color:var(--parchment)}
-  .lockup__tag{font-family:'Jost',system-ui,sans-serif;font-weight:300;
-    font-size:calc(var(--lk) * .135);letter-spacing:.34em;text-transform:uppercase;
-    color:var(--brand-gold-lt);white-space:nowrap;text-indent:.34em}
+  /* align-items:center is what puts the tagline under the middle of the word
+     rather than flush to its left edge. It only lands correctly because both
+     lines cancel their trailing letter-space below. */
+  .lockup__words{display:flex;flex-direction:column;align-items:center;gap:calc(var(--lk) * .07)}
+  /* WORDMARK — Option 5, Outfit Light. Contemporary and even-toned, with
+     enough tracking to feel considered and enough weight to stay legible
+     small. TICK in ivory, LORE in the symbol's own light gold (#F1D17D is
+     lifted straight out of the ticket art, so the two agree exactly).
+     TO SWITCH OPTIONS: this rule and .lockup__tag are the only blocks that
+     change, plus the family in LOCKUP_FONT_LINK. */
+  .lockup__word{font-family:'Outfit',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .40);letter-spacing:.14em;white-space:nowrap;display:block;
+    /* Letter-spacing adds a gap AFTER the last letter, so the box is wider
+       than the ink and centring it would sit visibly left. Cancel the trailing
+       gap and the box equals what the eye sees. */
+    margin-right:-.14em}
+  .lockup__tick{color:var(--parchment)}
+  .lockup__lore{color:#F1D17D}
+  .lockup__tag{font-family:'Outfit',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .135);letter-spacing:.24em;text-transform:uppercase;
+    color:rgba(241,233,221,.5);white-space:nowrap;margin-right:-.24em}
   /* On parchment or paper, ivory type disappears and gold goes muddy — the
      wordmark proofs made that plain. So the light variant drops to ink rather
      than trying to rescue either. Add class="lockup lockup--light" wherever the
@@ -164,7 +168,7 @@ const LOCKUP_CSS = `
 
 /** The wordmark face, subset to the letters it draws. */
 const LOCKUP_FONT_LINK =
-  `<link href="https://fonts.googleapis.com/css2?family=Tenor+Sans&family=Jost:wght@300&display=swap" rel="stylesheet">`;
+  `<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300&display=swap" rel="stylesheet">`;
 
 const BASE_CSS = `
   :root{
