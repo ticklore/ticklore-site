@@ -682,3 +682,41 @@ decision open, so the REAL Gala event waits (and the two `#` buy buttons on /gal
 exists); (2) register **BOTH** webhook destinations — a connected-account sale fires on the connected
 account, so without that scope Stripe never sends the event, the payment succeeds, and no claim email
 arrives. That failure impersonates a broken email pipeline and will cost an hour in Resend for nothing.
+
+## 🎟️ THE BRAND LOCKUP — REBUILT (2026-08-13, a6208b6 + 323b6a5 + 22b6f0e, both sites live)
+New mark from Alex (gold notched ticket, dark green field, four-point star, gold-and-sage heart) ships as
+**vector** and the words are **live type** — the old logo was one baked PNG carrying mark, wordmark and
+tagline together. `TICK` in the sage sampled from the heart, `LORE` in the gold from the frame.
+Marketing site went **893KB → 19KB** (index) and **891KB → 17KB** (about): the bulk was a base64 picture
+of the word "Ticklore", pasted inline twice per file. Icons all regenerated from the same vector.
+
+**⚠️ THE LOCKUP LIVES IN TWO PLACES — a font or colour change means BOTH branches.** They are not shared:
+- **App** (`feature/ticket-contract`): `brandLockup()` in `mint-service/lib/ui.js` is the single source for
+  all five surfaces (site nav, shop nav, organizer, wallet header, payment gate). `LOCKUP_CSS` and
+  `LOCKUP_FONT_LINK` are exported because the wallet, payment gate and organizer carry their own
+  stylesheets and don't get `BASE_CSS`.
+- **Marketing** (`main`): the same CSS is **inlined** in `index.html` and `about.html`. No build step, no
+  shared lib — it is a copy, and it will drift the first time only one side is edited.
+
+**To change the wordmark font:** swap the family in `LOCKUP_FONT_LINK` (currently Montserrat 800, subset
+via `&text=TICKLORE` so a whole family costs ~1KB) *and* `.lockup__word`'s `font-family`. **To change
+colours:** the `--brand-*` vars in `ui.js` `:root`, and the hardcoded hex in main's inlined copy.
+
+Sizing scales off one `--lk` variable per placement. **Gotcha, learned the hard way:** the markup sets
+`--lk` INLINE, so a stylesheet rule like `.hero-card .lockup{--lk:52px}` silently loses to it — change the
+markup's size, not a CSS rule. (There is a now-inert `.wal__brand .lockup{--lk:38px}` in `wallet.js` for
+the same reason; harmless, the inline 44px wins.)
+
+Three traps handled rather than discovered later: the wordmark clips a gradient to text, which paints
+**nothing** where unsupported and would erase the name — solid-colour fallback added. Screen greens wash
+out on parchment, so `lockup--light` carries deeper ink for the **printed QR sheet**. And the PWA manifest
+served one transparent file as both `any` and `maskable`; Android crops maskable icons to a shape, so
+there is now a separate `icon-512-maskable.png` with an opaque field and the mark inside the safe zone
+(Apple's is opaque too — iOS composites transparency onto black). `favicon.ico` is a real ICO
+(PNG-in-ICO), verified by parsing it back as a 32×32 icon.
+
+Left alone deliberately: `ticklore_logo_oncard.png` on `main` is now unreferenced (240KB) but not deleted;
+and the marketing nav links render underlined, which predates this work.
+
+**Alex intends to change the wordmark font and colour later** — that is now a text/CSS edit in the two
+places above, not a re-export of artwork. That was the point of doing it this way.
