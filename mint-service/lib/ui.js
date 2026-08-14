@@ -137,36 +137,34 @@ const LOCKUP_CSS = `
   .lockup{display:inline-flex;align-items:center;gap:calc(var(--lk) * .17);line-height:1}
   .lockup__mark{height:var(--lk);width:auto;display:block;flex:none}
   .lockup__words{display:flex;flex-direction:column;gap:calc(var(--lk) * .07)}
-  .lockup__word{font-family:'Montserrat',system-ui,sans-serif;font-weight:800;
-    font-size:calc(var(--lk) * .43);letter-spacing:.005em;white-space:nowrap;display:block}
-  /* Two gradients, one word: sage from the heart, gold from the frame. */
-  .lockup__tick,.lockup__lore{-webkit-background-clip:text;background-clip:text;color:transparent}
-  .lockup__tick{background-image:linear-gradient(180deg,var(--brand-green-lt),var(--brand-green))}
-  .lockup__lore{background-image:linear-gradient(180deg,var(--brand-gold-lt),var(--brand-gold))}
-  .lockup__tag{font-family:'Work Sans',system-ui,sans-serif;font-weight:500;
-    font-size:calc(var(--lk) * .146);letter-spacing:.055em;color:var(--brand-tag);white-space:nowrap}
-  /* Clipping a gradient to text paints nothing where it isn't supported, which
-     would erase the name entirely. Fall back to solid colour, never to blank. */
-  @supports not ((-webkit-background-clip:text) or (background-clip:text)){
-    .lockup__tick{color:var(--brand-green-lt);background:none}
-    .lockup__lore{color:var(--brand-gold-lt);background:none}
-  }
-  /* On parchment or paper the screen greens wash out. Same lockup, darker ink —
-     add class="lockup lockup--light" anywhere the background is pale, which is
-     mostly print: the QR sheet a volunteer carries at a desk. */
-  .lockup--light .lockup__tick{background-image:linear-gradient(180deg,#3E6B4C,#2A5138)}
-  .lockup--light .lockup__lore{background-image:linear-gradient(180deg,#A8801E,#7C5E14)}
-  .lockup--light .lockup__tag{color:#5B6E60}
-  @supports not ((-webkit-background-clip:text) or (background-clip:text)){
-    .lockup--light .lockup__tick{color:#2A5138}
-    .lockup--light .lockup__lore{color:#7C5E14}
-  }
+  /* WORDMARK — Option 1, Tenor Sans. Wide, light, unhurried: quiet luxury
+     rather than a tech logo, which is the right register for something whose
+     whole argument is that it's worth keeping.
+     TO SWITCH OPTIONS: this rule and .lockup__tag below are the only two
+     blocks that change (plus the family in LOCKUP_FONT_LINK). The TICK/LORE
+     spans are kept even though Option 1 is a single colour, so a two-tone
+     option can be restored without touching any markup. */
+  .lockup__word{font-family:'Tenor Sans',Optima,Candara,system-ui,sans-serif;font-weight:400;
+    font-size:calc(var(--lk) * .40);letter-spacing:.30em;white-space:nowrap;display:block;
+    /* Tracking adds a trailing gap after the last letter; the indent puts the
+       same space back at the front so the word sits optically centred. */
+    text-indent:.30em}
+  .lockup__tick,.lockup__lore{color:var(--parchment)}
+  .lockup__tag{font-family:'Jost',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .135);letter-spacing:.34em;text-transform:uppercase;
+    color:var(--brand-gold-lt);white-space:nowrap;text-indent:.34em}
+  /* On parchment or paper, ivory type disappears and gold goes muddy — the
+     wordmark proofs made that plain. So the light variant drops to ink rather
+     than trying to rescue either. Add class="lockup lockup--light" wherever the
+     background is pale, which is mostly print: the QR sheet at a desk. */
+  .lockup--light .lockup__tick,.lockup--light .lockup__lore{color:#123138}
+  .lockup--light .lockup__tag{color:#5B7A72}
   @media (max-width:720px){ .lockup{--lk:46px} .lockup__tag{display:none} }
 `;
 
 /** The wordmark face, subset to the letters it draws. */
 const LOCKUP_FONT_LINK =
-  `<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&text=TICKLORE&display=swap" rel="stylesheet">`;
+  `<link href="https://fonts.googleapis.com/css2?family=Tenor+Sans&family=Jost:wght@300&display=swap" rel="stylesheet">`;
 
 const BASE_CSS = `
   :root{
