@@ -166,7 +166,8 @@ function walletShell({ title, headerRight, body, extraScript }) {
   .wal__head{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
     padding:15px 20px;background:linear-gradient(var(--ink),rgba(14,38,43,.82));backdrop-filter:blur(8px);
     border-bottom:1px solid var(--line)}
-  .wal__brand img{height:34px;width:auto;display:block}
+  /* The lockup sizes itself from --lk; the header just asks for a smaller one. */
+  .wal__brand .lockup{--lk:38px}
   .wal__count{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.14em;
     text-transform:uppercase;color:var(--sage)}
   .wal{max-width:460px;margin:0 auto;padding:18px 16px 70px;display:flex;flex-direction:column;gap:22px}
@@ -211,7 +212,7 @@ function walletShell({ title, headerRight, body, extraScript }) {
 </style></head>
 <body>
   <header class="wal__head">
-    <div class="wal__brand"><img src="/logo.png" alt="Ticklore"></div>
+    <div class="wal__brand">${require("./ui").brandLockup({ size: 44, tagline: false, alt: "Ticklore" })}</div>
     ${headerRight}
   </header>
   ${body}

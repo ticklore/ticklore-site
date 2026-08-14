@@ -12,7 +12,7 @@
 const express = require("express");
 const ticklore = require("./ticklore");
 const { getEvent, listEvents } = require("./stripe-routes");
-const { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, BASE_CSS } = require("./ui");
+const { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, brandLockup, BASE_CSS } = require("./ui");
 const { rateLimit } = require("./ratelimit");
 
 function mountStorefront(app, { chain, stripeEnabled }) {
@@ -330,7 +330,7 @@ function eventPage(e, idx, stripeEnabled, demoEnabled) {
 </style></head>
 <body>
   <nav class="nav">
-    <a href="/" class="brand nav__brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story"></a>
+    <a href="/" class="brand nav__brand" style="text-decoration:none;display:flex;align-items:center">${brandLockup({ size: 60 })}</a>
     <a href="/shop">← All events</a>
   </nav>
   <main>
@@ -372,7 +372,7 @@ function notFoundPage() {
   return `<!doctype html>
 <html lang="en"><head>${head("Ticklore — Not found")}</head>
 <body>
-  <nav class="nav"><a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:72px;width:auto;display:block"></a><a href="/shop">All events</a></nav>
+  <nav class="nav"><a href="/" class="brand" style="text-decoration:none;display:flex;align-items:center">${brandLockup({ size: 60 })}</a><a href="/shop">All events</a></nav>
   <div style="position:relative;z-index:1;text-align:center;padding:120px 24px">
     <div style="font-family:'Fraunces',serif;font-style:italic;font-size:1.6rem;color:var(--gold-bright);margin-bottom:12px">This chapter hasn't been written.</div>
     <p style="color:rgba(241,233,221,.6);margin-bottom:26px">We couldn't find that event.</p>

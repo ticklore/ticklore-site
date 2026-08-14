@@ -73,11 +73,32 @@ function ticketSvg({ name, venue, priceCents, number = "—", used = false }) {
 /** The site nav: brand + inline links on desktop; under 720px the links
  *  collapse into a hamburger opening a branded dropdown with tap-sized rows.
  *  links = [{ href, label, style? }] */
+/**
+ * The brand lockup: ART for the mark, TYPE for the words.
+ *
+ * The old logo baked all three — ticket, wordmark, tagline — into one 336KB
+ * PNG. That went soft on retina, couldn't be recoloured, and said nothing to a
+ * screen reader. Now the ticket is vector and the words are real text, so the
+ * lockup is crisp at any size and the name is actually readable as a name.
+ *
+ * `size` scales the whole thing from one number; `tagline:false` drops the
+ * story line where space is tight (the nav).
+ */
+function brandLockup({ size = 72, tagline = true, light = false, alt = "Ticklore — every ticket has a story" } = {}) {
+  return `<span class="lockup${light ? " lockup--light" : ""}" style="--lk:${size}px">
+  <img class="lockup__mark" src="/logo-mark.svg" alt="${esc(alt)}">
+  <span class="lockup__words">
+    <span class="lockup__word"><span class="lockup__tick">TICK</span><span class="lockup__lore">LORE</span></span>
+    ${tagline ? `<span class="lockup__tag">Every ticket has a story</span>` : ""}
+  </span>
+</span>`;
+}
+
 function navBar(links) {
   const a = (l) => `<a href="${l.href}"${l.style ? ` style="${l.style}"` : ""}>${l.label}</a>`;
   return `<nav class="nav">
     <a href="/" class="brand nav__brand" style="text-decoration:none;display:flex;align-items:center">
-      <img src="/logo.png" alt="Ticklore — every ticket has a story">
+      ${brandLockup({ size: 60 })}
     </a>
     <span class="nav__links">${links.map(a).join("")}</span>
     <button class="nav__burger" aria-label="Open menu" aria-expanded="false"
@@ -96,13 +117,64 @@ function head(title) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Work+Sans:wght@400;500&display=swap" rel="stylesheet">
+${LOCKUP_FONT_LINK}
 <style>${BASE_CSS}</style>`;
 }
+
+/**
+ * The lockup's own styles, kept separate because not every page uses BASE_CSS:
+ * the wallet and the payment gate carry their own stylesheets, and the brand
+ * has to look identical on all of them. Self-contained on purpose — it declares
+ * the brand colours it needs rather than assuming a host palette.
+ */
+const LOCKUP_CSS = `
+  :root{
+    --brand-gold-lt:#F1C765; --brand-gold:#C19434;
+    --brand-green-lt:#C6DCC0; --brand-green:#8FB89A;
+    --brand-tag:#7FB3A6;
+  }
+  /* Everything scales off --lk, the mark's height. */
+  .lockup{display:inline-flex;align-items:center;gap:calc(var(--lk) * .17);line-height:1}
+  .lockup__mark{height:var(--lk);width:auto;display:block;flex:none}
+  .lockup__words{display:flex;flex-direction:column;gap:calc(var(--lk) * .07)}
+  .lockup__word{font-family:'Montserrat',system-ui,sans-serif;font-weight:800;
+    font-size:calc(var(--lk) * .43);letter-spacing:.005em;white-space:nowrap;display:block}
+  /* Two gradients, one word: sage from the heart, gold from the frame. */
+  .lockup__tick,.lockup__lore{-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lockup__tick{background-image:linear-gradient(180deg,var(--brand-green-lt),var(--brand-green))}
+  .lockup__lore{background-image:linear-gradient(180deg,var(--brand-gold-lt),var(--brand-gold))}
+  .lockup__tag{font-family:'Work Sans',system-ui,sans-serif;font-weight:500;
+    font-size:calc(var(--lk) * .146);letter-spacing:.055em;color:var(--brand-tag);white-space:nowrap}
+  /* Clipping a gradient to text paints nothing where it isn't supported, which
+     would erase the name entirely. Fall back to solid colour, never to blank. */
+  @supports not ((-webkit-background-clip:text) or (background-clip:text)){
+    .lockup__tick{color:var(--brand-green-lt);background:none}
+    .lockup__lore{color:var(--brand-gold-lt);background:none}
+  }
+  /* On parchment or paper the screen greens wash out. Same lockup, darker ink —
+     add class="lockup lockup--light" anywhere the background is pale, which is
+     mostly print: the QR sheet a volunteer carries at a desk. */
+  .lockup--light .lockup__tick{background-image:linear-gradient(180deg,#3E6B4C,#2A5138)}
+  .lockup--light .lockup__lore{background-image:linear-gradient(180deg,#A8801E,#7C5E14)}
+  .lockup--light .lockup__tag{color:#5B6E60}
+  @supports not ((-webkit-background-clip:text) or (background-clip:text)){
+    .lockup--light .lockup__tick{color:#2A5138}
+    .lockup--light .lockup__lore{color:#7C5E14}
+  }
+  @media (max-width:720px){ .lockup{--lk:46px} .lockup__tag{display:none} }
+`;
+
+/** The wordmark face, subset to the letters it draws. */
+const LOCKUP_FONT_LINK =
+  `<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&text=TICKLORE&display=swap" rel="stylesheet">`;
 
 const BASE_CSS = `
   :root{
     --ink:#0E262B; --ink-deep:#081619; --parchment:#F1E9DD;
     --gold:#C9A227; --gold-bright:#E3C25E; --teal:#2FAF93; --sage:#7FB3A6;
+    /* Sampled from the mark itself, so the wordmark and the ticket agree. */
+    --brand-gold-lt:#F1C765; --brand-gold:#C19434;
+    --brand-green-lt:#C6DCC0; --brand-green:#8FB89A;
     --line:rgba(241,233,221,.12); --field:rgba(241,233,221,.05);
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -116,6 +188,7 @@ const BASE_CSS = `
   .wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 24px}
   .brand{font-family:'Fraunces',serif;font-weight:600;letter-spacing:-.01em}
   .brand em{font-style:italic;color:var(--gold-bright)}
+${LOCKUP_CSS}
   .btn{display:inline-block;font-family:'Work Sans',sans-serif;font-size:.95rem;font-weight:500;
     background:var(--gold);color:var(--ink-deep);border:0;border-radius:5px;padding:13px 26px;
     cursor:pointer;text-decoration:none;transition:background .18s,transform .18s;white-space:nowrap}
@@ -151,4 +224,4 @@ const BASE_CSS = `
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
 
-module.exports = { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, BASE_CSS };
+module.exports = { esc, money, formatDate, formatDateShort, chapter, ticketSvg, head, navBar, brandLockup, LOCKUP_CSS, LOCKUP_FONT_LINK, BASE_CSS };

@@ -88,7 +88,9 @@ function organizerPage() {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Work+Sans:wght@400;500&display=swap" rel="stylesheet">
+${require("./ui").LOCKUP_FONT_LINK}
 <style>
+${require("./ui").LOCKUP_CSS}
   :root{
     --ink:#0E262B; --ink-deep:#081619; --parchment:#F1E9DD;
     --gold:#C9A227; --gold-bright:#E3C25E; --teal:#2FAF93; --sage:#7FB3A6;
@@ -190,7 +192,7 @@ function organizerPage() {
 </div>
 
 <header>
-  <a href="/" style="display:inline-block"><img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:96px;width:auto;display:inline-block"></a>
+  <a href="/" style="display:inline-block;text-decoration:none">${require("./ui").brandLockup({ size: 80 })}</a>
   <div class="sub">Create an event — see the ticket your guests will keep, then publish.</div>
 </header>
 

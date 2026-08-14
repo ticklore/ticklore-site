@@ -669,7 +669,7 @@ function successPage(opts) {
 </style></head>
 <body>
   <main><div class="box">
-    <img src="/logo.png" alt="Ticklore — every ticket has a story" style="height:104px;width:auto;display:inline-block;margin-bottom:26px">
+    <div style="margin-bottom:26px">${require("./ui").brandLockup({ size: 76 })}</div>
     <div class="spinner" id="spin"></div>
     <div class="status" id="s"></div>
     <div class="headline" id="h"></div>
@@ -735,7 +735,11 @@ function successPage(opts) {
 function gateHead(title) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+${require("./ui").LOCKUP_FONT_LINK}
 <style>
+${require("./ui").LOCKUP_CSS}
   :root{--ink:#0E262B;--ink-deep:#081619;--parchment:#F1E9DD;--gold:#C9A227;--gold-bright:#E3C25E;--sage:#7FB3A6;--line:rgba(241,233,221,.14)}
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--parchment);font-family:system-ui,'Segoe UI',sans-serif;line-height:1.5;
