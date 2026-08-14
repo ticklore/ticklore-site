@@ -698,9 +698,33 @@ of the word "Ticklore", pasted inline twice per file. Icons all regenerated from
 - **Marketing** (`main`): the same CSS is **inlined** in `index.html` and `about.html`. No build step, no
   shared lib — it is a copy, and it will drift the first time only one side is edited.
 
-**To change the wordmark font:** swap the family in `LOCKUP_FONT_LINK` (currently Montserrat 800, subset
-via `&text=TICKLORE` so a whole family costs ~1KB) *and* `.lockup__word`'s `font-family`. **To change
-colours:** the `--brand-*` vars in `ui.js` `:root`, and the hardcoded hex in main's inlined copy.
+**CURRENT (2026-08-13, settled after three iterations in one evening):** symbol = the **green-and-gold**
+ticket (`logo-mark.svg`, 72,123 bytes — a finer-stroked gold-on-teal alternative was tried and reverted
+because it dissolved at nav and favicon size; **a logo that only works large fails in a browser tab**).
+Wordmark = **Outfit Light** (Option 5 of six explored), `TICK` in ivory `#F1E9DD`, `LORE` in `#F1C765`
+**sampled from the mark itself** — retune this whenever the symbol changes or the word and the ticket end
+up as two nearly-identical golds. Tagline = Outfit 300, uppercase, `rgba(241,233,221,.5)`.
+
+**The tagline centring, because it will look like a nudge and isn't:** letter-spacing adds its gap AFTER
+the final letter, so every line's box is wider than its ink. Centring boxes of unequal overhang puts the
+lines out of true — and an earlier `text-indent` patch failed precisely because the word and tagline
+track differently and so compensated by different amounts. Each line now cancels its own trailing space
+with a **negative margin equal to its letter-spacing**, so boxes match ink and `align-items:center` on
+`.lockup__words` is honest. Keep that pairing if you change tracking.
+
+**To change the wordmark font:** the family in `LOCKUP_FONT_LINK` *and* `.lockup__word`'s `font-family`.
+**To change colours:** `.lockup__tick` / `.lockup__lore` / `.lockup__tag` — plus the same rules in main's
+inlined copy. Icons only need regenerating when the **symbol** changes, never the wordmark
+(`scratchpad/icons.ps1` does all six from one SVG; re-create it if gone — Chrome headless at each size,
+transparent for tab/PWA-any, opaque for Apple and the Android maskable safe zone).
+
+**⚠️ THE KEEPSAKE DOES NOT SHARE ANY OF THIS.** `TickloreTicketV5.sol` renders its own wordmark on-chain —
+`<text font-family="monospace" letter-spacing="7">TICKLORE</text>` plus `EVERY TICKET HAS A STORY` — so
+the site says Outfit Light and the keepsake in someone's wallet says monospace. That is Solidity, frozen
+at deploy, permanent for every keepsake that contract ever mints. **Today it costs nothing (testnet, no
+real holders). It becomes unfixable at the mainnet deploy, which is queued right before the Gala.** If the
+two should agree, that edit rides along with the mainnet contract at no extra cost — but only if it
+happens BEFORE. Alex has been offered a side-by-side render of on-chain art vs the new brand; not yet done.
 
 Sizing scales off one `--lk` variable per placement. **Gotcha, learned the hard way:** the markup sets
 `--lk` INLINE, so a stylesheet rule like `.hero-card .lockup{--lk:52px}` silently loses to it — change the
