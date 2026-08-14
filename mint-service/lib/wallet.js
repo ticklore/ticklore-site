@@ -128,9 +128,14 @@ const MANIFEST = {
   display: "standalone",
   background_color: "#0E262B",
   theme_color: "#0E262B",
+  // Two files, not one. A maskable icon is cropped to whatever shape the OS
+  // prefers — circle, squircle, rounded square — so it needs an opaque field
+  // and the mark held inside the safe zone. Serving the transparent "any"
+  // icon as maskable leaves the keepsake clipped and floating on a home screen.
   icons: [
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
     { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
   ],
 };
 
