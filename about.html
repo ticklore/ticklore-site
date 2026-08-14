@@ -11,7 +11,7 @@
 <link rel="canonical" href="https://ticklore.com/about.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Tenor+Sans&family=Jost:wght@300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #0E262B;
@@ -37,20 +37,21 @@
   /* THE BRAND LOCKUP — vector mark, live type. Scales off --lk. */
   .lockup{display:inline-flex;align-items:center;gap:calc(var(--lk) * .17);line-height:1}
   .lockup__mark{height:var(--lk);width:auto;display:block;flex:none}
-  .lockup__words{display:flex;flex-direction:column;gap:calc(var(--lk) * .07)}
-  /* WORDMARK — Option 1, Tenor Sans: wide, light, unhurried. The tracking
-     leaves a trailing gap after the last letter, so the matching text-indent
-     puts it back at the front and the word sits optically centred. */
-  .lockup__word{font-family:'Tenor Sans',Optima,Candara,system-ui,sans-serif;font-weight:400;
-    font-size:calc(var(--lk) * .40);letter-spacing:.30em;white-space:nowrap;display:block;
-    text-indent:.30em}
-  .lockup__tick,.lockup__lore{color:#F1E9DD}
-  /* On ivory, gold goes muddy and ivory vanishes — print drops to ink. */
-  .lockup--light .lockup__tick,.lockup--light .lockup__lore{color:#123138}
-  .lockup--light .lockup__tag{color:#5B7A72}
-  .lockup__tag{font-family:'Jost',system-ui,sans-serif;font-weight:300;
-    font-size:calc(var(--lk) * .135);letter-spacing:.34em;text-transform:uppercase;
-    color:#E3C25E;white-space:nowrap;text-indent:.34em}
+  /* align-items:center is what centres the tagline under the word. It only
+     lands correctly because both lines cancel their trailing letter-space. */
+  .lockup__words{display:flex;flex-direction:column;align-items:center;gap:calc(var(--lk) * .07)}
+  /* WORDMARK — Option 5, Outfit Light. TICK ivory, LORE in the symbol's own
+     light gold (#F1D17D comes straight out of the ticket art). */
+  .lockup__word{font-family:'Outfit',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .40);letter-spacing:.14em;white-space:nowrap;display:block;
+    /* Letter-spacing adds a gap AFTER the last letter, so the box is wider than
+       the ink and centring it would sit visibly left. Cancel the trailing gap. */
+    margin-right:-.14em}
+  .lockup__tick{color:#F1E9DD}
+  .lockup__lore{color:#F1D17D}
+  .lockup__tag{font-family:'Outfit',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .135);letter-spacing:.24em;text-transform:uppercase;
+    color:rgba(241,233,221,.5);white-space:nowrap;margin-right:-.24em}
   @media (max-width:720px){ .lockup{--lk:44px} .lockup__tag{display:none} }
 
   nav .links { display:flex; gap: 32px; font-size: 0.92rem; color: rgba(241,233,221,0.75); }
