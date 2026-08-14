@@ -11,7 +11,7 @@
 <link rel="canonical" href="https://ticklore.com/about.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&text=TICKLORE&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tenor+Sans&family=Jost:wght@300&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #0E262B;
@@ -38,19 +38,19 @@
   .lockup{display:inline-flex;align-items:center;gap:calc(var(--lk) * .17);line-height:1}
   .lockup__mark{height:var(--lk);width:auto;display:block;flex:none}
   .lockup__words{display:flex;flex-direction:column;gap:calc(var(--lk) * .07)}
-  .lockup__word{font-family:'Montserrat',system-ui,sans-serif;font-weight:800;
-    font-size:calc(var(--lk) * .43);letter-spacing:.005em;white-space:nowrap;display:block}
-  .lockup__tick,.lockup__lore{-webkit-background-clip:text;background-clip:text;color:transparent}
-  .lockup__tick{background-image:linear-gradient(180deg,#C6DCC0,#8FB89A)}
-  .lockup__lore{background-image:linear-gradient(180deg,#F1C765,#C19434)}
-  .lockup__tag{font-family:'Work Sans',system-ui,sans-serif;font-weight:500;
-    font-size:calc(var(--lk) * .146);letter-spacing:.055em;color:#7FB3A6;white-space:nowrap}
-  /* Clipping a gradient to text paints nothing where unsupported, which would
-     erase the name. Fall back to solid colour, never to blank. */
-  @supports not ((-webkit-background-clip:text) or (background-clip:text)){
-    .lockup__tick{color:#C6DCC0;background:none}
-    .lockup__lore{color:#F1C765;background:none}
-  }
+  /* WORDMARK — Option 1, Tenor Sans: wide, light, unhurried. The tracking
+     leaves a trailing gap after the last letter, so the matching text-indent
+     puts it back at the front and the word sits optically centred. */
+  .lockup__word{font-family:'Tenor Sans',Optima,Candara,system-ui,sans-serif;font-weight:400;
+    font-size:calc(var(--lk) * .40);letter-spacing:.30em;white-space:nowrap;display:block;
+    text-indent:.30em}
+  .lockup__tick,.lockup__lore{color:#F1E9DD}
+  /* On ivory, gold goes muddy and ivory vanishes — print drops to ink. */
+  .lockup--light .lockup__tick,.lockup--light .lockup__lore{color:#123138}
+  .lockup--light .lockup__tag{color:#5B7A72}
+  .lockup__tag{font-family:'Jost',system-ui,sans-serif;font-weight:300;
+    font-size:calc(var(--lk) * .135);letter-spacing:.34em;text-transform:uppercase;
+    color:#E3C25E;white-space:nowrap;text-indent:.34em}
   @media (max-width:720px){ .lockup{--lk:44px} .lockup__tag{display:none} }
 
   nav .links { display:flex; gap: 32px; font-size: 0.92rem; color: rgba(241,233,221,0.75); }
