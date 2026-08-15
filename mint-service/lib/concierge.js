@@ -1119,8 +1119,25 @@ ${inscriptionJs}
     if (otp.length < 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
     var btn = document.getElementById('verify');
     btn.disabled = true; btn.textContent = 'Writing your chapter…';
+
+    // VERIFY ON ITS OWN. This used to share one try/catch with the wallet, the
+    // token and the claim request, so ANY failure downstream told the guest
+    // their code was wrong — blaming them for our problem, and sending them to
+    // retype a code that was never the issue. Now only a genuine verification
+    // failure says so.
+    var session;
     try {
-      var session = await privy.auth.email.loginWithCode(email, otp);
+      session = await privy.auth.email.loginWithCode(email, otp);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Verify & claim';
+      var vm = String((e && (e.message || e.error || e)) || '');
+      err.textContent = /422|invalid|expired|incorrect|already/i.test(vm)
+        ? 'That code did not verify. Use the code from the NEWEST email — asking for another voids the one before it. If it still fails, open this page in a private window.'
+        : 'Could not reach the sign-in service (' + (vm.slice(0, 90) || 'unknown error') + '). Try again in a moment.';
+      return;
+    }
+
+    try {
       var user = session && session.user ? session.user : session;
       // Ensure the embedded wallet exists (dashboard usually auto-creates on login).
       if (!TickPrivy.getUserEmbeddedEthereumWallet(user)) {
@@ -1148,8 +1165,12 @@ ${inscriptionJs}
         err.textContent = d.error || 'Could not claim.';
       }
     } catch (e) {
+      // Signed in fine; something after that broke. Say which, so the next
+      // person debugging this is not sent hunting through their inbox.
       btn.disabled = false; btn.textContent = 'Verify & claim';
-      err.textContent = 'That code did not verify — check it and try again.';
+      err.textContent = 'You are signed in, but the keepsake did not finish minting ('
+        + String((e && e.message) || 'unknown error').slice(0, 90)
+        + '). Your code was fine — try the button again.';
     }
   }
   document.getElementById('otp').addEventListener('keydown', function(e){ if (e.key === 'Enter') verifyAndClaim(); });
