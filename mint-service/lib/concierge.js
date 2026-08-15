@@ -160,6 +160,7 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
       res.json({
         ok: true, key, eventId: ev.eventId, codeCount: codes.length,
         sellerPin: stored ? stored.sellerPin : null,
+        doorPin: stored ? stored.doorPin : null,
         onlineCount: codes.filter((c) => c.channel === "online").length,
       });
     } catch (err) {
@@ -177,6 +178,9 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
         // The read-only share link for the committee chair (counts, no names).
         dashUrl: `/organizer/${encodeURIComponent(e.key)}?t=${e.orgToken || events.ensureOrgToken(e.key) || ""}`,
         stripeConnected: !!e.stripeAccountId,
+        // Minted on read for any event with a door, including ones created
+        // before door PINs existed and ones that gained redemption later.
+        doorPin: e.redemptionEnabled ? (e.doorPin || events.ensureDoorPin(e.key)) : null,
         ...claims.statsByEvent(e.key),
       }));
     res.json({ events: sponsorEvents });
@@ -399,21 +403,36 @@ function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
     res.type("html").send(doorPage({ code: req.params.code, rec, details }));
   });
 
-  /** Redeem a claimed ticket at the door. Gated by ADMIN_PASSWORD in the body. */
+  /** Redeem a claimed ticket at the door.
+   *
+   *  Gated by THIS EVENT'S door PIN — not ADMIN_PASSWORD. A volunteer working
+   *  a door needs to admit guests to one event for one night; the admin
+   *  password opens the console, every other event, the claim codes, the
+   *  custody ledger and the backups. Those are not the same permission, and
+   *  the day you hand the second one to a stranger at a folding table is the
+   *  day the distinction stops being theoretical.
+   *
+   *  ADMIN_PASSWORD still works, so the founder is never locked out of his own
+   *  door — but it is the fallback, not the instrument. */
   app.post("/door/:code", express.json(), async (req, res) => {
     try {
-      if (!PASSWORD) return res.status(500).json({ ok: false, error: "Door check-in is not configured." });
-      const given = String((req.body && req.body.password) || "");
-      const a = Buffer.from(given), b = Buffer.from(PASSWORD);
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-        return res.status(401).json({ ok: false, error: "Wrong password." });
-      }
-
       const rec = claims.get(req.params.code);
       if (!rec) return res.status(404).json({ ok: false, error: "That code isn't valid." });
       const details = events.get(rec.eventKey);
       if (!details || !details.redemptionEnabled) {
         return res.status(400).json({ ok: false, error: "Door check-in isn't enabled for this event." });
+      }
+
+      // Check the PIN only once the event is known — it is per-event by design.
+      const given = String((req.body && req.body.password) || "");
+      const pin = details.doorPin || events.ensureDoorPin(details.key);
+      const matches = (secret) => {
+        if (!secret) return false;
+        const a = Buffer.from(given), b = Buffer.from(String(secret));
+        return a.length === b.length && crypto.timingSafeEqual(a, b);
+      };
+      if (!matches(pin) && !matches(PASSWORD)) {
+        return res.status(401).json({ ok: false, error: "Wrong door PIN." });
       }
       if (rec.status !== "claimed" || !rec.tokenId) {
         return res.status(400).json({ ok: false, error: "This ticket hasn't been claimed yet — claim it first, then check in." });
@@ -715,6 +734,7 @@ function adminPage() {
           out.innerHTML='Created <span class="mono">'+esc(d.key)+'</span> — event #'+d.eventId+', '+d.codeCount+' claim codes'
             + (d.onlineCount ? ' ('+d.onlineCount+' reserved for online sale)' : '') + '. '
             + (d.sellerPin ? '<br><b style="color:var(--gold-bright)">Seller PIN: <span class="mono">'+esc(d.sellerPin)+'</span></b> — write it down for the ticket desk; it activates cards at sale. ' : '')
+            + (d.doorPin ? '<br><b style="color:var(--gold-bright)">Door PIN: <span class="mono">'+esc(d.doorPin)+'</span></b> — this is what the door staff use. Never give them the admin password. ' : '')
             + '<a href="/admin/event/'+encodeURIComponent(d.key)+'/sheet" target="_blank">Open the code sheet &rarr;</a>'
             + ' &nbsp;<a href="#" onclick="resetForm();return false;">New event &rarr;</a>';
           loadEvents();
@@ -746,7 +766,8 @@ function adminPage() {
       list.innerHTML = evs.map(function(e){
         return '<div class="ev" data-key="'+esc(e.key)+'">'
           + '<div class="ev__main"><div class="ev__name">'+esc(e.name)+'</div>'
-          + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+(e.stripeConnected?' &middot; &#128179; connected':'')+'</div></div>'
+          + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+(e.stripeConnected?' &middot; &#128179; connected':'')
+          + (e.doorPin?' &middot; &#128682; door PIN <b style="color:var(--gold-bright)" class="mono">'+esc(e.doorPin)+'</b>':'')+'</div></div>'
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'
@@ -1213,20 +1234,52 @@ function doorPage({ code, rec, details }) {
 
   return head + `<h1>${evName}</h1>${venue}
 <div class="tk">Ticket #${esc(rec.tokenId)}${rec.label ? ` · ${esc(rec.label)}` : ""} · claimed, not yet admitted</div>
-<input id="pw" type="password" placeholder="Staff password" autofocus>
+<input id="pw" type="password" inputmode="numeric" autocomplete="off" placeholder="Door PIN">
 <button id="go" onclick="redeem()">Admit &amp; stamp the keepsake</button>
 <div class="err" id="err"></div>
+<div class="hint" id="remembered" hidden>PIN remembered on this device · <a href="#" onclick="forget();return false" style="color:var(--gold-bright)">forget it</a></div>
 <div class="hint">Stamps ADMITTED onto the on-chain keepsake. Permanent, never a burn.</div>
 <script>
   var CODE = ${JSON.stringify(code)};
+  var EVKEY = ${JSON.stringify((details2 && details2.key) || "")};
+  var SLOT = 'tl_door_' + EVKEY;
+
+  // A door scans one guest per page load. Asking a volunteer to retype a PIN
+  // for every person is how a queue forms, so the device remembers it for the
+  // night — scan, tap, admitted. Kept per-event, and dropped the moment the
+  // PIN is refused so a changed PIN can't strand the door.
+  function remembered(){ try { return localStorage.getItem(SLOT) || ''; } catch(e) { return ''; } }
+  function remember(v){ try { localStorage.setItem(SLOT, v); } catch(e) {} }
+  function forget(){
+    try { localStorage.removeItem(SLOT); } catch(e) {}
+    document.getElementById('remembered').hidden = true;
+    document.getElementById('pw').value = '';
+    document.getElementById('pw').focus();
+  }
+  (function(){
+    var saved = remembered();
+    if (saved) {
+      document.getElementById('pw').value = saved;
+      document.getElementById('remembered').hidden = false;
+      document.getElementById('go').focus();   // one tap away, never automatic
+    } else {
+      document.getElementById('pw').focus();
+    }
+  })();
+
   function redeem(){
     var btn=document.getElementById('go'), err=document.getElementById('err');
+    var pin=document.getElementById('pw').value;
     err.textContent='';
     btn.disabled=true; btn.textContent='Stamping…';
-    fetch('/door/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})})
+    fetch('/door/'+encodeURIComponent(CODE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pin})})
       .then(function(r){return r.json()}).then(function(d){
-        if(d.ok){ location.reload(); }
-        else { btn.disabled=false; btn.textContent='Admit & stamp the keepsake'; err.textContent=d.error||'Could not check in.'; }
+        if(d.ok){ remember(pin); location.reload(); }
+        else {
+          if (/pin/i.test(d.error||'')) { forget(); }
+          btn.disabled=false; btn.textContent='Admit & stamp the keepsake';
+          err.textContent=d.error||'Could not check in.';
+        }
       }).catch(function(){ btn.disabled=false; btn.textContent='Admit & stamp the keepsake'; err.textContent='Could not reach the server.'; });
   }
   document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') redeem(); });

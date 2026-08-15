@@ -74,6 +74,23 @@ function get(key) {
 
 /** The plaque token for a private event, generating one for legacy records
  *  that predate it (persisted so emailed links stay stable). */
+/** The door PIN, minted on demand.
+ *
+ *  Redemption is off-chain and switchable, so an event can gain a door long
+ *  after it was created — and every event made before door PINs existed has
+ *  none at all. Generating here means turning redemption on is enough; there
+ *  is no second step to forget on the day. */
+function ensureDoorPin(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  if (!e.doorPin) {
+    e.doorPin = String(crypto.randomInt(100000, 1000000));
+    write(data);
+  }
+  return e.doorPin;
+}
+
 function ensureVaultToken(key) {
   const data = read();
   const e = data.events[key];
@@ -230,6 +247,13 @@ function create(input) {
   // claimed ticket can be redeemed at the door (flips the contract's redeem
   // flag; the keepsake gains its ADMITTED stamp). Keepsake-only events leave it off.
   const redemptionEnabled = input.redemptionEnabled === true || input.redemptionEnabled === "true";
+  // The door's own key. Volunteers working a door must never hold
+  // ADMIN_PASSWORD — that one opens the whole console, every event, the
+  // backups and the custody ledger. This PIN admits guests to THIS event and
+  // does nothing else, so it can be handed to whoever is standing at the door.
+  const doorPin = redemptionEnabled
+    ? (String(input.doorPin || "").trim().slice(0, 12) || String(crypto.randomInt(100000, 1000000)))
+    : null;
 
   // Who may SUBMIT memories to the vault. "open" (default): anyone with the
   // vault link — photos are donations, and the curation gate is the real
@@ -281,7 +305,7 @@ function create(input) {
     sponsorLabel, sponsorName, sponsors, palette, style, allowInscription,
     venue, soulbound, onChainEventId, onChainVersion, mintedCount: 0,
     mode, blocks, redemptionEnabled, sections, showPrice, vaultSubmissions,
-    vaultVisibility, vaultToken, orgToken, activationRequired, sellerPin,
+    vaultVisibility, vaultToken, orgToken, activationRequired, sellerPin, doorPin,
     // Stripe Connect: when set, card sales run ON the organizer's own Stripe
     // (they are merchant of record; our fee peels off automatically). Null =
     // platform-collect pilot mode or a free event.
@@ -315,4 +339,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureOrgToken, rotateOrgToken, setStripeAccount, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, ensureOrgToken, rotateOrgToken, setStripeAccount, PLATFORM_MINIMUM_UNLOCK_DAYS };
