@@ -15,7 +15,7 @@ const events = require("./events");
 const claims = require("./claims");
 const vaultStore = require("./vault-store");
 
-function mountOverview(app, { chain, chainV5 } = {}) {
+function mountOverview(app, { chain, chainV5, chainV6 } = {}) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
 
   function checkPassword(req, res, next) {
@@ -80,11 +80,15 @@ function mountOverview(app, { chain, chainV5 } = {}) {
       }
     } catch { system.legacyGasEth = "unreachable"; }
     try {
-      if (chainV5) {
-        const b = await chainV5.provider.getBalance(chainV5.signer.address);
+      // The newest configured model is the one that mints, so it is the one
+      // whose gas matters. Read it from `newest`, never from a named version —
+      // hardcoding chainV5 here would throw the moment V6 ships alone.
+      const newest = chainV6 || chainV5;
+      if (newest) {
+        const b = await newest.provider.getBalance(newest.signer.address);
         system.mainGasEth = Number(formatEther(b)).toFixed(5);
-        system.mainGasLow = Number(formatEther(b)) < 0.0005;
-        system.mainChainId = chainV5.network.chainId.toString();
+        system.mainGasLow = Number(formatEther(b)) < Number(process.env.MIN_GAS_ETH || 0.0005);
+        system.mainChainId = newest.network.chainId.toString();
       }
     } catch { system.mainGasEth = "unreachable"; }
 

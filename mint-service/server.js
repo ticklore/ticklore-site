@@ -36,6 +36,7 @@ const ticklorev2 = require("./lib/ticklore-v2");
 const ticklorev3 = require("./lib/ticklore-v3");
 const ticklorev4 = require("./lib/ticklore-v4");
 const ticklorev5 = require("./lib/ticklore-v5");
+const ticklorev6 = require("./lib/ticklore-v6");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.MINT_API_KEY;
@@ -77,10 +78,12 @@ let chainV2 = null;   // set at startup when TICKLORE_CONTRACT_V2 is configured
 let chainV3 = null;   // set at startup when TICKLORE_CONTRACT_V3 is configured
 let chainV4 = null;   // set at startup when TICKLORE_CONTRACT_V4 is configured
 let chainV5 = null;   // set at startup when TICKLORE_CONTRACT_V5 is configured
+let chainV6 = null;   // set at startup when TICKLORE_CONTRACT_V6 is configured
 
 /** Every configured event-model source, newest first. */
 function ticketSources() {
   const list = [];
+  if (chainV6) list.push({ src: chainV6, lib: ticklorev6 });
   if (chainV5) list.push({ src: chainV5, lib: ticklorev5 });
   if (chainV4) list.push({ src: chainV4, lib: ticklorev4 });
   if (chainV3) list.push({ src: chainV3, lib: ticklorev3 });
@@ -99,7 +102,8 @@ function ticketSources() {
  *  fallback for unqualified links. */
 async function findTicket(id, versionPin) {
   if (versionPin) {
-    const byVersion = { 5: chainV5 && { src: chainV5, lib: ticklorev5 },
+    const byVersion = { 6: chainV6 && { src: chainV6, lib: ticklorev6 },
+                       5: chainV5 && { src: chainV5, lib: ticklorev5 },
                        4: chainV4 && { src: chainV4, lib: ticklorev4 },
                        3: chainV3 && { src: chainV3, lib: ticklorev3 },
                        2: chainV2 && { src: chainV2, lib: ticklorev2 },
@@ -171,7 +175,8 @@ app.get("/health", async (req, res) => {
     const legacyEth = Number(formatEther(balance));
 
     // The newest connected model is the one that mints today.
-    const active = chainV5 ? { v: 5, c: chainV5 }
+    const active = chainV6 ? { v: 6, c: chainV6 }
+                 : chainV5 ? { v: 5, c: chainV5 }
                  : chainV4 ? { v: 4, c: chainV4 }
                  : chainV3 ? { v: 3, c: chainV3 }
                  : chainV2 ? { v: 2, c: chainV2 }
@@ -357,22 +362,34 @@ show();
       }
     }
 
+    // Optional V6 (V5 + the keepsake's own typography) — same gate. Every
+    // contract flip is an ADDED variable, never a replacement: the older
+    // generations stay connected so keepsakes minted on them keep rendering.
+    if (process.env.TICKLORE_CONTRACT_V6) {
+      try {
+        chainV6 = await ticklorev6.connect();
+        console.log("  V6 model : connected", chainV6.address);
+      } catch (e) {
+        console.warn("  ⚠ V6 connect failed:", e.message);
+      }
+    }
+
     // Mounted first so the webhook's express.raw() sees unparsed bytes.
     // Always mounted, even without Stripe: /success and /order don't need it,
     // and the demo buy path lands on /success?demo=... to mint. The two routes
     // that truly need Stripe (/webhook, /checkout) guard themselves when it's
     // null, so a Stripe-less showroom still has a working success page.
-    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5 });
+    require("./lib/stripe-routes").mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5, chainV6 });
     // The public storefront. Uses Stripe checkout when available, and falls
     // back to a gated demo mint so it is never dead in a local showing.
     require("./lib/storefront").mountStorefront(app, { chain, stripeEnabled: !!stripe });
-    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3, chainV4, chainV5 });
+    require("./lib/organizer").mountOrganizer(app, { chain, chainV2, chainV3, chainV4, chainV5, chainV6 });
     // Admin-only concierge backend for sponsor keepsake events (Lane B). Needs
     // V3+ for the on-chain sponsor list; prefers V4 (sections, price display).
-    require("./lib/concierge").mountConcierge(app, { chainV3, chainV4, chainV5 });
+    require("./lib/concierge").mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 });
     // Mission Control — the founder's one-screen view: totals, per-event
     // table, gas on both chains, backup age. Counts only, like everything.
-    require("./lib/overview").mountOverview(app, { chain, chainV5 });
+    require("./lib/overview").mountOverview(app, { chain, chainV5, chainV6 });
     // The memory vault: public branded pages + concierge curation. Content
     // sits behind lib/vault-store.js — the seam Arweave fills after the freeze.
     require("./lib/vault").mountVault(app);

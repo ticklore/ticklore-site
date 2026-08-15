@@ -22,21 +22,22 @@ const names = require("./names");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const ticklorev5 = require("./ticklore-v5");
+const ticklorev6 = require("./ticklore-v6");
 const privyLib = require("./privy");
 
-function mountConcierge(app, { chainV3, chainV4, chainV5 }) {
+function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
   const PASSWORD = process.env.ADMIN_PASSWORD;
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
 
   // The newest configured event-model contract does the work. V4 adds named
   // sections + the price-display switch; V3 (multi-sponsor only) is the
   // fallback until the flip.
-  const activeChain = chainV5 || chainV4 || chainV3;
-  const activeLib = chainV5 ? ticklorev5 : (chainV4 ? ticklorev4 : ticklorev3);
-  const activeVersion = chainV5 ? 5 : (chainV4 ? 4 : 3);
+  const activeChain = chainV6 || chainV5 || chainV4 || chainV3;
+  const activeLib = chainV6 ? ticklorev6 : (chainV5 ? ticklorev5 : (chainV4 ? ticklorev4 : ticklorev3));
+  const activeVersion = chainV6 ? 6 : (chainV5 ? 5 : (chainV4 ? 4 : 3));
   // A token's ids only mean anything on the contract that created it.
-  const chainByVersion = { 5: chainV5, 4: chainV4, 3: chainV3 };
-  const libByVersion = { 5: ticklorev5, 4: ticklorev4, 3: ticklorev3 };
+  const chainByVersion = { 6: chainV6, 5: chainV5, 4: chainV4, 3: chainV3 };
+  const libByVersion = { 6: ticklorev6, 5: ticklorev5, 4: ticklorev4, 3: ticklorev3 };
 
   // Privy (optional, env-gated like every other flip — see lib/privy.js).
   // When configured, the claim flow upgrades: email OTP proves the claimant

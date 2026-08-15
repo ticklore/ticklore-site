@@ -31,6 +31,7 @@ const ticklorev2 = require("./ticklore-v2");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const ticklorev5 = require("./ticklore-v5");
+const ticklorev6 = require("./ticklore-v6");
 const store = require("./store");
 const events = require("./events");
 const claims = require("./claims");
@@ -72,7 +73,7 @@ function listEvents() {
   return [...seeded, ...created];
 }
 
-function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5 }) {
+function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chainV5, chainV6 }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
   const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -249,6 +250,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       // versions, so minting and display must agree on the universe. Events
       // with an on-chain id use their own generation; seeds fall back to V1.
       const vmap = {
+        6: chainV6 && [chainV6, ticklorev6],
         5: chainV5 && [chainV5, ticklorev5],
         4: chainV4 && [chainV4, ticklorev4],
         3: chainV3 && [chainV3, ticklorev3],
