@@ -196,7 +196,18 @@ async function sendClaimEmail({ to, eventName, ticketId, claimUrl, vaultUrl, own
 
 /** The email a card buyer gets the moment their payment lands: their claim
  *  link — a purchased code, delivered instead of printed. */
-async function sendCodeEmail({ to, eventName, claimUrl, priceCents }) {
+/**
+ * The claim link(s) after a card sale.
+ *
+ * Takes `claimUrls` (an array) or the older single `claimUrl`. One payment can
+ * buy several seats, and each seat is its OWN keepsake — so the email hands
+ * over one link per ticket and says plainly that they're forwardable. That is
+ * the whole mechanism by which a date or a family member ends up holding their
+ * own keepsake rather than a screenshot of someone else's.
+ */
+async function sendCodeEmail({ to, eventName, claimUrl, claimUrls, priceCents }) {
+  const urls = (Array.isArray(claimUrls) && claimUrls.length ? claimUrls : [claimUrl]).filter(Boolean);
+  const many = urls.length > 1;
   const { Resend } = require("resend");
   const key = process.env.RESEND_API_KEY;
   if (!key) return { sent: false, reason: "RESEND_API_KEY not set" };
@@ -207,22 +218,32 @@ async function sendCodeEmail({ to, eventName, claimUrl, priceCents }) {
   const { data, error } = await new Resend(key).emails.send({
     from,
     to: [to],
-    subject: `Your ticket to ${eventName} 🎟`,
+    subject: many ? `Your ${urls.length} tickets to ${eventName} 🎟` : `Your ticket to ${eventName} 🎟`,
     html: `
 <div style="background:#0E262B;padding:36px 20px;font-family:Georgia,serif;color:#F1E9DD">
   <div style="max-width:480px;margin:0 auto;text-align:center">
     <div style="font-size:22px;font-weight:600;margin-bottom:4px">Tick<span style="font-style:italic;color:#E3C25E">lore</span></div>
     <div style="font-style:italic;color:#E3C25E;font-size:14px;margin-bottom:26px">Every ticket has a story.</div>
     <div style="font-size:19px;margin-bottom:8px">You're going to ${eventName}.</div>
-    <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">${price ? `Paid ${price} · ` : ""}Your keepsake ticket is one tap away.</div>
-    <a href="${claimUrl}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
-       padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px">Claim my keepsake &rarr;</a>
-    <div style="color:rgba(241,233,221,.55);font-size:12px;margin-top:24px;line-height:1.6">
-      This link IS your ticket — keep it safe like cash, and don't share it.<br>
+    <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">${price ? `Paid ${price} · ` : ""}${
+      many ? `${urls.length} keepsake tickets, one tap each.` : "Your keepsake ticket is one tap away."
+    }</div>
+    ${urls.map((u, i) => `<a href="${u}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
+       padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px;margin-bottom:10px">${
+         many ? `Claim ticket ${i + 1} of ${urls.length} &rarr;` : "Claim my keepsake &rarr;"
+       }</a><br>`).join("")}
+    <div style="color:rgba(241,233,221,.55);font-size:12px;margin-top:18px;line-height:1.6">
+      ${many
+        ? `Each link is its own ticket. <b>Forward one to each guest</b> and the keepsake becomes theirs, in their own name.<br>Keep them safe like cash — anyone holding a link can claim it.`
+        : `This link IS your ticket — keep it safe like cash, and don't share it.`}<br>
       No wallet, no app, no crypto anything required.</div>
   </div>
 </div>`,
-    text: `You're going to ${eventName}. ${price ? `Paid ${price}. ` : ""}Claim your keepsake ticket: ${claimUrl}\nThis link IS your ticket — keep it safe and don't share it.`,
+    text: `You're going to ${eventName}. ${price ? `Paid ${price}. ` : ""}${
+      many
+        ? `Here are your ${urls.length} tickets — each link is its own keepsake, so forward one to each guest:\n\n${urls.map((u, i) => `Ticket ${i + 1}: ${u}`).join("\n")}\n\nKeep them safe like cash — anyone holding a link can claim it.`
+        : `Claim your keepsake ticket: ${urls[0]}\nThis link IS your ticket — keep it safe and don't share it.`
+    }`,
   });
   if (error) return { sent: false, reason: error.message || String(error) };
   return { sent: true, id: data?.id };

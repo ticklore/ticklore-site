@@ -197,21 +197,40 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         if (!details) throw new Error(`Unknown event: ${eventKey}`);
         const buyerEmail = session.customer_details?.email || null;
 
-        const rec = claims.allocateOnline(eventKey, buyerEmail);
-        if (!rec) {
+        // One payment can carry several seats. Take them in a single batch.
+        const wanted = Math.max(1, Math.floor(Number(session.metadata?.qty) || 1));
+        const recs = claims.allocateOnlineBatch(eventKey, buyerEmail, wanted);
+
+        if (!recs.length) {
           // Paid but sold out — the race window is tiny (availability is checked
           // at checkout creation) but money is involved, so shout loudly.
           store.releaseSession(session.id, "online codes sold out — REFUND NEEDED");
           console.error(`  ✗✗ PAID BUT SOLD OUT: ${session.id} (${buyerEmail}) — refund in the Stripe dashboard`);
           return;
         }
+        if (recs.length < wanted) {
+          // Partially filled: they paid for more seats than existed. The
+          // tickets they DID get are real and still go out; the shortfall is a
+          // refund a human has to make, so it is logged as loudly as a total
+          // failure rather than buried in a success line.
+          console.error(`  ✗✗ PARTIAL: ${session.id} (${buyerEmail}) paid for ${wanted}, got ${recs.length}` +
+            ` — refund ${wanted - recs.length} ticket(s) in the Stripe dashboard`);
+        }
 
-        const claimUrl = `${PUBLIC_URL}/claim/${rec.code}`;
+        const claimUrls = recs.map((r) => `${PUBLIC_URL}/claim/${r.code}`);
         const emailResult = await require("./email").sendCodeEmail({
-          to: buyerEmail, eventName: details.name, claimUrl, priceCents: session.amount_total,
+          to: buyerEmail, eventName: details.name, claimUrls, priceCents: session.amount_total,
         });
-        store.completeSession(session.id, { code: rec.code, recipient: buyerEmail, custodial: true });
-        console.log(`  ✓ code sale ${session.id} → ${rec.code} → ${buyerEmail} ${emailResult.sent ? `(✉ ${emailResult.id})` : `(⚠ email: ${emailResult.reason})`}`);
+        store.completeSession(session.id, {
+          code: recs[0].code,
+          codes: recs.map((r) => r.code),
+          quantity: recs.length,
+          paidFor: wanted,
+          recipient: buyerEmail,
+          custodial: true,
+        });
+        console.log(`  ✓ code sale ${session.id} → ${recs.length}/${wanted} ticket(s) → ${buyerEmail} ` +
+          `${emailResult.sent ? `(✉ ${emailResult.id})` : `(⚠ email: ${emailResult.reason})`}`);
 
         // A gift that rode along with the ticket. Its own try/catch on purpose:
         // a bookkeeping failure must never stand between a buyer and the ticket
@@ -488,6 +507,9 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
 
   const MIN_GIFT_CENTS = 100;        // $1 — below this, fees eat the gift
   const MAX_GIFT_CENTS = 1000000;    // $10,000 — a typo guard, not a policy
+  // A table is eight to ten. Above that it stops being a family and starts
+  // being someone hoovering up a 150-seat room in one click.
+  const MAX_PER_ORDER = 10;
 
   /** Validate a client-supplied gift. Returns cents, or throws with a reason.
    *  Never trust the browser with an amount: this is the only place that decides. */
@@ -516,6 +538,17 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       if (lane.remaining < 1) return res.status(409).json({ error: "Online tickets are sold out — cards may still be available at the door." });
       if (!lane.block.priceCents) return res.status(400).json({ error: "This event's online tickets aren't priced." });
 
+      // People bring dates and families. One seat per checkout would send a
+      // couple through the card form twice, and a table of eight away.
+      const qty = Math.max(1, Math.min(MAX_PER_ORDER, Math.floor(Number(req.body && req.body.qty) || 1)));
+      if (qty > lane.remaining) {
+        return res.status(409).json({
+          error: lane.remaining === 1
+            ? "Only 1 ticket is left online."
+            : `Only ${lane.remaining} tickets are left online.`,
+        });
+      }
+
       // The gift rides as its OWN line item, never folded into the ticket
       // price. A treasurer has to be able to separate the two — the ticket is
       // a quid pro quo with a dinner attached, the gift is a gift.
@@ -528,7 +561,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         mode: "payment",
         payment_method_types: ["card"],
         line_items: [{
-          quantity: 1,
+          quantity: qty,
           price_data: {
             currency: "usd",
             unit_amount: lane.block.priceCents,
@@ -538,7 +571,7 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
             },
           },
         }],
-        metadata: { codeSale: "true", eventKey: req.params.key },
+        metadata: { codeSale: "true", eventKey: req.params.key, qty: String(qty) },
         success_url: `${PUBLIC_URL}/bought?key=${encodeURIComponent(req.params.key)}`,
         cancel_url: `${PUBLIC_URL}/buy/${encodeURIComponent(req.params.key)}`,
       };
@@ -568,7 +601,11 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         // A zero fee is sent as NO fee at all, not as a fee of zero — on a
         // no-cut pilot the whole ticket price is theirs and the charge should
         // say so plainly.
-        const feeCents = require("./connect").platformFeeCents(lane.block.priceCents, lane.details);
+        // Per TICKET, times the number bought — the fee follows the seats, not
+        // the transaction, so buying four in one go costs the same as four
+        // separate checkouts. Still computed from the ticket price alone: no
+        // fee ever attaches to a donation.
+        const feeCents = require("./connect").platformFeeCents(lane.block.priceCents, lane.details) * qty;
         if (feeCents > 0) params.payment_intent_data = { application_fee_amount: feeCents };
         opts.stripeAccount = lane.details.stripeAccountId;
       }
@@ -768,6 +805,11 @@ ${require("./ui").LOCKUP_CSS}
   .other{width:100%;margin-top:10px;background:var(--ink-deep);color:var(--parchment);
     border:1px solid var(--line);border-radius:8px;padding:12px;font-size:1rem}
   .giftnote{color:rgba(241,233,221,.5);font-size:.8rem;margin-top:11px;line-height:1.55}
+  .qty{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0}
+  .qty label{font-size:.95rem}
+  .qty select{background:var(--ink-deep);color:var(--parchment);border:1px solid var(--line);
+    border-radius:8px;padding:10px 14px;font-size:1rem;min-width:84px}
 </style></head><body><div class="box">
 <div class="brand">Tick<em>lore</em></div><div class="tag">Every ticket has a story.</div>`;
 }
@@ -825,10 +867,21 @@ function buyPage({ key, lane, stripeReady, giftsOpen }) {
   })}</div>
 </div>` : "";
 
+  // A gala is a couples-and-tables event, so the picker goes to 10 or whatever
+  // is actually left, whichever is smaller — never offer a seat that isn't there.
+  const maxQty = Math.max(1, Math.min(10, remaining));
+  const qtyUI = maxQty > 1 ? `<div class="qty">
+  <label for="qty">How many tickets?</label>
+  <select id="qty" onchange="label()">
+    ${Array.from({ length: maxQty }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("")}
+  </select>
+</div>` : "";
+
   return gateHead("Buy a ticket — " + esc(details.name)) + `<h1>${esc(details.name)}</h1>
 <div class="venue">${esc(details.venue || "")}</div>
 <div class="price">${price}</div>
 <div class="left">${remaining} available online</div>
+${qtyUI}
 ${gift}
 <button id="go" onclick="pay()">Pay by card &rarr;</button>
 <div class="err" id="err"></div>
@@ -838,9 +891,13 @@ it becomes a permanent keepsake when you claim it. No wallet, no app, no crypto 
   var TICKET=${lane.block.priceCents};
   ${giftsOpen ? giftScript("label();") : "var gift=0;"}
   function money(c){ return '$'+(c/100).toFixed(2).replace(/\\.00$/,''); }
+  function qty(){ var q=document.getElementById('qty'); return q ? Number(q.value)||1 : 1; }
   function label(){
-    var btn=document.getElementById('go');
-    btn.textContent = gift>0 ? 'Pay '+money(TICKET+gift)+' by card \\u2192' : 'Pay by card \\u2192';
+    var btn=document.getElementById('go'), n=qty();
+    var total = TICKET*n + gift;
+    btn.textContent = (n>1 || gift>0)
+      ? 'Pay '+money(total)+' by card \\u2192'
+      : 'Pay by card \\u2192';
   }
   function toggleGift(){
     var on=document.getElementById('addgift').checked;
@@ -852,7 +909,7 @@ it becomes a permanent keepsake when you claim it. No wallet, no app, no crypto 
     var btn=document.getElementById('go'), err=document.getElementById('err');
     err.textContent=''; btn.disabled=true; btn.textContent='Opening secure checkout…';
     fetch('/buy/${encodeURIComponent(key)}/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({donationCents:gift})})
+      body:JSON.stringify({donationCents:gift, qty:qty()})})
       .then(function(r){return r.json()}).then(function(d){
         if(d.url){ location.href=d.url; }
         else { btn.disabled=false; label(); err.textContent=d.error||'Could not start checkout.'; }

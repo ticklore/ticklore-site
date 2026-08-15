@@ -190,6 +190,37 @@ function allocateOnline(eventKey, buyerEmail) {
   return pick;
 }
 
+/**
+ * Allocate SEVERAL online codes at once — one payment, several seats.
+ *
+ * People bring dates and families, so a checkout that only sells one ticket is
+ * a checkout that loses the sale. This takes them in a single read/write: N
+ * separate allocateOnline() calls would each re-read the file, and two orders
+ * landing together could hand the same code to both buyers.
+ *
+ * Returns whatever it could take, which may be FEWER than asked for if the
+ * event sold out in between. The caller has already taken money, so a short
+ * result is a refund conversation, never a silent shrug.
+ */
+function allocateOnlineBatch(eventKey, buyerEmail, qty) {
+  const want = Math.max(1, Math.floor(Number(qty) || 1));
+  const data = read();
+  const open = Object.values(data.codes)
+    .filter((c) => c.eventKey === eventKey && c.channel === "online" && c.status === "unclaimed" && !c.assignedTo)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+    .slice(0, want);
+  if (!open.length) return [];
+
+  const who = String(buyerEmail || "").trim().slice(0, 120) || "unknown";
+  const at = new Date().toISOString();
+  for (const c of open) {
+    c.assignedTo = who;
+    c.assignedAt = at;
+  }
+  write(data);
+  return open;
+}
+
 /** How many online codes remain sellable for an event. */
 function onlineRemaining(eventKey) {
   return Object.values(read().codes)
@@ -310,6 +341,6 @@ function removeByEvent(eventKey) {
 module.exports = {
   generate, get, listByEvent, statsByEvent, listByOwner,
   importRoster, listRoster, markEmailed,
-  activate, allocateOnline, onlineRemaining,
+  activate, allocateOnline, allocateOnlineBatch, onlineRemaining,
   reserve, finalize, release, markRedeemed, removeByEvent,
 };
