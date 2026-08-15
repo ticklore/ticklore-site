@@ -744,3 +744,82 @@ and the marketing nav links render underlined, which predates this work.
 
 **Alex intends to change the wordmark font and colour later** — that is now a text/CSS edit in the two
 places above, not a re-export of artwork. That was the point of doing it this way.
+
+**WORDMARK SETTLED (2026-08-14):** six options were rendered against the symbol; Alex chose **Outfit
+Light**, `TICK` ivory + `LORE` in the mark's own gold. The tagline centring is typographic, not a nudge —
+letter-spacing puts its gap AFTER the last letter, so each line cancels its own trailing space with a
+negative margin equal to its tracking, and only then is `align-items:center` honest (a `text-indent`
+patch failed first because the two lines track differently). Also tried and REVERTED: a finer-stroked
+gold-on-teal symbol — it dissolved at nav and favicon size. **A logo that only works large fails in a
+browser tab.**
+
+## 🚪 DOOR PIN — BUILT (2026-08-14, 44cd4db). The Gala's hard blocker, cleared.
+The door was gated by `ADMIN_PASSWORD` — the password that opens the console, every other event, the
+claim codes, the custody ledger and the backups. On Dec 31 it would have been read aloud to a volunteer at
+a folding table. Every event with redemption on now carries a **six-digit door PIN** (minted like the
+seller PIN; shown on the create result and the `/admin` row). `events.ensureDoorPin()` mints on read, so
+events created before this — and events that gain a door later — are covered, with no second step to
+forget on the day. **The PIN is checked only AFTER the event is resolved**, because it is per-event: one
+door's PIN must never open another. ADMIN_PASSWORD still works as a fallback so Alex is never locked out
+of his own door. The door page remembers the PIN per event on the device (a door scans one guest per page
+load; retyping a secret for every person is how a queue forms), forgets it instantly if refused, and never
+admits automatically on load — a human should be looking at the person in front of them. **Verified live:
+keepsake #6 carries the permanent ADMITTED stamp.**
+
+## 6 V6 — DEPLOYED + WIRED + FLIPPED (2026-08-14, e4033af / e79ab9b / d8d4abb)
+`TickloreTicketV6.sol` at **`0xf37b6564c64a13ace20c8227fc71f5d058fe221e`** (Base Sepolia, owner = minter),
+**29 forge tests** (V5's 27 plus two pinning the art). V6 = V5 + TYPOGRAPHY: ABI, storage and behaviour
+are byte-for-byte V5's. It earns a version because **the keepsake renders its own wordmark in Solidity and
+that freezes at deploy** — the site had moved to a light sans while the keepsake still said TICKLORE in
+monospace, so the two things a guest sees wore different brands. Fixed while the art was open: the
+tagline's baseline sat 4px from the frame (price/# now y=452, tagline y=472).
+**An on-chain SVG can only NAME a font — the viewer's device supplies it.** V6 picks a CATEGORY, not a
+typeface, and renders differently on Mac/PC/Android; embedding a font would cost more than the rest of the
+contract. `TICKLORE_CONTRACT_V6` is set and `/health` reports `minting.version: 6`.
+`lib/ticklore-v6.js` is thin (re-exports V5, own connect, `TICKLORE_RPC_V6`).
+**Bug caught while wiring:** `/admin/overview` computed the newest chain then read `chainV5` for the
+balance — with V6 alone that is a null dereference, and the casualty is the gas chip that warns the minter
+is running dry. **Deploys need the `tickloreDeployer` keystore password (Alex's alone). July's was lost
+and re-imported as `tickloreDeployer2` — WRITE THE MAINNET ONE DOWN.**
+
+## 💳 CARD LANE — two fixes (2026-08-14, 72ada23 + de3a37e)
+**It was invisible, not missing.** A block marked `online` always created a real Stripe page at
+`/buy/<key>`, but the admin console linked to Codes/Vault/Roster/Live/Invite and never to it — so "the
+organizer panel takes cards and the admin panel doesn't" was really "the feature exists and cannot be
+found." Rows with an online block now carry a **Buy page** link; events without one say so, and say to
+tick `online`.
+**MULTI-TICKET (de3a37e):** people bring dates and families, and one seat per checkout sends a couple
+through the card form twice. Quantity picker offers `min(10, remaining)`; the server clamps it (never
+trust the browser with how many seats to sell); the fee scales per ticket.
+`claims.allocateOnlineBatch()` takes N codes in ONE read/write — N separate calls would each re-read the
+file, and two orders landing together could double-sell a code. **Each ticket stays its own keepsake**:
+the email sends one link per ticket and says to forward one per guest, so a date holds a keepsake in their
+own name rather than a screenshot of someone else's. A **partial fill** still delivers the real tickets
+and logs the shortfall as loudly as a total failure, because a human has to refund it.
+
+**OTP errors stopped blaming the guest (90d1577).** "That code did not verify" was one catch wrapped
+around the whole sign-in — the code check, the wallet, the token, the claim request — so any downstream
+failure told the guest their code was wrong. Verification now stands alone: a genuinely bad code names the
+two real causes (use the NEWEST email, since another send voids the last; try a private window, because
+stale Privy localStorage returns 422 on a good code — a dev-machine problem real guests do not have), and
+anything failing after sign-in says so and says the code was fine.
+
+## 🗓️ THE RUN-IN (Alex, 2026-08-14): ~6 WEEKS UNTIL TICKETS GO ON SALE
+Critical path in dependency order. **Mainnet must precede the real Gala event** — the first keepsake a
+real person keeps is the freeze trigger, and that is Alex's own rule.
+1. **Mainnet bundle** — V6 to Base mainnet · fresh minter key (`0x668e62D9…ecf3`, funded) · the July key
+   rotation finally closes · Privy production · `TICKLORE_CONTRACT_V6` + `TICKLORE_RPC_V6` = mainnet while
+   `RPC_URL` stays Sepolia so every earlier keepsake keeps rendering · raise `MIN_GAS_ETH` above a
+   150-mint runway.
+2. **Stripe live migration** — live keys, live Connect client id + redirect URI, BOTH live webhook
+   destinations. Then rung 2 of `docs/stripe-rehearsal.md`: a $1 event on a second Stripe account, real
+   card, real payout, so Alex walks the treasurer's onboarding before asking her to.
+3. **Create the real Gala event** → wire the THREE placeholder links on `/gala` (two buy, one donate).
+4. **Manual code-entry page** — `/gala` promises "enter it here" and no such box exists; a guest with a
+   dead camera or a torn stub has no way in. Same build as the door kit's "manual lookup".
+5. **Door kit polish** — big green/red result, running check-in count, lookup by name/label, printable
+   fallback for saturated venue wifi.
+6. Claim-on-behalf at the door, reserve blocks (~10 held back).
+
+**Env still outstanding: `DONATION_STORE=/var/data/donations.json`** (gifts otherwise sit on ephemeral
+disk and vanish on redeploy) and **`MIN_GAS_ETH`**.
