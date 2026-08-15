@@ -182,6 +182,9 @@ function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
         // Minted on read for any event with a door, including ones created
         // before door PINs existed and ones that gained redemption later.
         doorPin: e.redemptionEnabled ? (e.doorPin || events.ensureDoorPin(e.key)) : null,
+        // Does this event have a card lane at all? A block marked "online" is
+        // what creates one — without it there is no /buy page to link to.
+        hasOnline: (e.blocks || []).some((b) => b.online),
         ...claims.statsByEvent(e.key),
       }));
     res.json({ events: sponsorEvents });
@@ -736,6 +739,9 @@ function adminPage() {
             + (d.onlineCount ? ' ('+d.onlineCount+' reserved for online sale)' : '') + '. '
             + (d.sellerPin ? '<br><b style="color:var(--gold-bright)">Seller PIN: <span class="mono">'+esc(d.sellerPin)+'</span></b> — write it down for the ticket desk; it activates cards at sale. ' : '')
             + (d.doorPin ? '<br><b style="color:var(--gold-bright)">Door PIN: <span class="mono">'+esc(d.doorPin)+'</span></b> — this is what the door staff use. Never give them the admin password. ' : '')
+            + (d.onlineCount
+                ? '<br><b style="color:var(--gold-bright)">Card sales:</b> <a class="mono" href="/buy/'+encodeURIComponent(d.key)+'" target="_blank" style="color:var(--gold-bright)">/buy/'+esc(d.key)+'</a> — the public page for a poster QR or a website button. '
+                : '<br><span style="color:rgba(241,233,221,.55)">No card lane on this event — tick <b>online</b> on a block to create one.</span>')
             + '<a href="/admin/event/'+encodeURIComponent(d.key)+'/sheet" target="_blank">Open the code sheet &rarr;</a>'
             + ' &nbsp;<a href="#" onclick="resetForm();return false;">New event &rarr;</a>';
           loadEvents();
@@ -769,6 +775,9 @@ function adminPage() {
           + '<div class="ev__main"><div class="ev__name">'+esc(e.name)+'</div>'
           + '<div class="ev__meta">'+esc(e.date||'')+' &middot; '+e.claimed+'/'+e.total+' claimed &middot; event #'+esc(String(e.onChainEventId||'?'))+(e.stripeConnected?' &middot; &#128179; connected':'')
           + (e.doorPin?' &middot; &#128682; door PIN <b style="color:var(--gold-bright)" class="mono">'+esc(e.doorPin)+'</b>':'')+'</div></div>'
+          + (e.hasOnline
+              ? '<a class="ev__sheet" href="/buy/'+encodeURIComponent(e.key)+'" target="_blank" title="The public card-payment page — this is the link for a poster QR or a website button">&#128179; Buy page &rarr;</a>'
+              : '')
           + '<a class="ev__sheet" href="/admin/event/'+encodeURIComponent(e.key)+'/sheet" target="_blank">Codes &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/vault/'+encodeURIComponent(e.key)+'" target="_blank">Vault &rarr;</a>'
           + '<a class="ev__sheet" href="/admin/roster/'+encodeURIComponent(e.key)+'" target="_blank">Roster &rarr;</a>'
