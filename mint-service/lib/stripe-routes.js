@@ -68,7 +68,15 @@ function getEvent(key) {
 /** All PUBLIC events, seeds first then organizer-created, newest last. Sponsor
  *  (Lane B) events are concierge/claim-only, so they never appear in the shop. */
 function listEvents() {
-  const seeded = Object.entries(SEED_EVENTS).map(([key, e]) => ({ key, ...e }));
+  // SEEDS ARE NO LONGER SOLD. They were a showroom for a demo, and they mint on
+  // V1/Sepolia — which the mainnet minter cannot write to. Left listed, a
+  // stranger could land on /shop, be charged real money, and receive a keepsake
+  // that is impossible to create. The data stays (old seed tickets still need it
+  // to render); only the storefront listing goes. SHOW_SEED_EVENTS=true brings
+  // them back for a local demo.
+  const seeded = process.env.SHOW_SEED_EVENTS === "true"
+    ? Object.entries(SEED_EVENTS).map(([key, e]) => ({ key, ...e }))
+    : [];
   const created = events.list().filter((e) => e.mode !== "sponsor");
   return [...seeded, ...created];
 }
@@ -341,6 +349,52 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
   // Everything below can use parsed JSON.
   // -------------------------------------------------------------------------
 
+  /**
+   * CAN WE ACTUALLY MINT THIS? Ask before taking money, not after.
+   *
+   * An event is stranded when the contract it was created on is one this signer
+   * can no longer write to — which is exactly what happened the day the minter
+   * moved to mainnet and every Sepolia event became read-only. The old failure
+   * was silent and expensive: Stripe charged the card, the webhook reverted, and
+   * the buyer got "issuing the ticket hit a snag" for a keepsake that could
+   * never exist. On a real card that is a refund owed to a stranger.
+   *
+   * The chain is the authority here, not our config: we ask `organizerOf` who
+   * may write, and compare it to the wallet that would be signing. Anything we
+   * cannot answer confidently counts as "no" — refusing a sale costs one sale,
+   * while taking money for an impossible ticket costs trust.
+   */
+  async function mintability(details) {
+    if (!details) return { ok: false, why: "Unknown event." };
+
+    // Seeds and any pre-chain event have nothing to mint against.
+    if (!details.onChainEventId) {
+      return { ok: false, why: "This event is a showroom sample and isn't for sale." };
+    }
+    const pair = {
+      6: chainV6 && [chainV6, ticklorev6],
+      5: chainV5 && [chainV5, ticklorev5],
+      4: chainV4 && [chainV4, ticklorev4],
+      3: chainV3 && [chainV3, ticklorev3],
+    }[details.onChainVersion];
+    if (!pair) {
+      return { ok: false, why: "Tickets for this event can't be issued right now." };
+    }
+    try {
+      const [src, lib] = pair;
+      const organizer = await src.contract.organizerOf(BigInt(details.onChainEventId));
+      const signer = src.signer.address;
+      if (String(organizer).toLowerCase() !== String(signer).toLowerCase()) {
+        console.warn(`  ⚠ stranded event ${details.key}: on-chain organizer ${organizer} ≠ signer ${signer}`);
+        return { ok: false, why: "Tickets for this event can't be issued right now." };
+      }
+      return { ok: true };
+    } catch (err) {
+      console.warn(`  ⚠ mintability check failed for ${details.key}: ${err.message}`);
+      return { ok: false, why: "Tickets for this event can't be issued right now." };
+    }
+  }
+
   /** Start a checkout. Returns a Stripe URL for the browser to go to. */
   app.post("/checkout", express.json(), async (req, res) => {
     if (!stripe) {
@@ -356,6 +410,9 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       if (wallet && !require("ethers").isAddress(wallet)) {
         return res.status(400).json({ error: "That does not look like a wallet address" });
       }
+
+      const can = await mintability(details);
+      if (!can.ok) return res.status(409).json({ error: can.why });
 
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
@@ -540,6 +597,13 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
 
       // People bring dates and families. One seat per checkout would send a
       // couple through the card form twice, and a table of eight away.
+      // Same guard as the shop lane: never take money for a keepsake that
+      // cannot be minted. Codes here are allocated at payment and minted at
+      // claim, so a stranded event would fail LATER — after the buyer had walked
+      // away believing they held a ticket.
+      const can = await mintability(lane.details);
+      if (!can.ok) return res.status(409).json({ error: can.why });
+
       const qty = Math.max(1, Math.min(MAX_PER_ORDER, Math.floor(Number(req.body && req.body.qty) || 1)));
       if (qty > lane.remaining) {
         return res.status(409).json({
