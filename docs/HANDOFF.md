@@ -823,3 +823,85 @@ real person keeps is the freeze trigger, and that is Alex's own rule.
 
 **Env still outstanding: `DONATION_STORE=/var/data/donations.json`** (gifts otherwise sit on ephemeral
 disk and vanish on redeploy) and **`MIN_GAS_ETH`**.
+
+## 🌐 MAINNET — LIVE (2026-08-17). Ticklore mints on a real chain.
+`TickloreTicketV6` deployed to **Base mainnet** at **`0xA0925c3912e4dFddEAd6328778665D4074cd1A6E`**
+(chain 8453, owner = minter). Deploy cost **$0.06**; the smoke run (an event + two keepsakes) cost under
+half a cent. Base gas is ~0.006 gwei, so all 150 Gala mints together are roughly **$0.50** — the wallet
+holds ~$30 and that is years of runway.
+
+**Fresh minter `0x87455A2927f8cEc6641b78fEb598D862E1Ff6584`.** The July key rotation finally closes: the
+old exposed `0xE6Bc4936F…` is retired from the write path. Keystore is `tickloreMainnet` — **its password
+is Alex's alone and there is no recovery; write it down somewhere findable on December 30.** (July's
+`tickloreDeployer` password was lost and had to be re-imported as `tickloreDeployer2`. On mainnet that
+loss would be a different kind of day.)
+
+**Env shape (deliberate):** `TICKLORE_CONTRACT_V6` + `TICKLORE_RPC_V6` point at mainnet while `RPC_URL`
+stays on **Sepolia** — so `/health` stays green and every earlier keepsake keeps rendering. Per-version
+RPC was built for exactly this. `/health` reports `minting.chainId: 8453`.
+
+**`legacyGas: "EMPTY — mints will fail"` is CORRECT and not an alarm:** the new minter holds no *Sepolia*
+ETH. The headline `gas` reads the chain that actually mints. This is the 2026-08-14 /health fix earning
+its keep on day one — before it, the top-level gas indicator would have screamed EMPTY while the real
+wallet sat funded.
+
+**Consequence, by design:** Sepolia events are now **read-only**. They render forever; they cannot be
+claimed or door-redeemed, because those contracts are owned by the retired key. Every one of them is a test.
+
+## 🛑 NEVER CHARGE FOR AN UNMINTABLE KEEPSAKE (7aca0d0)
+Found the hard way: a test purchase returned "issuing the ticket hit a snag." The page was honest — the
+shop held only seed events, seeds mint on V1/Sepolia, and the minter had moved to mainnet that morning.
+In sandbox that costs nothing; **in live mode a stranger is charged real money for a keepsake that cannot
+exist**, on the first weekend cards work. Two fixes: seeds left the storefront (`SHOW_SEED_EVENTS=true`
+restores them; their data stays so old seed tickets render), and **both** card lanes now ask the CHAIN —
+`organizerOf(eventId)` vs the signing wallet — before creating a Stripe session. Fails closed on any
+error. The `/buy` lane needed it just as badly: a stranded event there fails at CLAIM, after the buyer
+walked away believing they held a ticket.
+
+## 🖼️ THE VAULT OPENS ON A PHOTOGRAPH (4e00382)
+It was a headline followed by a wall of grey slabs — every feature already present (header, lightbox,
+chronological order), no rhythm. Now: the cover photo is a full-bleed darkened hero (curator's `cover`
+flag, else the first photo; it stays in the gallery too), three columns instead of two on a 1040px frame
+with prose re-narrowed to 64ch, the lightbox became a real gallery (arrows, keyboard, swipe, counter,
+wrap-around), and the section says how many photographs there are. **Not built:** a "make this the cover"
+button in the curator console — wait until real photos are in there.
+
+## 💳 STRIPE: TICKLORE LLC, AND OAUTH IS GONE (ad75ee9)
+**The platform account moved off VBRE.** Alex registered Ticklore, LLC (EIN in hand, business bank
+pending) and wants **zero** connection to VBRE. Guests never saw VBRE — with direct charges the buyer's
+statement shows the CONNECTED account — but the **treasurer** would have, on the authorization screen.
+New Stripe account created under Ticklore, LLC, signed up with a ticklore.com address (not alex@vbre.org).
+Sandbox for now; live waits on the bank, which only gates payouts. **Hard rule: the treasurer must connect
+to the FINAL platform** — Connect authorizations are granted to one account, so connecting her to VBRE
+would mean asking her to disconnect and redo it.
+
+**Stripe no longer offers OAuth to new platforms.** The new account's Connect settings have no Integration
+section, no redirect list, no client id — the hand-built authorize URL would have dead-ended on the
+treasurer's first click. Rewritten to **Account Links**: we create the account object, Stripe hosts every
+screen, an existing Stripe account can be signed into and attached, and an abandoned form resumes. The
+return URL is passed in the API call, so **`STRIPE_CONNECT_CLIENT_ID` is no longer needed at all.**
+
+**The subtle rule, and the one to not break:** onboarding creates the account BEFORE it can take money,
+and `stripeAccountId` is read app-wide as "this event's money lands here" (routes checkout, unlocks
+donations, lights the badge). So a new account parks in `stripePendingAccountId` and is promoted **only**
+when Stripe reports `charges_enabled`. Submitted-but-under-review is common on a new nonprofit account
+and gets its own page — not a failure, not finished. Old `/connect/callback` still answers with an
+explanation so pre-change links don't 404.
+
+**Also written: `docs/organizer-stripe-walkthrough.md`** — what to say to a committee treasurer, what to
+gather first, and the two moments that alarm people (Stripe asks a real person for their SSN even on a
+nonprofit account; the first payout takes 7–14 days, not two).
+
+## ⏭️ WHERE IT STOPS (2026-08-17)
+**Half-migrated on purpose, safe because it's sandbox and nothing is selling.** `STRIPE_SECRET_KEY` is
+Ticklore's; the two webhook secrets still point at VBRE. **Next action: put the two `whsec_…` from the
+Ticklore sandbox destinations (`ticklore-account`, `ticklore-connected`) into `STRIPE_WEBHOOK_SECRET` and
+`STRIPE_WEBHOOK_SECRET_CONNECT`.** Order between them does not matter — the handler tries one, then the
+other. Until then a purchase would charge and never issue a ticket, so **do not test a purchase yet.**
+
+Then: the mainnet test event end-to-end (create in /admin with redemption on → /buy → 4242 → claim →
+wallet → vault → door PIN), a test connected account through the new Account Links flow, Stripe live-mode
+when the bank lands, and only then the REAL Gala event — because that one's keepsakes are forever.
+
+**Still outstanding:** `DONATION_STORE=/var/data/donations.json`, `MIN_GAS_ETH` (raise above a 150-mint
+runway), the manual code-entry page `/gala` already promises, and the Stage 2 door-kit polish.
