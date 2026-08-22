@@ -103,12 +103,36 @@ function ensureVaultToken(key) {
 }
 
 /** Record (or clear) the organizer's connected Stripe account for an event. */
+/**
+ * An account that EXISTS but cannot take money yet.
+ *
+ * Account Links onboarding creates the Stripe account first and fills it in
+ * second, so there is a window where we hold an account id that would fail
+ * every charge sent to it. `stripeAccountId` is read across the app as "this
+ * event's money lands here" — checkout routes to it, donations unlock, the
+ * console shows connected — so a half-finished account must not be written
+ * there. It waits here until Stripe reports charges_enabled.
+ *
+ * Kept so a treasurer who abandons the form halfway can resume into the SAME
+ * account instead of leaving a trail of empty ones behind her.
+ */
+function setStripePending(key, accountId) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  e.stripePendingAccountId = accountId ? String(accountId) : null;
+  write(data);
+  return e.stripePendingAccountId;
+}
+
 function setStripeAccount(key, accountId) {
   const data = read();
   const e = data.events[key];
   if (!e) return null;
   e.stripeAccountId = accountId ? String(accountId) : null;
   e.stripeConnectedAt = accountId ? new Date().toISOString() : null;
+  // Promoted out of pending — the account is real now, nothing left to resume.
+  if (accountId) e.stripePendingAccountId = null;
   write(data);
   return e.stripeAccountId;
 }
@@ -339,4 +363,4 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, ensureOrgToken, rotateOrgToken, setStripeAccount, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, ensureOrgToken, rotateOrgToken, setStripeAccount, setStripePending, PLATFORM_MINIMUM_UNLOCK_DAYS };

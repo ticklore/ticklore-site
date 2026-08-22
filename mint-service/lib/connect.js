@@ -11,8 +11,9 @@
  * the platform fee (5% + $0.99, env-tunable) peels off automatically at the
  * source. No organizer accounts on our side — a link, not a login.
  *
- * Env: STRIPE_CONNECT_CLIENT_ID (the platform's ca_… id from Stripe's Connect
- * settings). Degrades gracefully when absent — the card simply doesn't show.
+ * Onboarding is ACCOUNT LINKS, not OAuth. Stripe no longer offers OAuth to new
+ * platforms, and there is nothing to register: the return URL is passed in the
+ * API call, so STRIPE_CONNECT_CLIENT_ID is no longer needed at all.
  */
 
 const crypto = require("crypto");
@@ -20,7 +21,6 @@ const events = require("./events");
 
 function mountConnect(app, { stripe }) {
   const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const CLIENT_ID = process.env.STRIPE_CONNECT_CLIENT_ID || "";
 
   /** Bearer check: the organizer proves themselves the same way their
    *  dashboard does — by holding the event's unguessable org token. */
@@ -36,51 +36,95 @@ function mountConnect(app, { stripe }) {
     if (!e || !tokenOk(e, String(req.query.t || ""))) {
       return res.status(404).type("html").send(minimalPage("There's nothing at this address."));
     }
-    if (!stripe || !CLIENT_ID) {
+    if (!stripe) {
       return res.type("html").send(connectPage(e, { ready: false, token: String(req.query.t || "") }));
     }
     res.type("html").send(connectPage(e, { ready: true, token: String(req.query.t || "") }));
   });
 
-  /** Kick off Stripe's OAuth. State carries key + token, verified on return. */
-  app.get("/connect/:key/start", (req, res) => {
+  /**
+   * Start onboarding.
+   *
+   * Stripe no longer offers OAuth to new platforms, so instead of sending the
+   * organizer to authorize an account they already have, we create the account
+   * object and hand them a hosted link to fill it in. Same destination, and a
+   * kinder road: Stripe hosts every screen, someone who already has a Stripe
+   * account can sign in and attach it, and an abandoned form resumes instead of
+   * restarting.
+   *
+   * The account id is parked in PENDING. Writing it to stripeAccountId here
+   * would tell the rest of the app that this event's money lands there — and
+   * every charge would fail, because the account cannot take money until she
+   * finishes. Promotion happens on return, and only if Stripe says so.
+   */
+  app.get("/connect/:key/start", async (req, res) => {
     const e = events.get(req.params.key);
     const t = String(req.query.t || "");
     if (!e || !tokenOk(e, t)) return res.status(404).type("html").send(minimalPage("There's nothing at this address."));
-    if (!stripe || !CLIENT_ID) return res.status(503).type("html").send(minimalPage("Card payments aren't configured yet — check back soon."));
-    const state = `${encodeURIComponent(e.key)}.${t}`;
-    const url = "https://connect.stripe.com/oauth/authorize" +
-      `?response_type=code&client_id=${encodeURIComponent(CLIENT_ID)}` +
-      `&scope=read_write&state=${encodeURIComponent(state)}` +
-      `&redirect_uri=${encodeURIComponent(PUBLIC_URL + "/connect/callback")}`;
-    res.redirect(url);
+    if (!stripe) return res.status(503).type("html").send(minimalPage("Card payments aren't configured yet — check back soon."));
+
+    try {
+      // Reuse the account from an abandoned attempt rather than stranding an
+      // empty one on Stripe every time she closes the tab.
+      let acct = e.stripePendingAccountId || e.stripeAccountId;
+      if (!acct) {
+        const created = await stripe.accounts.create({ type: "standard" });
+        acct = created.id;
+        events.setStripePending(e.key, acct);
+        console.log(`  💳 created connect account for ${e.key} → ${acct}`);
+      }
+
+      const back = `${PUBLIC_URL}/connect/${encodeURIComponent(e.key)}`;
+      const link = await stripe.accountLinks.create({
+        account: acct,
+        // Expired or already-used links land back on start, which mints a fresh
+        // one — a dead link should cost a redirect, not a support conversation.
+        refresh_url: `${back}/start?t=${encodeURIComponent(t)}`,
+        return_url: `${back}/done?t=${encodeURIComponent(t)}`,
+        type: "account_onboarding",
+      });
+      res.redirect(link.url);
+    } catch (err) {
+      console.error(`  ✗ connect start failed for ${req.params.key}: ${err.message}`);
+      res.status(500).type("html").send(minimalPage("Stripe couldn't start the connection — try the link again, or contact your Ticklore concierge."));
+    }
   });
 
-  /** Stripe sends the organizer back here; we trade the code for their
-   *  connected account id and remember it on the event. */
-  app.get("/connect/callback", async (req, res) => {
+  /**
+   * Where Stripe returns her. Landing here means she finished the form, NOT
+   * that the account works — Stripe may still be verifying, and some accounts
+   * come back needing documents. So we ask the account itself.
+   */
+  app.get("/connect/:key/done", async (req, res) => {
+    const e = events.get(req.params.key);
+    const t = String(req.query.t || "");
+    if (!e || !tokenOk(e, t)) return res.status(404).type("html").send(minimalPage("There's nothing at this address."));
+    if (!stripe) return res.status(503).type("html").send(minimalPage("Card payments aren't configured yet — check back soon."));
+
+    const acct = e.stripePendingAccountId || e.stripeAccountId;
+    if (!acct) return res.redirect(`/connect/${encodeURIComponent(e.key)}?t=${encodeURIComponent(t)}`);
+
     try {
-      const state = String(req.query.state || "");
-      const dot = state.indexOf(".");
-      const key = decodeURIComponent(dot > 0 ? state.slice(0, dot) : "");
-      const t = dot > 0 ? state.slice(dot + 1) : "";
-      const e = events.get(key);
-      if (!e || !tokenOk(e, t)) return res.status(404).type("html").send(minimalPage("There's nothing at this address."));
-
-      if (req.query.error) {
-        return res.type("html").send(connectPage(e, { ready: true, token: t, error: String(req.query.error_description || req.query.error) }));
+      const a = await stripe.accounts.retrieve(acct);
+      if (a.charges_enabled) {
+        events.setStripeAccount(e.key, a.id);
+        console.log(`  💳 connected ${e.key} → ${a.id}`);
+        return res.type("html").send(connectPage(events.get(e.key), { ready: true, token: t, justConnected: true }));
       }
-      const code = String(req.query.code || "");
-      if (!code) return res.status(400).type("html").send(minimalPage("That link didn't carry a Stripe authorization."));
-
-      const resp = await stripe.oauth.token({ grant_type: "authorization_code", code });
-      events.setStripeAccount(key, resp.stripe_user_id);
-      console.log(`  💳 connected ${key} → ${resp.stripe_user_id}`);
-      res.type("html").send(connectPage(events.get(key), { ready: true, token: t, justConnected: true }));
+      // Submitted but not yet cleared: real, common, and not a failure. Say so
+      // plainly rather than showing a "connect" button that implies she didn't.
+      console.log(`  … ${e.key} onboarding pending (submitted=${a.details_submitted}) → ${a.id}`);
+      return res.type("html").send(connectPage(e, { ready: true, token: t, pending: a.details_submitted }));
     } catch (err) {
-      console.error("  ✗ connect callback failed:", err.message);
-      res.status(500).type("html").send(minimalPage("Stripe connection failed — try the link again, or contact your Ticklore concierge."));
+      console.error(`  ✗ connect return failed for ${e.key}: ${err.message}`);
+      return res.status(500).type("html").send(minimalPage("Stripe couldn't confirm the connection — open your dashboard link again in a moment."));
     }
+  });
+
+  /** Kept so links sent before the Account Links change still land somewhere
+   *  sensible instead of a blank 404. */
+  app.get("/connect/callback", (req, res) => {
+    res.type("html").send(minimalPage("This link is out of date — open your dashboard link again to connect Stripe."));
   });
 }
 
@@ -108,7 +152,7 @@ function minimalPage(text) {
 </head><body><div>${text}</div></body></html>`;
 }
 
-function connectPage(e, { ready, token, error, justConnected } = {}) {
+function connectPage(e, { ready, token, error, justConnected, pending } = {}) {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const connected = !!e.stripeAccountId;
   // Never promise a fee that isn't charged. On a no-cut event the page has to
@@ -122,6 +166,16 @@ function connectPage(e, { ready, token, error, justConnected } = {}) {
          <div class="line">Card sales for <b>${esc(e.name)}</b> now deposit <b>directly into your Stripe account</b>.
          You are the merchant of record — your dashboard, your payouts, your refunds.</div>
          <div class="hint">${feeLine}</div>`
+    : pending
+      // Submitted, not yet cleared. Common on a new nonprofit account, and not
+      // a failure — but it must not look finished either, because card sales
+      // genuinely cannot run until Stripe is satisfied.
+      ? `<div class="big">Almost there</div>
+         <div class="line">Stripe has your details for <b>${esc(e.name)}</b> and is reviewing them. That's normal for a
+         new account — usually quick, occasionally a day or two if they ask for a document.</div>
+         <div class="hint">Nothing more to do right now. Stripe emails you if they need anything, and card sales
+         switch on by themselves once they're satisfied.</div>
+         <a class="btn" href="/connect/${encodeURIComponent(e.key)}/done?t=${encodeURIComponent(token || "")}">Check again</a>`
     : !ready
       ? `<div class="line">Card payments aren't switched on for this event yet — your Ticklore concierge will let you know when they are.</div>`
       : `<div class="line">Connect your Stripe account and card sales for <b>${esc(e.name)}</b> deposit
