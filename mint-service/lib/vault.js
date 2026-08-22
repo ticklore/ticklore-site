@@ -226,6 +226,12 @@ function vaultPage(e, entries, { vaultKey, privy, gated } = {}) {
   const holdersOnly = (e.vaultSubmissions || "open") === "holders";
   const canSubmit = !holdersOnly || !!privy; // holders-only needs Privy to verify
 
+  // The cover: a curator's pick if one is flagged, otherwise the first
+  // photograph. It stays in the gallery too — up here it is cropped and
+  // darkened under the title; down there it is itself.
+  const coverEntry = photos.find((p) => p.cover) || photos[0] || null;
+  const coverUrl = coverEntry ? `/vault-media/${esc(coverEntry.media)}` : "";
+
   const photoCards = photos.map((p) => `
       <figure class="ph">
         <img src="/vault-media/${esc(p.media)}" alt="${esc(p.title || e.name)}" loading="lazy">
@@ -254,18 +260,40 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
   .vnav{padding:16px 20px;position:sticky;top:0;z-index:5;
     background:linear-gradient(rgba(8,22,25,.95),rgba(8,22,25,.75));backdrop-filter:blur(8px)}
   .vnav a{color:rgba(241,233,221,.7);text-decoration:none;font-size:.9rem}
-  .vault{max-width:760px;margin:0 auto;padding:26px 22px 90px}
-  .hero{text-align:center;padding:20px 0 34px;border-bottom:1px solid var(--line)}
+  /* Wider than the old 760 so three columns of photographs have room. Prose
+     is re-narrowed below — a gallery wants width, a paragraph wants a measure. */
+  .vault{max-width:1040px;margin:0 auto;padding:26px 22px 90px}
+
+  /* THE COVER. A memory vault whose first impression is a headline is arguing
+     against itself. Full-bleed photograph, darkened enough that the name sits
+     on it cleanly, with the page's own ink bleeding back in at the bottom so
+     the image doesn't end on a hard line. */
+  .vhero{position:relative;isolation:isolate;padding:clamp(64px,16vw,150px) 22px clamp(40px,8vw,74px);
+    text-align:center;overflow:hidden;border-bottom:1px solid var(--line)}
+  .vhero--img::before{content:"";position:absolute;inset:0;z-index:-2;
+    background-image:var(--cover);background-size:cover;background-position:center}
+  .vhero--img::after{content:"";position:absolute;inset:0;z-index:-1;
+    background:linear-gradient(rgba(8,22,25,.45),rgba(8,22,25,.72) 55%,var(--ink-deep,#081619))}
   .hero__tag{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.26em;
     text-transform:uppercase;color:var(--gold);margin-bottom:16px}
-  .hero__name{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(2rem,6vw,3rem);line-height:1.08;margin-bottom:10px}
-  .hero__meta{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--sage)}
+  .hero__name{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(2rem,6vw,3.4rem);
+    line-height:1.06;margin-bottom:10px;text-shadow:0 2px 30px rgba(0,0,0,.55)}
+  .hero__meta{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--sage);
+    text-shadow:0 1px 16px rgba(0,0,0,.6)}
+  /* Prose keeps a readable measure even though the frame grew. */
+  .story,.letter,.empty p{max-width:64ch;margin-left:auto;margin-right:auto}
   .sect{margin-top:44px}
   .sect__label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.2em;
     text-transform:uppercase;color:var(--gold);margin-bottom:18px}
   .story{font-family:'Fraunces',serif;font-style:italic;font-size:1.22rem;line-height:1.65;color:rgba(241,233,221,.85)}
-  .gallery{columns:2;column-gap:14px}
+  /* Three columns, not two. At the old width every photo was enormous: you
+     scrolled a long way to see four pictures. Three lets the varied heights
+     read as a collage rather than a stack of slabs. */
+  .gallery{columns:3;column-gap:12px}
+  @media (max-width:900px){.gallery{columns:2}}
   @media (max-width:560px){.gallery{columns:1}}
+  .sect__count{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(241,233,221,.4);margin-left:10px}
   .ph{break-inside:avoid;margin:0 0 14px;border-radius:12px;overflow:hidden;border:1px solid var(--line);
     background:rgba(241,233,221,.02);box-shadow:0 18px 40px -26px rgba(0,0,0,.8)}
   .ph img{display:block;width:100%;height:auto}
@@ -298,6 +326,15 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
   .lb__cap span{font-family:'IBM Plex Mono',monospace;font-size:.74rem;color:var(--sage)}
   .lb__hint{margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:.64rem;letter-spacing:.18em;
     text-transform:uppercase;color:rgba(241,233,221,.35)}
+  /* Arrows turn the lightbox from "zoom this one" into "look through the night". */
+  .lb__nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(8,22,25,.55);
+    border:1px solid var(--line);color:var(--parchment);width:46px;height:46px;border-radius:50%;
+    font-size:1.4rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .lb__nav:hover{background:rgba(201,162,39,.22);border-color:var(--gold)}
+  .lb__nav--prev{left:16px} .lb__nav--next{right:16px}
+  .lb__count{position:absolute;top:18px;right:20px;font-family:'IBM Plex Mono',monospace;
+    font-size:.72rem;letter-spacing:.16em;color:rgba(241,233,221,.6)}
+  @media (max-width:560px){ .lb__nav{width:40px;height:40px} .lb__nav--prev{left:6px} .lb__nav--next{right:6px} }
   .add{margin-top:52px;border:1px dashed var(--line);border-radius:16px;padding:26px;text-align:center}
   .add__open{background:transparent;border:1px solid var(--gold);color:var(--gold-bright);border-radius:8px;
     padding:12px 22px;font-family:'IBM Plex Mono',monospace;font-size:.82rem;letter-spacing:.08em;cursor:pointer}
@@ -320,16 +357,17 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
 </style></head>
 <body>
   <nav class="vnav"><a href="/wallet">← Your keepsakes</a></nav>
-  <main class="vault">
-    <div class="hero">
-      <div class="hero__tag">The Memory Vault</div>
-      <div class="hero__name">${esc(e.name)}</div>
-      <div class="hero__meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>
-    </div>
 
+  <header class="vhero${coverUrl ? " vhero--img" : ""}"${coverUrl ? ` style="--cover:url('${coverUrl}')"` : ""}>
+    <div class="hero__tag">The Memory Vault</div>
+    <div class="hero__name">${esc(e.name)}</div>
+    <div class="hero__meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>
+  </header>
+
+  <main class="vault">
     ${e.blurb ? `<section class="sect"><div class="sect__label">The Story</div><div class="story">${esc(e.blurb)}</div></section>` : ""}
 
-    ${photos.length ? `<section class="sect"><div class="sect__label">From the night itself</div><div class="gallery">${photoCards}</div></section>` : ""}
+    ${photos.length ? `<section class="sect"><div class="sect__label">From the night itself<span class="sect__count">${photos.length} ${photos.length === 1 ? "photograph" : "photographs"}</span></div><div class="gallery">${photoCards}</div></section>` : ""}
 
     ${letters.length ? `<section class="sect"><div class="sect__label">Letters &amp; memories</div>${letterCards}</section>` : ""}
 
@@ -391,26 +429,65 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
   </main>
 
   <div class="lb" id="lb">
+    <div class="lb__count" id="lb-count"></div>
+    <button class="lb__nav lb__nav--prev" id="lb-prev" aria-label="Previous photograph">&#8249;</button>
+    <button class="lb__nav lb__nav--next" id="lb-next" aria-label="Next photograph">&#8250;</button>
     <img id="lb-img" alt="">
     <div class="lb__cap" id="lb-cap"></div>
-    <div class="lb__hint">Click anywhere or press Esc to close</div>
+    <div class="lb__hint">Arrow keys or swipe &middot; Esc to close</div>
   </div>
   <script>
     (function(){
-      var lb = document.getElementById('lb'), lbImg = document.getElementById('lb-img'), lbCap = document.getElementById('lb-cap');
-      document.querySelectorAll('.ph').forEach(function(fig){
+      var lb = document.getElementById('lb'),
+          lbImg = document.getElementById('lb-img'),
+          lbCap = document.getElementById('lb-cap'),
+          lbCount = document.getElementById('lb-count');
+      var figs = Array.prototype.slice.call(document.querySelectorAll('.ph'));
+      if (!figs.length) return;
+      var at = 0;
+
+      function show(i){
+        // Wrap around: reaching the end of the night returns you to its start,
+        // which is friendlier than a dead arrow.
+        at = (i + figs.length) % figs.length;
+        var fig = figs[at], img = fig.querySelector('img');
+        lbImg.src = img.src;
+        lbImg.alt = img.alt || '';
+        var cap = fig.querySelector('figcaption');
+        lbCap.innerHTML = cap ? cap.innerHTML : '';
+        lbCount.textContent = (at + 1) + ' / ' + figs.length;
+      }
+      function open(i){ show(i); lb.classList.add('on'); }
+      function close(){ lb.classList.remove('on'); }
+
+      figs.forEach(function(fig, i){
         var img = fig.querySelector('img');
-        if (!img) return;
-        img.addEventListener('click', function(){
-          lbImg.src = img.src;
-          lbImg.alt = img.alt || '';
-          var cap = fig.querySelector('figcaption');
-          lbCap.innerHTML = cap ? cap.innerHTML : '';
-          lb.classList.add('on');
-        });
+        if (img) img.addEventListener('click', function(){ open(i); });
       });
-      lb.addEventListener('click', function(){ lb.classList.remove('on'); });
-      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') lb.classList.remove('on'); });
+
+      // Clicking the backdrop closes; clicking the photo or an arrow must not.
+      lb.addEventListener('click', function(ev){
+        if (ev.target === lb || ev.target === lbCap) close();
+      });
+      document.getElementById('lb-prev').addEventListener('click', function(){ show(at - 1); });
+      document.getElementById('lb-next').addEventListener('click', function(){ show(at + 1); });
+
+      document.addEventListener('keydown', function(ev){
+        if (!lb.classList.contains('on')) return;
+        if (ev.key === 'Escape') close();
+        else if (ev.key === 'ArrowLeft') show(at - 1);
+        else if (ev.key === 'ArrowRight') show(at + 1);
+      });
+
+      // Swipe, because most of these will be read on a phone.
+      var x0 = null;
+      lb.addEventListener('touchstart', function(ev){ x0 = ev.touches[0].clientX; }, { passive: true });
+      lb.addEventListener('touchend', function(ev){
+        if (x0 === null) return;
+        var dx = ev.changedTouches[0].clientX - x0;
+        if (Math.abs(dx) > 40) show(dx < 0 ? at + 1 : at - 1);
+        x0 = null;
+      }, { passive: true });
     })();
   </script>
   ${canSubmit && holdersOnly ? `<script src="/privy.js"></script>` : ""}
