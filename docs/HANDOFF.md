@@ -905,3 +905,49 @@ when the bank lands, and only then the REAL Gala event — because that one's ke
 
 **Still outstanding:** `DONATION_STORE=/var/data/donations.json`, `MIN_GAS_ETH` (raise above a 150-mint
 runway), the manual code-entry page `/gala` already promises, and the Stage 2 door-kit polish.
+
+## 🏦 THE LLC, THE BANK, AND ONE MISSING LETTER (2026-08-29)
+**Ticklore, LLC is registered, the EIN is in hand, and a business bank account is open.** The
+**Ticklore, LLC Stripe account exists in LIVE mode** under the login `alex@ticklore.com`. That is the
+final platform. The treasurer connects to that account and no other.
+
+**⚠️ THE TWO-LOGINS TRAP — the thing that cost an entire evening.** Stripe shows a login only the
+accounts that login is a member of, and there is nothing anywhere saying "you also have an account under
+a different email." `alex@ticklore.com` sees **only Ticklore, LLC**. `alex@vbre.org` sees **only VBRE**.
+The phone app was signed in as `alex@vbre.org`, so it could never display Ticklore, and its VBRE
+"complete your account" banner read as evidence that something had been set up on the wrong entity.
+Nothing had. **The only reliable orientation check is the header: the account name, plus whether a
+`sandbox` badge is present.** Sandbox and live wear the same name — a screenshot of the account name
+alone does not tell you which world you are in.
+
+**ROOT CAUSE: the Stripe account email was `alex@tickore.com`** — missing the `l`. Every verification
+link Stripe "sent" went to a domain that does not exist. Confirmed by DNS: `tickore.com` returns
+NXDOMAIN for A, MX and NS — never registered — so the mail bounced into nothing and **no third party
+received anything**. Corrected to `alex@ticklore.com`. Stripe reported a green "we sent it" every time,
+which is why this presented as an account/entity problem for hours instead of a typo.
+
+**Ticklore's EIN was NEVER entered on VBRE.** VBRE's own outstanding-requirements list still names
+**Tax ID** as missing — Stripe reporting the absence directly. The expensive mistake (Ticklore's tax
+identity on VBRE, with 1099-K consequences) did not happen. The license photo + selfie that *was*
+submitted verifies the **natural person**, who is the representative of both entities — harmless
+wherever it landed.
+
+**Rule, permanent:** VBRE's banner asks for **VBRE's own** EIN. Never feed it Ticklore's to silence it.
+
+**ticklore.com mail = Microsoft 365, provisioned through GoDaddy.** MX →
+`ticklore-com.mail.protection.outlook.com`; NS → `ns75/ns76.domaincontrol.com`; tenant
+`NETORGFT20987801.onmicrosoft.com`. **If Stripe mail goes missing again, check the M365 quarantine**
+(`security.microsoft.com/quarantine`) before anything else — it holds mail that appears in neither Inbox
+nor Junk.
+
+**⚠️ SPF, unverified, check before the Gala:** the record is `v=spf1 include:secureserver.net -all` while
+mail runs on M365. That *may* be correct for a GoDaddy-sold tenant, but it was not confirmed. A wrong
+`-all` hard fail sends **guest ticket emails to spam** — verify deliberately, not on Gala night.
+
+**Open from this session:** (1) which account the bank account landed on — inert either way, a payout
+account only receives, and the same bank can attach to multiple Stripe accounts; (2) whether Ticklore
+business details were also entered on VBRE (read `settings/business` on the VBRE login: legal name +
+tax ID) — worth doing before VBRE's review completes, since entity details harden afterward;
+(3) whether to close VBRE's Stripe account outright, which would delete this whole class of confusion.
+
+**Unchanged blocker:** still two webhook secrets short of a working card lane. See WHERE IT STOPS above.
