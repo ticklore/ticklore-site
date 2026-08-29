@@ -420,6 +420,10 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
         // adds friction that does not fit a "no wallet, no fuss" ticket buy,
         // and it blocks testing. Naming the type explicitly disables Link.
         payment_method_types: ["card"],
+        // Managed Payments is ON by default on the Ticklore account and rejects
+        // payment_method_types outright. Opting out per-request keeps the
+        // card-only, no-Link decision above rather than letting Stripe choose.
+        managed_payments: { enabled: false },
         line_items: [{
           quantity: 1,
           price_data: {
@@ -624,6 +628,10 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       const params = {
         mode: "payment",
         payment_method_types: ["card"],
+        // Managed Payments is ON by default on the Ticklore account and rejects
+        // payment_method_types outright. Opting out per-request keeps the
+        // card-only, no-Link decision above rather than letting Stripe choose.
+        managed_payments: { enabled: false },
         line_items: [{
           quantity: qty,
           price_data: {
@@ -704,6 +712,10 @@ function mountStripeRoutes(app, { chain, stripe, chainV2, chainV3, chainV4, chai
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         payment_method_types: ["card"],
+        // Managed Payments is ON by default on the Ticklore account and rejects
+        // payment_method_types outright. Opting out per-request keeps the
+        // card-only, no-Link decision above rather than letting Stripe choose.
+        managed_payments: { enabled: false },
         line_items: [{
           quantity: 1,
           price_data: {
