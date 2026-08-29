@@ -1007,3 +1007,21 @@ a small live test with a real card on an obviously disposable event, then refund
 question, and it is unclear the platform's domain even applies to a direct-charge checkout on a connected
 account). The **Branding** tab is the free version of that win — logo and colors on the checkout page —
 and should be done instead.
+
+## ✅ THE WALK IS PROVEN (2026-08-29)
+**Card → mint → claim → wallet → vault → door, end to end, on a real Base mainnet keepsake under the
+Ticklore, LLC entity.** Wallet shows the right event, buyer name and inscription; the vault opens on its
+cover photograph with the gallery working; the door flipped to **Admitted ✓** and re-rendered the ticket
+art with the on-chain stamp; and **a second redemption of the same code was refused.** Redemption is a
+flag, never a burn, so the keepsake survives being used.
+
+**⚠️ DOOR-KIT NOTE, learned by tripping over it.** `/door/:code` takes the **CLAIM CODE**. The **door PIN
+is also a 6-digit number** (`events.js:88` — `crypto.randomInt(100000, 1000000)`), so it looks exactly
+like something that belongs in that URL, and typing it there returns a dead page with no useful error.
+**Staff should always reach the door through the keepsake's own "Door check-in →" link**, which carries
+the correct code — never by typing a URL. Put this in the door-kit instructions before handing a folding
+table to a volunteer.
+
+**Next milestone: a test connected account through the Account Links flow.** It has never been exercised,
+and the treasurer effectively gets one shot — Connect authorizations are granted to a single account, so
+she must connect to the final platform the first time. After that, the live wiring pass.
