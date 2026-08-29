@@ -951,3 +951,59 @@ tax ID) — worth doing before VBRE's review completes, since entity details har
 (3) whether to close VBRE's Stripe account outright, which would delete this whole class of confusion.
 
 **Unchanged blocker:** still two webhook secrets short of a working card lane. See WHERE IT STOPS above.
+
+## ✅ THE ENTITY TRACK IS CLOSED (2026-08-29)
+**Ticklore, LLC is fully activated in Stripe live mode** — Account status shows **no active tasks**.
+Completed: tax ID (verified), business address, account representative (George Winfield), and the
+representative's ID number. The license-and-selfie verification landed **on Ticklore, not VBRE**,
+answering the open question from the night before.
+
+**Legal name on file is the IRS single-member-LLC form: `TICKLORE GEORGE ALEX WINFIELD SOLE MBR`.**
+That field must match the SS-4 / 147C letter exactly, capitalization and punctuation included — it is
+not the same string as the Stripe account's display name ("Ticklore, LLC"), and that is correct.
+
+**Bank: Mercury** (partner bank Column N.A.), USD, attached as the **default** payout account for the
+payments balance and also listed under Treasury. Stripe does not gate activation on it — a bank gates
+**payouts, not charges**.
+
+**Consequence, and worth staying deliberate about:** this account can take **real money now**. The only
+thing holding the app in sandbox is which keys sit in Render. Going live is a smaller and more
+accidental-feeling step than it ought to be.
+
+**Note:** business details are **live-mode only**. A blank tax ID in the sandbox business settings is
+correct and expected, not a missing step — sandbox has a fictional, pre-activated profile.
+
+## 💳 THE CARD LANE IS ALIVE (2026-08-29)
+Both sandbox webhook secrets are in Render. Destination `ticklore-account` is Active, endpoint
+`https://app.ticklore.com/webhook`, listening to `checkout.session.completed` — which is the only event
+type the app handles (`stripe-routes.js:126`). Connected-account promotion is **not** webhook-driven;
+`connect.js:109` polls Stripe for `charges_enabled` on demand.
+
+**⚠️ THE MANAGED PAYMENTS TRAP (fixed in `1a02be7`).** The new Ticklore account has **Managed Payments
+enabled by default** — the old VBRE platform predates it — and Managed Payments **rejects
+`payment_method_types` outright**. Every checkout session died with "Unsupported parameter" before a card
+could be entered. This had nothing to do with the webhook secrets and would have surfaced on the first
+real sale. **Deleting the parameter is the obvious fix and the wrong one:** naming the type explicitly is
+what keeps **Stripe Link** out of the buy flow, a deliberate "no wallet, no fuss" decision, and Link also
+blocks testing. All three sessions (demo buy, Gala block lane, donation lane) now pass
+`managed_payments: { enabled: false }` per request and keep card-only.
+
+**FIRST REAL CARD PURCHASE → MAINNET MINT.** The mainnet minter balance moved
+`0.015471346765226053` → `0.015467774606715619`: **~0.0000036 ETH, about a penny, for one keepsake.**
+That is the real per-mint gas number to plan the Gala against.
+
+## ⏭️ GOING LIVE — the part that will bite
+**Nothing wired so far carries over.** Sandbox and live are separate worlds of credentials:
+- `STRIPE_SECRET_KEY` is a sandbox key; live needs the `sk_live_…` one.
+- The two `whsec_…` are **sandbox** secrets. Live mode needs **two new destinations created from
+  scratch** (`ticklore-account`, `ticklore-connected` do not exist there), each with its own secret.
+- **One set of env vars means one mode at a time** — flipping to live ends sandbox testing.
+- Managed Payments is per-account **and per-mode**: verify the opt-out holds in live rather than assuming.
+
+**Order:** finish the walk (claim → wallet → vault → door PIN) → live wiring in one deliberate pass →
+a small live test with a real card on an obviously disposable event, then refund → only then the Gala.
+
+**Deferred:** Stripe **custom domains** (paid, needs GoDaddy DNS work alongside the unresolved SPF
+question, and it is unclear the platform's domain even applies to a direct-charge checkout on a connected
+account). The **Branding** tab is the free version of that win — logo and colors on the checkout page —
+and should be done instead.
