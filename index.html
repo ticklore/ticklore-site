@@ -68,9 +68,10 @@
 
   .hero-logo { display:flex; justify-content:center; margin-bottom: 26px; }
   /* The card clips its overflow, so the lockup is sized to sit inside it
-     rather than run off the edge. */
-  .hero-card .lockup { --lk: 52px; }
-  @media (max-width:520px){ .hero-card .lockup { --lk: 42px; } }
+     rather than run off the edge. The size lives HERE, not inline on the
+     element — an inline --lk beats this rule and the mobile one below it. */
+  .hero-card .lockup { --lk: 84px; }
+  @media (max-width:520px){ .hero-card .lockup { --lk: 58px; } }
   .hero-card {
     width: min(420px, 86vw); aspect-ratio: 1.6 / 1; border-radius: 18px;
     background: linear-gradient(135deg, #123138 0%, #0B2024 55%, #081619 100%);
@@ -242,7 +243,7 @@
 </nav>
 
 <header class="hero">
-  <div class="hero-logo"><div class="hero-card"><span class="lockup" style="--lk:64px"><img class="lockup__mark" src="logo-mark.svg" alt="Ticklore — every ticket has a story"><span class="lockup__words"><span class="lockup__word"><span class="lockup__tick">TICK</span><span class="lockup__lore">LORE</span></span><span class="lockup__tag">Every ticket has a story</span></span></span></div></div>
+  <div class="hero-logo"><div class="hero-card"><span class="lockup"><img class="lockup__mark" src="logo-mark.svg" alt="Ticklore — every ticket has a story"><span class="lockup__words"><span class="lockup__word"><span class="lockup__tick">TICK</span><span class="lockup__lore">LORE</span></span><span class="lockup__tag">Every ticket has a story</span></span></span></div></div>
   <span class="eyebrow mono">Ticketing, told as story</span>
   <h1>Every ticket has a story.</h1>
   <div class="tagline">Ticklore keeps it.</div>
