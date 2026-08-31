@@ -1025,3 +1025,34 @@ table to a volunteer.
 **Next milestone: a test connected account through the Account Links flow.** It has never been exercised,
 and the treasurer effectively gets one shot — Connect authorizations are granted to a single account, so
 she must connect to the final platform the first time. After that, the live wiring pass.
+
+## 📅 START HERE — SATURDAY 2026-09-05
+Work paused the evening of 2026-08-29 with everything pushed and both branches level with origin.
+Nothing is time-critical; the Gala is roughly six weeks out and the product spine is proven.
+
+**Do these in order. The first two are the ones that must not be done tired.**
+
+1. **Test connected account through Account Links.** Never exercised, and it is the path the Gala's
+   treasurer walks exactly once — Connect authorizations bind to a single account, so she must land on
+   the final platform the first time. Watch the promotion rule specifically: a new account parks in
+   `stripePendingAccountId` and is promoted to `stripeAccountId` **only** when Stripe reports
+   `charges_enabled` (`connect.js:109`, polled on demand — this is NOT webhook-driven). Confirm that
+   submitted-but-under-review gets its own page and is not treated as an account that can take money.
+2. **Verify SPF before any guest email goes out.** `ticklore.com` publishes
+   `v=spf1 include:secureserver.net -all` while mail runs on Microsoft 365 (GoDaddy-provisioned tenant).
+   That may be correct for a GoDaddy M365 setup — it was never confirmed. A wrong `-all` hard fail puts
+   **guest ticket emails in spam**, which is a Gala-night failure discovered at the worst moment.
+3. **The live wiring pass**, in one sitting. See GOING LIVE above — new `sk_live_` key, two brand-new
+   live webhook destinations with their own secrets, and re-verify the Managed Payments opt-out holds in
+   live. Remember: one set of env vars means one mode at a time, so this ends sandbox testing.
+4. **Then a small live test** — real card, smallest amount, obviously disposable event, refund after.
+   Only then the real Gala event, because those keepsakes are permanent.
+
+**Leftovers, none blocking:** `DONATION_STORE=/var/data/donations.json`, `MIN_GAS_ETH` raised above a
+150-mint runway, the manual code-entry page `/gala` already promises, and Stage 2 door-kit polish.
+Also worth adding to the door kit: staff reach the door through the keepsake's own link, never by
+typing a URL (see the door-kit note above).
+
+**Do NOT redo:** the entity track is closed (EIN verified, Mercury attached, no outstanding Stripe
+tasks), the card lane works, and the full walk — card → mint → claim → wallet → vault → door — is proven
+on Base mainnet. The marketing site's hero is fixed and its text encoding is repaired.
