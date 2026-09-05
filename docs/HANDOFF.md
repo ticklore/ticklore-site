@@ -1082,3 +1082,46 @@ under relaxed policy. Deliverability posture is better than most production setu
 **Only loose thread, optional:** `rua=mailto:dmarc_rua@onsecureserver.net` is GoDaddy's default, so DMARC
 aggregate reports go to GoDaddy and Alex never sees them. Point it at a real mailbox if visibility into
 authentication failures is ever wanted. Not a blocker.
+
+## 🔌 CONNECT WORKS — AND ACCOUNTS V1 IS A DASHBOARD TOGGLE (2026-09-04)
+The Account Links flow was exercised end to end for the first time, on a sandbox test account
+(`the-clay-birds-magical-extravaganza-pjnho`).
+
+**⚠️ THE BLOCKER, AND THE THING MOST LIKELY TO BITE AGAIN.** `stripe.accounts.create` failed with
+*"Stripe no longer recommends Accounts v1 for new Connect integrations."* **New platform accounts are
+Accounts v2 by default**, and this code creates accounts the v1 way — as every existing Stripe platform
+does. Fixed with **one dashboard toggle, no code change**:
+`dashboard.stripe.com/settings/features/feat_accounts_v1_support`.
+
+**BEFORE THE TREASURER ONBOARDS, CHECK WHETHER THAT TOGGLE IS PER-MODE.** If live mode needs it enabled
+separately, her onboarding fails at the first click and she is left holding a broken link. Verify during
+the live wiring pass, not in front of her.
+
+**Decision: stay on Accounts v1 through the Gala.** The whole Connect flow — Account Links, the
+pending-vs-promoted rule, the return page, abandonment reuse — is written and reasoned against v1 and it
+works. Migrating to `POST /v2/core/accounts` five weeks out buys nothing that is needed. **Accounts v2 is
+a post-Gala project.**
+
+**THE PENDING PAGE IS CORRECT — verified, not assumed.** Stripe returned `details_submitted=true` with
+`charges_enabled=false`, and the app showed *"Almost there — Stripe has your details and is reviewing
+them… card sales switch on by themselves once they're satisfied"* with a Check again button. It did
+**not** show a Connect button implying she never finished. That is the single screen most likely to make
+a volunteer treasurer redo completed work, and it holds.
+
+**Still unverified (the flag simply had not flipped yet):** promotion of `stripePendingAccountId` →
+`stripeAccountId` on `charges_enabled`, that card sales are genuinely off while pending, and that a
+purchase on a connected event routes to the connected account rather than the platform balance.
+
+**PATTERN — the fresh Ticklore account keeps differing from VBRE.** Four so far: OAuth not offered
+(→ Account Links), webhook secrets did not carry, Managed Payments on by default, Accounts v1 off by
+default. **Expect at least one more during the live wiring pass.** Each surfaces only on first contact.
+
+**Before the real onboarding:** `/gala` (`public/gala.html`) is a valid business URL for her Stripe
+form — it already states what is sold, the price, the date and the venue. It lacks the two other things
+reviewers look for: **contact information** and a **refund / ticket policy** line. Adding both is a small
+edit that removes the most common reason a connected account sticks in review.
+
+**Housekeeping:** `render.yaml` is stale. It describes a showroom with no Stripe, no Resend and a
+throwaway testnet wallet, explicitly listing `STRIPE_SECRET_KEY` and `RESEND_API_KEY` as deliberately
+unset. Production diverged long ago and lives in the Render dashboard (service `ticklore-site`). A future
+session reading that file would form a badly wrong picture.
