@@ -1056,3 +1056,29 @@ typing a URL (see the door-kit note above).
 **Do NOT redo:** the entity track is closed (EIN verified, Mercury attached, no outstanding Stripe
 tasks), the card lane works, and the full walk — card → mint → claim → wallet → vault → door — is proven
 on Base mainnet. The marketing site's hero is fixed and its text encoding is repaired.
+
+## ✉️ EMAIL IS SOUND — VERIFIED BY DNS (2026-09-04). Do not re-open this.
+**The root SPF is CORRECT. Do not "fix" it.** `ticklore.com` publishes `v=spf1 include:secureserver.net
+-all`, which looked wrong against Microsoft 365 but resolves correctly: `secureserver.net` →
+`include:spf-0.secureserver.net` → that record ends with `include:spf.protection.outlook.com -all`.
+GoDaddy chains their include to Microsoft's. Three lookups deep, well inside SPF's limit of ten. Alex's
+own mail from the M365 mailbox passes. **The earlier flag in this doc is resolved — no change needed.**
+
+**Guest ticket email does not go through M365 at all — it goes through Resend** (`lib/email.js`, which
+falls back to `Ticklore <onboarding@resend.dev>` if `FROM_EMAIL` is unset). That fallback never fires:
+**`FROM_EMAIL` is set on Render and the domain is verified in Resend.** The verification records are all
+live — `send.ticklore.com` TXT `v=spf1 include:amazonses.com ~all`, `send.ticklore.com` MX
+`feedback-smtp.us-east-1.amazonses.com`, and DKIM at `resend._domainkey.ticklore.com`. Guests receive
+their keepsake from **`tickets@ticklore.com`**.
+
+Note the shape, because it is why the root SPF never needed touching: Resend puts its SPF and bounce MX
+on the **`send.` subdomain** even when the root domain is the verified sender. The root's M365 records
+are untouched by design.
+
+**DMARC is present and passing on both counts:** `p=quarantine; adkim=r; aspf=r`. DKIM signs as
+`d=ticklore.com` so it aligns exactly; the envelope sender at `send.ticklore.com` aligns with the root
+under relaxed policy. Deliverability posture is better than most production setups.
+
+**Only loose thread, optional:** `rua=mailto:dmarc_rua@onsecureserver.net` is GoDaddy's default, so DMARC
+aggregate reports go to GoDaddy and Alex never sees them. Point it at a real mailbox if visibility into
+authentication failures is ever wanted. Not a blocker.
