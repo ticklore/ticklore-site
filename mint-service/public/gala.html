@@ -206,6 +206,20 @@
     color:var(--champagne-dim);
     margin:0;
   }
+  .buy .give-link{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.72rem;
+    letter-spacing:.08em;
+    margin:0;
+  }
+  .buy .give-link a{
+    color:var(--champagne-dim);
+    text-decoration:none;
+    border-bottom:1px solid rgba(212,169,74,.35);
+    padding-bottom:2px;
+    transition:color .2s,border-color .2s;
+  }
+  .buy .give-link a:hover{ color:var(--gold-bright); border-color:var(--gold); }
 
   /* ---------------- sections ---------------- */
   section{padding:4.5rem 0}
@@ -410,9 +424,9 @@
     <p class="cd-tail" id="cd-tail">Until midnight</p>
 
     <div class="buy rise d3">
-      <!-- REPLACE href with the live checkout link once the Gala event exists in /admin -->
       <a class="btn" href="/buy/new-year-s-eve-gala-qbuo6">Get your ticket — $60</a>
       <p class="terms">150 seats · Semi-formal</p>
+      <p class="give-link"><a href="/donate/new-year-s-eve-gala-qbuo6">Or give to the evening, no ticket needed &rarr;</a></p>
     </div>
   </header>
 
