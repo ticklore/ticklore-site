@@ -508,7 +508,7 @@ function adminPage() {
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .section-label{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--gold);margin:24px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
-  .block-row{display:grid;grid-template-columns:1fr 1.2fr 62px 78px 100px 105px auto auto;gap:7px;margin-bottom:10px;align-items:center}
+  .block-row{display:grid;grid-template-columns:1fr 1.2fr 62px 78px 100px 105px 68px 40px;gap:7px;margin-bottom:10px;align-items:center}
   .b-online{display:flex;align-items:center;gap:5px;font-size:.74rem;color:var(--sage);white-space:nowrap;cursor:pointer}
   .b-online input{width:auto;margin:0}
   .block-row input{width:100%}
