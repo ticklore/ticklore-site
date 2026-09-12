@@ -206,13 +206,6 @@
     color:var(--champagne-dim);
     margin:0;
   }
-  .buy .give-lede{
-    max-width:30rem;
-    margin:.4rem 0 .2rem;
-    font-size:1rem;
-    line-height:1.6;
-    color:var(--champagne-dim);
-  }
 
   /* ---------------- sections ---------------- */
   section{padding:4.5rem 0}
@@ -419,8 +412,6 @@
     <div class="buy rise d3">
       <a class="btn" href="/buy/new-year-s-eve-gala-qbuo6">Get your ticket — $60</a>
       <p class="terms">150 seats · Semi-formal</p>
-      <p class="give-lede">Not everyone can come, and not everyone who comes can give the same.</p>
-      <a class="btn btn-quiet" href="/donate/new-year-s-eve-gala-qbuo6">Make a donation</a>
     </div>
   </header>
 
@@ -434,6 +425,25 @@
       <div class="detail"><dt>Attire</dt><dd>Semi-formal<small>Dress for a party</small></dd></div>
       <div class="detail"><dt>Ticket</dt><dd>$60<small>Per person</small></dd></div>
     </dl>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ==================== GIVING ==================== -->
+  <section>
+    <p class="eyebrow">Another way to help</p>
+    <h2>Give to the evening</h2>
+    <p class="lede">
+      Not everyone can come, and not everyone who comes can give the same. If you'd
+      like to support the night itself, you can do that here — a gift, with no
+      ticket attached.
+    </p>
+    <p>
+      You can also add a donation to your ticket at checkout. Either way it goes
+      straight to the organizers.
+    </p>
+    <!-- Donations stay dark until the organizer connects Stripe (giftsOpen guard). -->
+    <a class="btn btn-quiet" href="/donate/new-year-s-eve-gala-qbuo6">Make a donation</a>
   </section>
 
   <hr class="divider">
