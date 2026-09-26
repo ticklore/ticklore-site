@@ -1005,7 +1005,7 @@ function donatePage({ key, details, open }) {
     return gateHead("Ticklore") + `<h1>${esc(details.name)}</h1>
 <div class="venue">${esc(details.venue || "")}</div>
 <div class="hint">Online giving isn't switched on for this event yet. The organizers can take your
-gift directly — and they'd love to hear from you.</div>` + gateFoot;
+gift directly — write to <a href="mailto:alex@ticklore.com" style="color:var(--gold-bright);text-decoration:none">alex@ticklore.com</a>.</div>` + gateFoot;
   }
   return gateHead("Donate — " + esc(details.name)) + `<h1>${esc(details.name)}</h1>
 <div class="venue">${esc(details.venue || "")}</div>
