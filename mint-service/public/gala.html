@@ -56,6 +56,22 @@
 
   :focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:2px}
 
+  .topbar{display:flex;justify-content:flex-end;padding-top:1.5rem}
+  .topbar a{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:.7rem;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--champagne-dim);
+    text-decoration:none;
+    border:1px solid rgba(212,169,74,.3);
+    border-radius:4px;
+    padding:8px 15px;
+    transition:color .2s,border-color .2s,background .2s;
+  }
+  .topbar a:hover{ color:var(--gold-bright); border-color:var(--gold); background:rgba(212,169,74,.08); }
+  .hero{ padding-top:3.5rem }
+
   /* ---------------- hero + the light ---------------- */
   .hero{
     position:relative;
@@ -401,6 +417,7 @@
 <div class="backdrop" aria-hidden="true"></div>
 
 <div class="wrap">
+  <div class="topbar"><a href="mailto:alex@ticklore.com">Contact</a></div>
 
   <!-- ==================== HERO ==================== -->
   <header class="hero">
