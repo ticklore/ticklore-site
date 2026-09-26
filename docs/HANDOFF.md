@@ -1125,3 +1125,79 @@ edit that removes the most common reason a connected account sticks in review.
 throwaway testnet wallet, explicitly listing `STRIPE_SECRET_KEY` and `RESEND_API_KEY` as deliberately
 unset. Production diverged long ago and lives in the Render dashboard (service `ticklore-site`). A future
 session reading that file would form a badly wrong picture.
+
+---
+
+# 🚨 ACCOUNT MIGRATION — 2026-09-25/26
+## Everything earlier in this document that says `weldingcrypto` is STALE. Read this section first.
+
+**What happened.** The founder's email `alex@vbre.org` was handed to another party at short notice,
+with no grace period. GitHub had force-enabled 2FA on the account `weldingcrypto` on 2026-09-01 using
+an authenticator that could not be produced, and GitHub's recovery runs through that dying mailbox.
+So **the GitHub account `weldingcrypto` is presumed permanently lost.** Everything was migrated.
+
+## Where the code lives now
+- **Canonical remote: `https://github.com/ticklore/ticklore-site.git` (private).**
+  Branches `main` and `feature/ticket-contract`, complete 206-commit history, nothing rewritten.
+- Local clone unchanged: `C:\Users\bigow\OneDrive\Documents\GitHub\ticklore-site`.
+- **Bare mirrors of all three repos** at `C:\Users\bigow\OneDrive\Documents\GitHub\_backups\*.git`
+  (`ticklore-site` 206 commits, `made-in-recovery` 63, `Monkeynomics-site` 13). OneDrive syncs them,
+  so they exist in two places. **`Monkeynomics-site` and `made-in-recovery` have NOT been pushed to
+  the new GitHub account yet** — they exist only as those mirrors plus their working clones.
+
+## Render — the service that actually runs app.ticklore.com
+- Service `ticklore-site`, project "Production". Now deploys from **`ticklore/ticklore-site`**,
+  branch **`feature/ticket-contract`**, Root Directory **`mint-service`**, start `node server.js`.
+- **Login moved to `bigowl70@gmail.com` with a real password** (it was `alex@vbre.org` with
+  *no password set* — a single point of failure). Verified by logging in from a private window.
+- **⚠️ TRAP, hit once: changing the Source RESETS Branch to `main`.** `main` is the marketing site and
+  has no `mint-service/` directory, so the build fails with "Cause of failure could not be determined."
+  After any Source change, re-check **Branch** and **Root Directory** before walking away.
+- A failed deploy never replaces the running one. app.ticklore.com stayed up throughout.
+
+## Netlify — LOCKED, but serving
+- Account email is `bigowl70@gmail.com`, but **Password was "Not set" and login is GitHub OAuth to
+  `weldingcrypto`** — so the login died with GitHub.
+- **A password reset created a SECOND, EMPTY Netlify account** rather than recovering the real one.
+  Do not repeat that; the empty account is junk.
+- **ticklore.com keeps serving normally** — Netlify serves the last deploy regardless of dashboard access.
+  What is lost is the ability to change the marketing site or its settings.
+- **Escape hatch if never recovered:** the marketing site is just `index.html` + `about.html` in this
+  repo. Rebuild it on Render (or a fresh Netlify account) and repoint DNS at GoDaddy, which IS controlled.
+
+## Which address owns what (as of 2026-09-26)
+| Asset | Account | State |
+|---|---|---|
+| Domain + DNS (GoDaddy) | `bigowl70@gmail.com` | SAFE |
+| ticklore.com email (M365, GoDaddy-provisioned tenant `NETORGFT20987801`) | via GoDaddy | SAFE |
+| Stripe (live, EIN, Managed Payments opt-out) | `alex@ticklore.com` | SAFE |
+| Mercury bank (Column N.A.) | `alex@ticklore.com` | SAFE |
+| Render | `bigowl70@gmail.com` + password | SAFE |
+| GitHub (code) | account `ticklore` | SAFE |
+| Netlify | GitHub OAuth → `weldingcrypto` | LOCKED |
+| GitHub `weldingcrypto`, Cloudflare | `alex@vbre.org` | LOST/LOSING |
+
+## The lesson, stated plainly so it is not relearned
+**Ask "how do I log in" before "what is the account email."** Netlify's account email was already safe
+and it still died, because the *login* was OAuth to a dead GitHub account. Render survived the identical
+event untouched because it had its own email and password. Any service that can only be entered through
+another service's identity is one outage away from being unreachable. Give every important account a
+native password, and save the recovery codes somewhere findable.
+
+## Verified live at the time of writing (2026-09-26)
+`/health` returns `status: ok`; minting on **chain 8453 (Base mainnet)**, contract
+`0xA0925c3912e4dFddEAd6328778665D4074cd1A6E`, minter `0x87455A2927f8cEc6641b78fEb598D862E1Ff6584`,
+balance ~`0.01546 ETH`, gas ok. ticklore.com serving. app.ticklore.com serving.
+The startup log's `chain 84532` / `balance 0.0 ETH` lines are the **legacy Sepolia lane** and are
+expected — see the mainnet section earlier in this document.
+
+## Still outstanding for the Gala (unchanged by the migration)
+1. **The treasurer's Stripe connect link** — `/organizer/new-year-s-eve-gala-qbuo6?t=<orgToken>`, pulled
+   from `/admin`. Until she connects, ticket money lands in Ticklore LLC's account rather than the
+   committee's, and both donation buttons stay dark by the `giftsOpen` guard. **This is the last thing
+   between the site and selling tickets.**
+2. **Confirm what the printed tickets say** — `app.ticklore.com/gala` works; `ticklore.com/gala` 404s.
+   A `_redirects` line on the marketing site would make both work, but that needs Netlify access.
+3. Push `Monkeynomics-site` and `made-in-recovery` to the `ticklore` account.
+4. The older leftovers: `DONATION_STORE`, `MIN_GAS_ETH`, the `/gala` manual code-entry page,
+   Stage 2 door-kit polish, and the stale `render.yaml`.
