@@ -227,6 +227,114 @@ function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
     }
   });
 
+  /**
+   * THE DOOR DESK. "I cannot find my ticket" is the most common thing that will
+   * be said on the night, and until now the only answer was a CSV on somebody's
+   * laptop. Search by email, stub label or code; resend the claim link; or walk
+   * straight to the door page for that code.
+   *
+   * Password-gated like everything else under /admin, because the results carry
+   * guest emails.
+   */
+  app.get("/admin/guest/search", checkPassword, (req, res) => {
+    const rows = claims.search(req.query.q || "").map((c) => ({
+      code: c.code,
+      label: c.label || "",
+      email: c.email || c.assignedTo || "",
+      channel: c.channel || "print",
+      status: c.status,
+      active: c.active !== false,
+      eventKey: c.eventKey,
+    }));
+    res.json({ rows });
+  });
+
+  /** Resend the claim link to whatever address is on the code. */
+  app.post("/admin/guest/resend", express.json(), checkPassword, async (req, res) => {
+    try {
+      const code = String((req.body && req.body.code) || "").trim();
+      const rec = claims.get(code);
+      if (!rec) return res.status(404).json({ ok: false, error: "No such code." });
+      const to = rec.email || rec.assignedTo;
+      if (!to) return res.status(400).json({ ok: false, error: "No email on this code - it was never sold online." });
+      const details = events.get(rec.eventKey);
+      const r = await require("./email").sendCodeEmail({
+        to,
+        eventName: details ? details.name : "your event",
+        claimUrl: PUBLIC_URL + "/claim/" + encodeURIComponent(code),
+        priceCents: rec.priceCents || 0,
+      });
+      if (!r.sent) return res.status(502).json({ ok: false, error: r.reason || "Email failed." });
+      res.json({ ok: true, to });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
+  /** The desk page itself. */
+  app.get("/admin/guest", (req, res) => {
+    res.type("html").send(`<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Door desk</title>
+<style>
+  :root{--ink:#0E262B;--deep:#081619;--gold:#C9A227;--bright:#E3C25E;--paper:#F1E9DD;--line:rgba(241,233,221,.16)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--deep);color:var(--paper);font:16px/1.5 system-ui,sans-serif;padding:18px}
+  h1{font-size:1.2rem;letter-spacing:.02em;margin:0 0 14px}
+  input,button{font:inherit}
+  input{width:100%;padding:13px 14px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--paper)}
+  .row{border:1px solid var(--line);border-radius:10px;padding:13px;margin-top:11px;background:var(--ink)}
+  .who{font-weight:600;word-break:break-all}
+  .meta{font-size:.82rem;color:rgba(241,233,221,.6);margin-top:3px}
+  .acts{margin-top:10px;display:flex;gap:9px;flex-wrap:wrap}
+  a.btn,button.btn{display:inline-block;padding:10px 14px;border-radius:8px;border:1px solid rgba(201,162,39,.5);
+    background:transparent;color:var(--bright);text-decoration:none;cursor:pointer}
+  button.btn:hover,a.btn:hover{background:rgba(201,162,39,.12)}
+  .msg{margin-top:9px;font-size:.86rem}
+  .hint{color:rgba(241,233,221,.55);font-size:.85rem;margin-top:14px}
+</style>
+<h1>Door desk &mdash; find a guest</h1>
+<input id="q" placeholder="Email, stub label, or code" autocomplete="off" autofocus>
+<div id="out"></div>
+<p class="hint">Type at least two characters. Searches paid-but-unclaimed buyers too.</p>
+<script>
+var PW = sessionStorage.getItem('tl_admin_pw') || prompt('Admin password');
+if (PW) sessionStorage.setItem('tl_admin_pw', PW);
+var q = document.getElementById('q'), out = document.getElementById('out'), t;
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function draw(rows){
+  if (!rows.length) { out.innerHTML = '<p class="hint">Nothing matches.</p>'; return; }
+  out.innerHTML = rows.map(function(r){
+    return '<div class="row"><div class="who">' + esc(r.email || r.label || r.code) + '</div>'
+      + '<div class="meta">' + esc(r.code) + (r.label ? ' &middot; ' + esc(r.label) : '')
+      + ' &middot; ' + esc(r.channel) + ' &middot; ' + esc(r.status)
+      + (r.active ? '' : ' &middot; NOT ACTIVATED') + '</div>'
+      + '<div class="acts">'
+      + '<a class="btn" href="/door/' + encodeURIComponent(r.code) + '" target="_blank">Door check-in</a>'
+      + '<a class="btn" href="/claim/' + encodeURIComponent(r.code) + '" target="_blank">Claim page</a>'
+      + (r.email ? '<button class="btn" onclick="resend(this,\'' + esc(r.code) + '\')">Resend email</button>' : '')
+      + '</div><div class="msg" id="m-' + esc(r.code) + '"></div></div>';
+  }).join('');
+}
+function go(){
+  var v = q.value.trim();
+  if (v.length < 2) { out.innerHTML = ''; return; }
+  fetch('/admin/guest/search?q=' + encodeURIComponent(v), { headers: { 'x-admin-password': PW } })
+    .then(function(r){ return r.ok ? r.json() : { rows: [] }; })
+    .then(function(d){ draw(d.rows || []); });
+}
+function resend(btn, code){
+  var m = document.getElementById('m-' + code);
+  btn.disabled = true; m.textContent = 'Sending...';
+  fetch('/admin/guest/resend', { method:'POST', headers:{ 'Content-Type':'application/json','x-admin-password':PW }, body: JSON.stringify({ code: code }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ m.textContent = d.ok ? ('Sent to ' + d.to) : ('Failed: ' + (d.error||'unknown')); btn.disabled = false; })
+    .catch(function(){ m.textContent = 'Failed.'; btn.disabled = false; });
+}
+q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220); });
+</script>`);
+  });
+
   app.post("/admin/delete", express.json(), checkPassword, (req, res) => {
     const key = (req.body && req.body.key) || "";
     if (!key) return res.status(400).json({ ok: false, error: "Missing event key." });

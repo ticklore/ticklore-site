@@ -341,7 +341,7 @@ function removeByEvent(eventKey) {
 module.exports = {
   generate, get, listByEvent, statsByEvent, listByOwner,
   importRoster, listRoster, markEmailed,
-  activate, allocateOnline, allocateOnlineBatch, onlineRemaining, retireOnline,
+  activate, allocateOnline, allocateOnlineBatch, onlineRemaining, retireOnline, search,
   reserve, finalize, release, markRedeemed, removeByEvent,
 };
 
@@ -372,4 +372,25 @@ function retireOnline(eventKey, n) {
   }
   if (gone) write(data);
   return gone;
+}
+
+/**
+ * Find a guest's code at the door. Matches an exact code, or a substring of
+ * the buyer email or the printed stub label.
+ *
+ * Online buyers are stamped on `assignedTo` when the payment allocates their
+ * code, and on `email` only once they claim — so a buyer who paid and never
+ * claimed is findable by the first and invisible to the second. Search both or
+ * the people most likely to need help are the ones you cannot find.
+ */
+function search(q) {
+  const needle = String(q || "").trim().toLowerCase();
+  if (needle.length < 2) return [];
+  const hit = (s) => s && String(s).toLowerCase().includes(needle);
+  return Object.values(read().codes)
+    .filter((c) =>
+      (c.code && c.code.toLowerCase() === needle) ||
+      hit(c.email) || hit(c.assignedTo) || hit(c.label))
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+    .slice(0, 25);
 }
