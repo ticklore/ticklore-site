@@ -1201,3 +1201,66 @@ expected — see the mainnet section earlier in this document.
 3. Push `Monkeynomics-site` and `made-in-recovery` to the `ticklore` account.
 4. The older leftovers: `DONATION_STORE`, `MIN_GAS_ETH`, the `/gala` manual code-entry page,
    Stage 2 door-kit polish, and the stale `render.yaml`.
+
+## 💳 THE CARD LANE REACHES THE ORGANIZER (2026-10-08)
+**The treasurer connected, and a real card purchase routed to HER Stripe account.** That was the last
+unproven link in the chain. Event `new-year-s-eve-gala-qbuo6` shows **💳 connected**, door PIN `170516`.
+
+Getting there cost a day and turned up **two more per-mode Stripe settings** — now five for five, so assume
+every Stripe setting is per-mode until proven otherwise:
+
+**1. The Connect platform profile was never completed in LIVE.** Six connect attempts failed with
+`✗ connect start failed … You must complete your platform profile to use Connect and create live
+connected accounts`. Completed at **Settings → Connect → Platform profile → View onboarding**, which is
+NOT the same as the floating "Setup guide" (that is a tutorial and sends you to sandbox; ignore it). The
+questionnaire is reached through **Go live → Confirm your integration choices**. Elections chosen:
+- **Business model: Platform** — *merchants collect payments directly*. NOT Marketplace, which would mean
+  Ticklore holds other people's money.
+- **Negative balance liability: Stripe.** If a connected account goes unrecoverably negative it is not
+  Ticklore's debt.
+
+**2. ⚠️ THE LIVE `ticklore-connected` WEBHOOK WAS POINTED AT THE WRONG SCOPE.** It was created with
+**Events from: Your account** — a duplicate of `ticklore-account` with a different secret. The two
+September tests passed because both were charges on the *platform*. The first real direct charge on the
+*organizer's* account fired an event nobody was listening for: **card charged, nothing minted, no email.**
+Caught because the mainnet gas balance had not moved.
+- **"Events from" cannot be edited after creation** — delete and recreate, then put the new `whsec_` into
+  `STRIPE_WEBHOOK_SECRET_CONNECT`.
+- **Payload style must stay Snapshot.** Thin payloads omit the session object the handler reads.
+- The destinations list must show **one row "Your account" and one row "Connected accounts."**
+
+**THE TEST THAT CANNOT BE FOOLED:** note `minting.balanceEth` from `/health`, buy, then re-read it. A mint
+spends ~0.0000036 ETH. If the number has not moved, fulfillment did not run — whatever the page said.
+
+## 🎟️ CASH TICKETS + THE DOOR DESK (2026-10-08)
+The Gala was created with all 150 seats **online**, and `/admin` can create and delete an event but never
+**edit** one — so there was no way to add a cash block. Three new pieces fix it.
+
+**`events.enableActivation(key)`** switches on seller activation for an existing event and mints the desk
+PIN. The activate route refuses to run without both, so printed stubs would otherwise be unsellable.
+
+**`claims.retireOnline(key, n)`** deletes unsold ONLINE codes — strictly unclaimed and unassigned, never
+one paid for, reserved or claimed. It **deletes rather than flags** because `statsByEvent` counts every
+code toward the total, and a voided code would leave the console reading `1/200` for a 150-seat room.
+
+**`POST /admin/event/:key/add-cash`** does the whole operation and returns the seller PIN. Used once:
+50 cash stubs at $60, labels `GALA 01`–`GALA 50`. **Seller PIN `730647`** — that is the DESK pin, used at
+the moment of sale; the DOOR pin is `170516`. Do not confuse them on the night.
+
+**AUTO-RETIRE:** activating a cash code removes one unsold online seat, so selling a printed ticket takes
+a chair off the website instead of adding one to the room. Wrapped in a try/catch that swallows failures
+deliberately — inventory bookkeeping must never be why a sale fails at a folding table.
+
+**`/admin/guest` — the door desk.** Phone-sized, password held in sessionStorage so a volunteer types it
+once a night. Search by email, stub label or code; then door check-in, claim page, or **resend the claim
+email** (reuses `sendCodeEmail`, so the guest gets the identical message). `claims.search()` matches
+**both** email fields on purpose: an online buyer is stamped on `assignedTo` at payment and on `email`
+only at claim, so a paid-but-unclaimed guest — exactly the person stuck at the door — is invisible if you
+search only the obvious one.
+
+**Printable stubs:** `/admin/event/new-year-s-eve-gala-qbuo6/sheet`, QR rendered server-side so it prints
+with no internet at the venue.
+
+**Still open:** test the resend path end to end before the night; confirm what the printed tickets say
+(`app.ticklore.com/gala` works, `ticklore.com/gala` 404s); Netlify still locked behind the dead GitHub
+OAuth; `Monkeynomics-site` and `made-in-recovery` not yet pushed to the `ticklore` account.
