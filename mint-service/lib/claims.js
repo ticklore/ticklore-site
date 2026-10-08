@@ -341,6 +341,35 @@ function removeByEvent(eventKey) {
 module.exports = {
   generate, get, listByEvent, statsByEvent, listByOwner,
   importRoster, listRoster, markEmailed,
-  activate, allocateOnline, allocateOnlineBatch, onlineRemaining,
+  activate, allocateOnline, allocateOnlineBatch, onlineRemaining, retireOnline,
   reserve, finalize, release, markRedeemed, removeByEvent,
 };
+
+/**
+ * Retire unsold ONLINE codes — the counterweight to adding a cash block.
+ *
+ * The room holds what it holds. When a printed ticket sells, one online seat
+ * has to stop being sellable or the same chair gets sold twice. This deletes at
+ * most n online codes that are strictly unclaimed and unassigned; it can never
+ * touch a code someone has paid for, reserved, or claimed. Deleting rather than
+ * flagging keeps statsByEvent honest — a voided code would still count toward
+ * the total and make "1/200" appear for a 150-seat room.
+ *
+ * Returns how many actually went, which may be fewer than asked.
+ */
+function retireOnline(eventKey, n) {
+  const want = Math.max(0, Math.floor(Number(n) || 0));
+  if (!want) return 0;
+  const data = read();
+  let gone = 0;
+  for (const [code, c] of Object.entries(data.codes)) {
+    if (gone >= want) break;
+    if (c.eventKey === eventKey && c.channel === "online" &&
+        c.status === "unclaimed" && !c.assignedTo) {
+      delete data.codes[code];
+      gone++;
+    }
+  }
+  if (gone) write(data);
+  return gone;
+}

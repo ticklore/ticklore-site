@@ -363,4 +363,21 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, ensureOrgToken, rotateOrgToken, setStripeAccount, setStripePending, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, enableActivation, ensureOrgToken, rotateOrgToken, setStripeAccount, setStripePending, PLATFORM_MINIMUM_UNLOCK_DAYS };
+
+/**
+ * Turn on seller activation for an event that was created without it, and mint
+ * the desk's PIN if it has none. Needed when a CASH block is added after the
+ * fact: printed stubs must be worthless until someone takes money for them, and
+ * the activate route refuses to work unless the event carries both of these.
+ * Idempotent — safe to call on an event that already has activation.
+ */
+function enableActivation(key) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  if (!e.activationRequired) e.activationRequired = true;
+  if (!e.sellerPin) e.sellerPin = String(crypto.randomInt(100000, 1000000));
+  write(data);
+  return e.sellerPin;
+}

@@ -199,6 +199,34 @@ function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
   });
 
   /** Delete a sponsor event and its claim codes. */
+  /**
+   * Add a block of CASH (print-channel) tickets to an event that was created
+   * online-only. Three things have to happen together or the stubs are useless:
+   * seller activation gets switched on, the desk gets a PIN, and the codes are
+   * born dormant. A printed sheet should be worthless until someone takes money
+   * for it — activation is what turns paper into a ticket.
+   *
+   * Pairs with the retire-on-activate hook: selling a cash ticket removes one
+   * unsold online seat, so the room is never sold twice over.
+   */
+  app.post("/admin/event/:key/add-cash", express.json(), checkPassword, (req, res) => {
+    try {
+      const e = events.get(req.params.key);
+      if (!e || e.mode !== "sponsor") return res.status(404).json({ ok: false, error: "No such sponsor event." });
+      const body = req.body || {};
+      const count = Math.max(1, Math.min(500, Math.floor(Number(body.count) || 0)));
+      const priceCents = Math.max(0, Math.round(Number(body.priceCents) || 0));
+      const labelPrefix = String(body.labelPrefix || "").trim().slice(0, 20);
+      const sellerPin = events.enableActivation(req.params.key);
+      const codes = claims.generate(req.params.key, [{
+        count, priceCents, online: false, labelPrefix, labelStart: 1, labelPad: 2,
+      }], { activationRequired: true });
+      res.json({ ok: true, added: codes.length, sellerPin });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
   app.post("/admin/delete", express.json(), checkPassword, (req, res) => {
     const key = (req.body && req.body.key) || "";
     if (!key) return res.status(400).json({ ok: false, error: "Missing event key." });
@@ -394,7 +422,14 @@ function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
         return res.status(401).json({ ok: false, error: "Wrong PIN." });
       }
       claims.activate(req.params.code);
-      res.json({ ok: true });
+      // A cash sale just happened. Retire one unsold online seat so the same
+      // chair cannot be sold twice. Bookkeeping must never fail a sale, so a
+      // failure here is swallowed deliberately.
+      let retired = 0;
+      if ((rec.channel || "print") === "print") {
+        try { retired = claims.retireOnline(rec.eventKey, 1); } catch (e) { retired = 0; }
+      }
+      res.json({ ok: true, retired });
     } catch (err) {
       res.status(400).json({ ok: false, error: err.message });
     }
