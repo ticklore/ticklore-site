@@ -335,6 +335,18 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
 </script>`);
   });
 
+  /** Point an event's vault hero at a banner image (or clear it with null). */
+  app.post("/admin/event/:key/banner", express.json(), checkPassword, (req, res) => {
+    try {
+      const e = events.get(req.params.key);
+      if (!e) return res.status(404).json({ ok: false, error: "No such event." });
+      const url = events.setBanner(req.params.key, (req.body && req.body.url) || null);
+      res.json({ ok: true, bannerUrl: url });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
   app.post("/admin/delete", express.json(), checkPassword, (req, res) => {
     const key = (req.body && req.body.key) || "";
     if (!key) return res.status(400).json({ ok: false, error: "Missing event key." });

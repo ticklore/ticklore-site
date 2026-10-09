@@ -274,6 +274,10 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
     background-image:var(--cover);background-size:cover;background-position:center}
   .vhero--img::after{content:"";position:absolute;inset:0;z-index:-1;
     background:linear-gradient(rgba(8,22,25,.45),rgba(8,22,25,.72) 55%,var(--ink-deep,#081619))}
+  /* Banner mode: the artwork already carries the title and date, so it runs
+     full-width, undimmed, with nothing printed over it. */
+  .vhero--banner{padding:0 0 clamp(20px,4vw,32px)}
+  .vbanner{display:block;width:100%;height:auto}
   .hero__tag{font-family:'IBM Plex Mono',monospace;font-size:.72rem;letter-spacing:.26em;
     text-transform:uppercase;color:var(--gold);margin-bottom:16px}
   .hero__name{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(2rem,6vw,3.4rem);
@@ -358,10 +362,11 @@ ${gated ? `<meta name="robots" content="noindex, nofollow">` : ""}
 <body>
   <nav class="vnav"><a href="/wallet">← Your keepsakes</a></nav>
 
-  <header class="vhero${coverUrl ? " vhero--img" : ""}"${coverUrl ? ` style="--cover:url('${coverUrl}')"` : ""}>
+  <header class="vhero${e.bannerUrl ? " vhero--banner" : coverUrl ? " vhero--img" : ""}"${!e.bannerUrl && coverUrl ? ` style="--cover:url('${coverUrl}')"` : ""}>
+    ${e.bannerUrl ? `<img class="vbanner" src="${esc(e.bannerUrl)}" alt="${esc(e.name)}">` : ""}
     <div class="hero__tag">The Memory Vault</div>
-    <div class="hero__name">${esc(e.name)}</div>
-    <div class="hero__meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>
+    ${e.bannerUrl ? "" : `<div class="hero__name">${esc(e.name)}</div>
+    <div class="hero__meta">${e.venue ? esc(e.venue) : ""}${e.venue && e.date ? " · " : ""}${e.date ? formatDate(e.date) : ""}</div>`}
   </header>
 
   <main class="vault">

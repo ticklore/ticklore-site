@@ -363,7 +363,7 @@ function remove(key) {
   return true;
 }
 
-module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, enableActivation, ensureOrgToken, rotateOrgToken, setStripeAccount, setStripePending, PLATFORM_MINIMUM_UNLOCK_DAYS };
+module.exports = { list, get, create, remove, recordMint, ensureVaultToken, ensureDoorPin, enableActivation, setBanner, ensureOrgToken, rotateOrgToken, setStripeAccount, setStripePending, PLATFORM_MINIMUM_UNLOCK_DAYS };
 
 /**
  * Turn on seller activation for an event that was created without it, and mint
@@ -380,4 +380,19 @@ function enableActivation(key) {
   if (!e.sellerPin) e.sellerPin = String(crypto.randomInt(100000, 1000000));
   write(data);
   return e.sellerPin;
+}
+
+/**
+ * Set (or clear) a vault banner for an event. When present the vault hero
+ * renders the artwork full-width and undimmed with no text over it — a
+ * commissioned banner already carries the name and the date, and printing the
+ * hero copy on top of it gives you both twice.
+ */
+function setBanner(key, url) {
+  const data = read();
+  const e = data.events[key];
+  if (!e) return null;
+  e.bannerUrl = url ? String(url).slice(0, 300) : null;
+  write(data);
+  return e.bannerUrl;
 }
