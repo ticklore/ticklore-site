@@ -1300,3 +1300,40 @@ profile before starting a recovery.
 homepage nav) is written and waiting for that repoint. In the Netlify link screen, **switch the account
 dropdown from `weldingcrypto` to `ticklore` first**; both accounts contain a repo named `ticklore-site`
 and picking the wrong one silently relinks the dead repo.
+
+## 🔗 TWO REPOS, ON PURPOSE (2026-10-10) — supersedes the Netlify notes above
+**ticklore.com can be updated again.** Earlier sections say it cannot; that is now wrong.
+
+**Why there are two repos.** A Netlify account IS its GitHub identity. Signing into Netlify as
+`ticklore` produces a *different, empty* Netlify account — the projects live under the one tied to
+`weldingcrypto` and cannot be dragged across. Repointing Netlify at the new repo is therefore not
+possible without a support ticket. So the marketing site stays where Netlify can see it.
+
+| What | Repo | Deploys via |
+|---|---|---|
+| The app (`app.ticklore.com`) | **`ticklore/ticklore-site`** | Render, branch `feature/ticket-contract` |
+| The marketing site (`ticklore.com`) | **`weldingcrypto/ticklore-site`** | Netlify, branch `main` |
+
+**One machine can push to both.** `ticklore` was added as a **write collaborator** on
+`weldingcrypto/ticklore-site`, so the stored credential reaches both:
+```
+git push origin feature/ticket-contract   # the app
+git push netlify main                     # the marketing site
+```
+The `netlify` remote is `https://github.com/weldingcrypto/ticklore-site.git`.
+
+**⚠️ Claude cannot run the second one.** The sandbox blocks pushing to a non-origin remote as a
+"remote repoint" — it cannot tell a deliberate two-remote setup from code being redirected somewhere
+unintended. Alex runs `git push netlify main` by hand in Git Bash. Same for the mirror pushes.
+
+**`weldingcrypto`'s primary email is now `alex@ticklore.com`** (changed 2026-10-10), not alex@vbre.org.
+That account hosts the live marketing site and is the only door into the real Netlify account, so it had
+to stop depending on a mailbox that is being handed over. **It is no longer an archive — it is load-bearing.**
+
+**Netlify knot, still open and worth a support ticket:** two Netlify accounts share
+bigowl70@gmail.com. Email+password reaches the EMPTY one; **"Continue with GitHub" reaches the real
+one** (team Monkeynomics, project id `61dcc20b-c529-4062-b7de-e193b3899bd9`). Do not try to fix this with
+another password reset — that is what created the duplicate on 2026-09-25.
+
+**Shipped today:** the homepage nav now carries **My tickets → app.ticklore.com/wallet**, so a buyer can
+reach their keepsake without going through the demo.
