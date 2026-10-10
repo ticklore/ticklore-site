@@ -489,6 +489,11 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
         owned = true;
       }
 
+      // An SMS login carries no email address. Fall back to the one the ticket
+      // was bought under, or the custody ledger loses the only field the door
+      // desk searches on, and the guest becomes unfindable on the night.
+      if (!email) email = rec.assignedTo || "";
+
       const reserved = claims.reserve(code);
       if (!reserved) return res.status(409).json({ ok: false, error: "That code is already being claimed." });
 
@@ -1249,8 +1254,18 @@ ${doorLink}` + foot;
 <p style="margin-bottom:18px;color:rgba(241,233,221,.75)">Claim your keepsake — verify your email and it's yours, permanently.</p>
 ${inscriptionFields}
 <div id="step-email">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button type="button" id="m-email" onclick="setMethod('email')"
+      style="flex:1;padding:11px 8px;border-radius:8px;cursor:pointer;font:inherit;font-size:.9rem;
+             border:1px solid var(--gold);background:rgba(201,162,39,.16);color:var(--paper)">Email me a code</button>
+    <button type="button" id="m-sms" onclick="setMethod('sms')"
+      style="flex:1;padding:11px 8px;border-radius:8px;cursor:pointer;font:inherit;font-size:.9rem;
+             border:1px solid var(--line);background:transparent;color:rgba(241,233,221,.7)">Text me a code</button>
+  </div>
   <input id="email" type="email" placeholder="you@email.com" autocomplete="email">
+  <input id="phone" type="tel" placeholder="(757) 555-0123" autocomplete="tel" style="display:none">
   <button id="send" onclick="sendCode()">Send my code</button>
+  <div id="m-note" style="font-size:.78rem;color:rgba(241,233,221,.5);margin-top:9px;line-height:1.5"></div>
 </div>
 <div id="step-code" style="display:none">
   <input id="otp" type="text" inputmode="numeric" placeholder="6-digit code" autocomplete="one-time-code" maxlength="6">
@@ -1284,18 +1299,52 @@ ${inscriptionJs}
     } catch (e) { bootErr = e; }
   })();
 
+  // Which code do we send? Two paths only. Each extra login method is a
+  // separate Privy identity with its own wallet, and a guest who claims one
+  // way and returns another finds an empty wallet and believes the ticket is
+  // gone — so the page offers email or text, and nothing else.
+  var METHOD = 'email';
+  function setMethod(m){
+    METHOD = m;
+    var em = document.getElementById('email'), ph = document.getElementById('phone');
+    var be = document.getElementById('m-email'), bs = document.getElementById('m-sms');
+    em.style.display = (m === 'email') ? '' : 'none';
+    ph.style.display = (m === 'sms') ? '' : 'none';
+    be.style.borderColor = (m === 'email') ? 'var(--gold)' : 'var(--line)';
+    be.style.background  = (m === 'email') ? 'rgba(201,162,39,.16)' : 'transparent';
+    bs.style.borderColor = (m === 'sms') ? 'var(--gold)' : 'var(--line)';
+    bs.style.background  = (m === 'sms') ? 'rgba(201,162,39,.16)' : 'transparent';
+    document.getElementById('m-note').textContent = (m === 'sms')
+      ? 'The code arrives in your messages, so you never have to leave this page to go and find it.'
+      : '';
+    (m === 'email' ? em : ph).focus();
+  }
+
+  // US and Canada only — that is what Privy allows without extra approval.
+  function phoneE164(){
+    var raw = String(document.getElementById('phone').value || '');
+    if (raw.replace(/\s/g, '').charAt(0) === '+') return raw.replace(/[^0-9+]/g, '');
+    var d = raw.replace(/[^0-9]/g, '');
+    if (d.length === 10) return '+1' + d;
+    if (d.length === 11 && d.charAt(0) === '1') return '+' + d;
+    return '';
+  }
+
   async function sendCode(){
     var err = document.getElementById('err'); err.textContent = '';
     var email = document.getElementById('email').value.trim();
-    if (!email || email.indexOf('@') < 1) { err.textContent = 'Enter a valid email.'; return; }
+    var phone = phoneE164();
+    if (METHOD === 'sms') {
+      if (!phone) { err.textContent = 'Enter a 10-digit US or Canadian mobile number.'; return; }
+    } else if (!email || email.indexOf('@') < 1) { err.textContent = 'Enter a valid email.'; return; }
     if (!booted) { err.textContent = bootErr ? 'Could not start the secure wallet. Refresh and try again.' : 'One moment — still getting ready…'; return; }
     var btn = document.getElementById('send');
     btn.disabled = true; btn.textContent = 'Sending…';
     try {
-      await privy.auth.email.sendCode(email);
+      if (METHOD === 'sms') { await privy.auth.sms.sendCode(phone); } else { await privy.auth.email.sendCode(email); }
       document.getElementById('step-email').style.display = 'none';
       document.getElementById('step-code').style.display = 'block';
-      document.getElementById('hint').textContent = 'We emailed a 6-digit code to ' + email + '.';
+      document.getElementById('hint').textContent = (METHOD === 'sms') ? ('We texted a 6-digit code to ' + phone + '.') : ('We emailed a 6-digit code to ' + email + '.');
       document.getElementById('otp').focus();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Send my code';
@@ -1318,7 +1367,7 @@ ${inscriptionJs}
     // failure says so.
     var session;
     try {
-      session = await privy.auth.email.loginWithCode(email, otp);
+      session = (METHOD === 'sms') ? await privy.auth.sms.loginWithCode(phoneE164(), otp) : await privy.auth.email.loginWithCode(email, otp);
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Verify & claim';
       var vm = String((e && (e.message || e.error || e)) || '');
