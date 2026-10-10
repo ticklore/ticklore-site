@@ -205,9 +205,23 @@ async function sendClaimEmail({ to, eventName, ticketId, claimUrl, vaultUrl, own
  * the whole mechanism by which a date or a family member ends up holding their
  * own keepsake rather than a screenshot of someone else's.
  */
+const magic = require("./magic");
+
 async function sendCodeEmail({ to, eventName, claimUrl, claimUrls, priceCents }) {
   const urls = (Array.isArray(claimUrls) && claimUrls.length ? claimUrls : [claimUrl]).filter(Boolean);
   const many = urls.length > 1;
+  // Each link carries its one-tap token (lib/magic.js) so the buyer never has
+  // to go and find a code. The QR is assembled from the code rather than
+  // patched onto the finished URL — append a query to the latter and the
+  // ".png" lands after it, and the image 404s in every inbox.
+  const links = urls.map((u) => {
+    const tail = String(u).split("/claim/")[1] || "";
+    const t = tail ? magic.sign(decodeURIComponent(tail)) : "";
+    return {
+      tap: t ? `${u}?t=${t}` : u,
+      qr: u.replace("/claim/", "/qr/") + ".png" + (t ? `?t=${t}` : ""),
+    };
+  });
   const { Resend } = require("resend");
   const key = process.env.RESEND_API_KEY;
   if (!key) return { sent: false, reason: "RESEND_API_KEY not set" };
@@ -228,11 +242,11 @@ async function sendCodeEmail({ to, eventName, claimUrl, claimUrls, priceCents })
     <div style="color:#7FB3A6;font-size:14px;margin-bottom:26px">${price ? `Paid ${price} · ` : ""}${
       many ? `${urls.length} keepsake tickets, one tap each.` : "Your keepsake ticket is one tap away."
     }</div>
-    ${urls.map((u, i) => `<a href="${u}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
+    ${links.map((L, i) => `<a href="${L.tap}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
        padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px;margin-bottom:10px">${
          many ? `Claim ticket ${i + 1} of ${urls.length} &rarr;` : "Claim my keepsake &rarr;"
        }</a><br>
-       <img src="${u.replace("/claim/", "/qr/")}.png" width="160" height="160"
+       <img src="${L.qr}" width="160" height="160"
             alt="Scan to open your ticket"
             style="display:block;margin:14px auto 6px;border-radius:10px;background:#F1E9DD;padding:7px">
        <div style="color:rgba(241,233,221,.5);font-size:11.5px;margin-bottom:20px">
@@ -247,8 +261,8 @@ async function sendCodeEmail({ to, eventName, claimUrl, claimUrls, priceCents })
 </div>`,
     text: `You're going to ${eventName}. ${price ? `Paid ${price}. ` : ""}${
       many
-        ? `Here are your ${urls.length} tickets — each link is its own keepsake, so forward one to each guest:\n\n${urls.map((u, i) => `Ticket ${i + 1}: ${u}`).join("\n")}\n\nKeep them safe like cash — anyone holding a link can claim it.`
-        : `Claim your keepsake ticket: ${urls[0]}\nThis link IS your ticket — keep it safe and don't share it.`
+        ? `Here are your ${urls.length} tickets — each link is its own keepsake, so forward one to each guest:\n\n${links.map((L, i) => `Ticket ${i + 1}: ${L.tap}`).join("\n")}\n\nKeep them safe like cash — anyone holding a link can claim it.`
+        : `Claim your keepsake ticket: ${links[0].tap}\nThis link IS your ticket — keep it safe and don't share it.`
     }`,
   });
   if (error) return { sent: false, reason: error.message || String(error) };

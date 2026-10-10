@@ -19,6 +19,7 @@ const events = require("./events");
 const claims = require("./claims");
 const moderation = require("./moderation");
 const names = require("./names");
+const magic = require("./magic");
 const ticklorev3 = require("./ticklore-v3");
 const ticklorev4 = require("./ticklore-v4");
 const ticklorev5 = require("./ticklore-v5");
@@ -549,11 +550,18 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
     try {
       const code = String(req.params.code || "").replace(/\.png$/i, "");
       if (!claims.get(code)) return res.status(404).end();
-      const png = await QRCode.toBuffer(`${PUBLIC_URL}/claim/${encodeURIComponent(code)}`, {
+      // Carry the one-tap token only when the caller already had a valid one.
+      // The QR lives in the buyer's own email, so it may skip the OTP; minting
+      // one on demand would hand the same shortcut to anyone who had merely
+      // seen a printed code.
+      const t = String(req.query.t || "");
+      const suffix = magic.verify(code, t) ? `?t=${t}` : "";
+      const png = await QRCode.toBuffer(`${PUBLIC_URL}/claim/${encodeURIComponent(code)}${suffix}`, {
         type: "png", margin: 1, width: 560,
         color: { dark: "#081619", light: "#F1E9DD" },
       });
-      res.type("png").set("Cache-Control", "public, max-age=86400").send(png);
+      // A tokenised QR is a one-tap credential; keep it out of shared caches.
+      res.type("png").set("Cache-Control", suffix ? "private, max-age=86400" : "public, max-age=86400").send(png);
     } catch (err) {
       res.status(500).end();
     }
@@ -565,7 +573,9 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
     // Prefill personalization typed earlier (e.g. on the shop's buy form) —
     // display-only convenience; the POST is the moderated source of truth.
     const prefill = { name: String(req.query.name || "").slice(0, 32), msg: String(req.query.msg || "").slice(0, 42) };
-    res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY, prefill }));
+    // A link we mailed to the buyer skips the OTP entirely (see lib/magic.js).
+    const magicOk = magic.verify(req.params.code, String(req.query.t || ""));
+    res.type("html").send(claimPage({ code: req.params.code, rec, details, privy: PRIVY, prefill, magicOk }));
   });
 
   /** Claim a code: lazy-mint the ticket (with its sponsor + section) on the
@@ -605,7 +615,13 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
       let to = activeChain.signer.address;
       let email = String((req.body && req.body.email) || "").trim();
       let owned = false;
-      if (privyClient) {
+      // One tap from the buyer's own email. The link was delivered to that
+      // inbox, which proves the same thing an emailed code proves, so there is
+      // nothing left to verify. Nobody proved a wallet, so the keepsake is held
+      // in custody against the address the ticket was bought under; they can
+      // take ownership whenever they like from /wallet.
+      const oneTap = magic.verify(code, String((req.body && req.body.magic) || ""));
+      if (privyClient && !oneTap) {
         const token = String((req.body && req.body.privyToken) || "");
         if (!token) return res.status(401).json({ ok: false, error: "Sign in to claim this keepsake." });
         const w = await privyWalletFromToken(token); // throws on a bad/expired token
@@ -1355,7 +1371,7 @@ function sheetPage(key) {
 }
 
 /** The public claim page for one code. */
-function claimPage({ code, rec, details, privy, prefill }) {
+function claimPage({ code, rec, details, privy, prefill, magicOk }) {
   // WHERE THE GUEST GOES NEXT.
   //
   // Claiming used to end at a ticket number and a picture — a wall. The two
@@ -1471,6 +1487,58 @@ ticket desk, this page becomes your keepsake claim.</p>
 <div class="ticket"><img src="${imgSrc}" alt="Your keepsake"></div>
 <div class="hint">Ticket #${esc(rec.tokenId)} — held for you.</div>
 ${doorLink}` + foot;
+  }
+
+  // ONE TAP. Reached only from the link in the buyer's own purchase email
+  // (lib/magic.js), which proves that inbox as well as a mailed code does —
+  // without the trip out to the mail app that buyers kept getting lost on.
+  // Nobody proves a wallet here, so the keepsake mints into custody and waits
+  // for them; the line underneath is for anyone who would rather hold it
+  // themselves, and drops them into the ordinary sign-in by losing the token.
+  if (magicOk && rec.status !== "claimed" && rec.active !== false) {
+    return head + `<h1>${evName}</h1>${venue}${sponsor}
+<p style="margin-bottom:18px;color:rgba(241,233,221,.75)">Your ticket is ready. One tap and it&rsquo;s yours &mdash; no code to find, no password, no app.</p>
+${inscriptionFields}
+<div id="step-one"><button id="tap" onclick="claimNow()">Claim your keepsake</button></div>
+<div class="err" id="err"></div>
+<div class="ticket" id="ticket"></div>
+<div class="hint" id="hint"></div>
+${nextSteps}
+<div class="hint" style="margin-top:18px;opacity:.8">Would you rather hold this in a wallet of your own?
+  <a href="/claim/${encodeURIComponent(code)}" style="color:var(--gold-bright)">Sign in instead</a>.</div>
+<script>
+  ${nextScript}
+  ${inscriptionJs}
+  var CODE = ${JSON.stringify(code)};
+  var MAGIC = new URLSearchParams(location.search).get('t') || '';
+  async function claimNow(){
+    var err = document.getElementById('err'); err.textContent = '';
+    var btn = document.getElementById('tap');
+    btn.disabled = true; btn.textContent = 'Writing your chapter\u2026';
+    try {
+      var ins = inscriptionBody();
+      var r = await fetch('/claim/' + encodeURIComponent(CODE), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ magic: MAGIC, buyerName: ins.buyerName, inscription: ins.inscription })
+      });
+      var d = await r.json();
+      if (d.ok) {
+        document.getElementById('step-one').style.display = 'none';
+        hideInscription();
+        document.getElementById('hint').textContent = 'Ticket #' + d.tokenId + ' \u2014 held for you.';
+        var img = new Image(); img.src = '/ticket/' + d.tokenId + '/image' + (d.version ? '?v=' + d.version : '');
+        img.onload = function(){ document.getElementById('ticket').appendChild(img); };
+        showNext();
+      } else {
+        btn.disabled = false; btn.textContent = 'Claim your keepsake';
+        err.textContent = d.error || 'Could not claim.';
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Claim your keepsake';
+      err.textContent = 'Could not reach the server (' + String((e && e.message) || 'unknown').slice(0, 90) + '). Try again in a moment.';
+    }
+  }
+</script>` + foot;
   }
 
   if (privy) {
