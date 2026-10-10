@@ -408,6 +408,32 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
   // --- Public claim flow (Lane B tickets lazy-mint here) --------------------
 
   /** The claim page for one code. Public — the code itself is the credential. */
+  /**
+   * A claim link as a scannable PNG, for the purchase email.
+   *
+   * Email clients strip data: URIs, so a QR has to be fetched over https like
+   * any other image. Public by design: the code is already the credential, and
+   * anybody who can read this URL is already holding the ticket.
+   *
+   * This exists because of real feedback from the first fifteen buyers — older
+   * guests tapping a link inside their mail app, being sent to a page that
+   * wants a code from their mail app, and getting stuck in the loop. A QR lets
+   * a second device do the opening.
+   */
+  app.get("/qr/:code", async (req, res) => {
+    try {
+      const code = String(req.params.code || "").replace(/\.png$/i, "");
+      if (!claims.get(code)) return res.status(404).end();
+      const png = await QRCode.toBuffer(`${PUBLIC_URL}/claim/${encodeURIComponent(code)}`, {
+        type: "png", margin: 1, width: 560,
+        color: { dark: "#081619", light: "#F1E9DD" },
+      });
+      res.type("png").set("Cache-Control", "public, max-age=86400").send(png);
+    } catch (err) {
+      res.status(500).end();
+    }
+  });
+
   app.get("/claim/:code", (req, res) => {
     const rec = claims.get(req.params.code);
     const details = rec ? events.get(rec.eventKey) : null;

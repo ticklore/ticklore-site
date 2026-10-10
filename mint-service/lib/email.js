@@ -231,7 +231,13 @@ async function sendCodeEmail({ to, eventName, claimUrl, claimUrls, priceCents })
     ${urls.map((u, i) => `<a href="${u}" style="display:inline-block;background:#C9A227;color:#081619;text-decoration:none;
        padding:14px 30px;border-radius:8px;font-weight:600;font-size:16px;margin-bottom:10px">${
          many ? `Claim ticket ${i + 1} of ${urls.length} &rarr;` : "Claim my keepsake &rarr;"
-       }</a><br>`).join("")}
+       }</a><br>
+       <img src="${u.replace("/claim/", "/qr/")}.png" width="160" height="160"
+            alt="Scan to open your ticket"
+            style="display:block;margin:14px auto 6px;border-radius:10px;background:#F1E9DD;padding:7px">
+       <div style="color:rgba(241,233,221,.5);font-size:11.5px;margin-bottom:20px">
+         Reading this on your phone? <b>Point another phone&rsquo;s camera at this square</b> to open your ticket there instead.
+       </div>`).join("")}
     <div style="color:rgba(241,233,221,.55);font-size:12px;margin-top:18px;line-height:1.6">
       ${many
         ? `Each link is its own ticket. <b>Forward one to each guest</b> and the keepsake becomes theirs, in their own name.<br>Keep them safe like cash — anyone holding a link can claim it.`
