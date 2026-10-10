@@ -1387,7 +1387,7 @@ function claimPage({ code, rec, details, privy, prefill }) {
     <img src="/pass/${encodeURIComponent(code)}.svg" alt="Door pass" style="display:block;width:100%;max-width:230px;margin:0 auto;height:auto">
     <div style="color:#4a4a4a;font-size:.75rem;margin-top:9px;line-height:1.5">Show this at the door on the night.</div>
   </div>` : ""}
-  <a href="/wallet" style="display:block;margin-top:14px;color:rgba(241,233,221,.6);font-size:.85rem">It's saved in your wallet too &rarr;</a>
+  <a href="/wallet" style="display:block;margin-top:14px;color:rgba(241,233,221,.6);font-size:.85rem">It&rsquo;s saved in your wallet too &mdash; sign in the same way you just did &rarr;</a>
 </div>`;
 
   const nextScript = `
@@ -1543,6 +1543,13 @@ ${inscriptionJs}
     document.getElementById('m-note').textContent = (m === 'sms')
       ? 'The code arrives in your messages, so you never have to leave this page to go and find it.'
       : '';
+    // The key is whatever they verify with. Privy makes a phone login a
+    // different identity from an email login, with its own wallet, so telling
+    // a texting guest that "your email is your key" would send them back to an
+    // empty wallet later looking for a keepsake that is not there.
+    document.getElementById('hint').textContent = (m === 'sms')
+      ? 'No app, no seed phrase \u2014 your phone number is your key.'
+      : 'No app, no seed phrase \u2014 your email is your key.';
     (m === 'email' ? em : ph).focus();
   }
 
