@@ -1337,3 +1337,114 @@ another password reset — that is what created the duplicate on 2026-09-25.
 
 **Shipped today:** the homepage nav now carries **My tickets → app.ticklore.com/wallet**, so a buyer can
 reach their keepsake without going through the demo.
+
+---
+
+## 🪄 ONE TAP, AND THE PRIVY NAMESPACE THAT COST AN AFTERNOON (2026-10-10)
+
+### The buyer problem, in their words
+> *"too many steps... the code comes to their email but they are stuck in their email to push for
+> verification"*
+
+The OTP asked a guest to leave the page, open their mail app, find six digits, and come back. **The
+coming back is where they lost people.** For an audience that has never done this, the verification
+step was the whole wall. Fifteen tickets were already sold when this surfaced.
+
+### The fix: a signed one-tap link (`lib/magic.js`)
+The purchase email now carries `?t=<hmac>` on both the button and the QR. A valid token renders a
+single gold **Claim your keepsake** button — no code, no password, no app. Tapping a link that was
+delivered to an inbox proves the same thing an emailed code proves; it just proves it in one tap.
+
+**The signature is not for secrecy.** The claim code is already a bearer secret and the token rides in
+the same email, so it adds nothing against a forwarded message. It marks **which route a page was
+reached by**. A printed QR, a code read aloud, or a door-desk link still go through the OTP. Without
+it, every claim page in existence would be one-tap.
+
+- Nobody proves a wallet, so the keepsake **mints into custody** against `chain.signer.address` —
+  the same path `settleAdmission` already uses at the door. `/wallet` can take ownership later.
+- Under the button: *"Would you rather hold this in a wallet of your own? Sign in instead"* — a link
+  to the same page **without** the token, which drops them into the ordinary Privy flow.
+- The signing key is generated once and written to **`/var/data/magic.key`** (derived from
+  `CLAIM_STORE`'s directory). If `CLAIM_STORE` were ever unset, the key would regenerate on every
+  deploy and **silently invalidate every one-tap link already sitting in a buyer's inbox.**
+
+### ⚠️ `privy.auth.sms` IS NOT SMS LOGIN
+This cost an afternoon and a detour through Privy's pricing page. Written down so it is not repeated:
+
+```js
+privy.auth.sms     // ← MFA helper. auth.sms is UNDEFINED on the auth object.
+privy.auth.phone   // ← SMS LOGIN. sendCode(phoneNumber) / loginWithCode(phoneNumber, code)
+```
+
+`privy.auth.sms.sendCode(...)` threw a `TypeError` on `undefined` **before any request left the
+browser**. Every outside signal therefore looked healthy, which sent us hunting in the wrong place:
+
+- `sms_auth: true` in the app config at `https://auth.privy.io/api/v1/apps/<appId>`
+- `POST /api/v1/passwordless_sms/init` returned `{"success":true}` for a real number
+- Privy's docs say US/Canada SMS is included on **all plans** — the **$299 "Core" tier is priced on
+  monthly active users (500–2,499), not features.** A gala of 150 sits inside the free tier.
+
+**The lesson, again:** probe the endpoint before theorising about the vendor. Thirty seconds of `curl`
+settled what two pricing pages could not.
+
+**Also fixed:** the claim page now prints the *reason* a code could not be sent instead of
+"check the address and try again", which sent a guest in a loop pressing the same dead button.
+
+### Which key is actually theirs
+Privy treats an email login and a phone login as **two different users with two different wallets**.
+A guest who claims by text and later signs into `/wallet` with email finds it **empty**. The page used
+to tell everyone "your email is your key" regardless; it now follows the button they pressed.
+
+**Do not print "visit ticklore.com/wallet with your email" on anything.** That is the one combination
+that produces an empty wallet and a confused phone call.
+
+### 🧹 ORPHANED EVENTS — `/admin/cleanup`
+Delete or recreate an event and every code issued under the old key is **stranded**. The symptom is
+quiet: the claim page renders with no name, no venue and no vault link. The failure is not quiet:
+`POST /claim` refuses at the `onChainEventId` check, so the guest signs in, types the code, and
+**only then** gets "this event is no longer available."
+
+`/admin/cleanup` lists them grouped by dead key — with samples, and a count of how many already
+minted — before offering to remove anything. The purge takes **one key at a time** and demands the
+count it was shown (409 if the list moved underneath). The keepsakes are on chain and unaffected;
+only the bookkeeping row goes.
+
+### 💾 ALL FIVE STORES — and why `ORDER_STORE` is not optional
+`ORDER_STORE` was **missing** until today. It is not a convenience ledger — it is the **Stripe webhook
+idempotency guard**. Stripe retries failed deliveries for up to three days. On ephemeral disk the
+guard is wiped by every deploy, so a retry landing after a deploy mints **a second ticket against one
+payment**. Nothing downstream catches it: the duplicate gets its own claim code, so the reserve guard
+never fires, and the chain makes it permanent.
+
+| Variable | Value | |
+|---|---|---|
+| `EVENT_STORE` | `/var/data/events.json` | |
+| `CLAIM_STORE` | `/var/data/claims.json` | also fixes `magic.key`'s home |
+| `VAULT_STORE` | `/var/data/vault.json` | |
+| `ORDER_STORE` | `/var/data/orders.json` | **added 2026-10-10** — Stripe double-mint guard |
+| `DONATION_STORE` | `/var/data/donations.json` | |
+
+Disk mounted at **`/var/data`, 1 GB**. A store variable pointing anywhere else is ephemeral.
+
+**Worth reconciling once:** tickets paid for in Stripe (live) vs `online` codes issued for the gala.
+Compare **quantities, not payment counts** — one payment can carry several tickets — and exclude
+`print`/`roster`/cash codes, which never touched Stripe.
+
+### 🔗 `ticklore.com/gala` now resolves
+`_redirects` on the marketing site (branch `main`) forwards `/gala`, `/gala/`, `/gala/*`, `/GALA`,
+`/Gala` and `/gala.html` to `app.ticklore.com/gala`. **302, not 301** — a permanent redirect would sit
+cached in browsers long after the page might move onto the main site. Netlify matches paths
+case-sensitively, which is why the capitalised forms are listed explicitly; print sets URLs in capitals.
+
+### ✏️ Correction to the section above
+**Claude CAN push to the `netlify` remote.** `git push netlify main` ran clean today. The earlier note
+saying the sandbox blocks it as a "remote repoint" is stale — that applied to the cross-account mirror
+pushes, not to this remote.
+
+### Still open after today
+- Netlify duplicate account (support ticket; see the knot described above)
+- The marketing site still builds from **`weldingcrypto`**, a loose thread from the migration
+- `Monkeynomics-site` and `made-in-recovery` mirrored but not pushed to `ticklore`
+- `render.yaml` is stale
+- The one-tap **happy path has been walked by Alex, not by Claude** — SMS end-to-end
+  (`auth.phone` → `loginWithCode` → mint) still has not been run once since the fix
