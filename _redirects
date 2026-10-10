@@ -1,0 +1,10 @@
+# ticklore.com/gala is the address a person guesses and the one that fits on
+# a printed ticket, but the gala page is served by the app. Forward rather
+# than copy the page here — two copies drift, and the one on the flyer is
+# always the stale one.
+#
+# 302 and not 301 on purpose: if the gala page ever moves onto this site, a
+# permanent redirect would sit in people's browser caches sending them away
+# long after it stopped being true.
+/gala       https://app.ticklore.com/gala   302
+/gala/*     https://app.ticklore.com/gala   302
