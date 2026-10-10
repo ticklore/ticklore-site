@@ -1477,7 +1477,15 @@ ${inscriptionJs}
       document.getElementById('otp').focus();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Send my code';
-      err.textContent = 'Could not send the code — check the address and try again.';
+      // Say WHY. "Check the address and try again" sent a guest in a loop
+      // pressing the same dead button — the number was fine and SMS was off
+      // at the provider, two problems that need opposite responses. Privy's
+      // own wording is short and readable, so pass it through.
+      console.error('[claim] sendCode failed', e);
+      var why = (e && (e.message || e.error)) ? String(e.message || e.error).slice(0, 140) : '';
+      err.textContent = why
+        ? 'Could not send the code — ' + why
+        : 'Could not send the code — check the address and try again.';
     }
   }
 
