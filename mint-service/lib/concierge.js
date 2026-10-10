@@ -1469,8 +1469,10 @@ ${inscriptionJs}
     if (!booted) { err.textContent = bootErr ? 'Could not start the secure wallet. Refresh and try again.' : 'One moment — still getting ready…'; return; }
     var btn = document.getElementById('send');
     btn.disabled = true; btn.textContent = 'Sending…';
+    // NOT privy.auth.sms — that namespace is MFA, and reading .sendCode off
+    // it throws before any request is made. SMS *login* is auth.phone.
     try {
-      if (METHOD === 'sms') { await privy.auth.sms.sendCode(phone); } else { await privy.auth.email.sendCode(email); }
+      if (METHOD === 'sms') { await privy.auth.phone.sendCode(phone); } else { await privy.auth.email.sendCode(email); }
       document.getElementById('step-email').style.display = 'none';
       document.getElementById('step-code').style.display = 'block';
       document.getElementById('hint').textContent = (METHOD === 'sms') ? ('We texted a 6-digit code to ' + phone + '.') : ('We emailed a 6-digit code to ' + email + '.');
@@ -1516,7 +1518,7 @@ ${inscriptionJs}
     // failure says so.
     var session;
     try {
-      session = (METHOD === 'sms') ? await privy.auth.sms.loginWithCode(phoneE164(), otp) : await privy.auth.email.loginWithCode(email, otp);
+      session = (METHOD === 'sms') ? await privy.auth.phone.loginWithCode(phoneE164(), otp) : await privy.auth.email.loginWithCode(email, otp);
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Verify & claim';
       var vm = String((e && (e.message || e.error || e)) || '');
