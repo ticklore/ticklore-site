@@ -8,3 +8,9 @@
 # long after it stopped being true.
 /gala       https://app.ticklore.com/gala   302
 /gala/*     https://app.ticklore.com/gala   302
+
+# Netlify matches the path case-sensitively, and print sets URLs in capitals
+# often enough that TICKLORE.COM/GALA is a real thing someone will type.
+/GALA       https://app.ticklore.com/gala   302
+/Gala       https://app.ticklore.com/gala   302
+/gala.html  https://app.ticklore.com/gala   302
