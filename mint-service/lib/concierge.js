@@ -228,6 +228,103 @@ function mountConcierge(app, { chainV3, chainV4, chainV5, chainV6 }) {
   });
 
   /**
+   * Orphan cleanup — codes whose event no longer resolves.
+   *
+   * Listing is read-only and safe to hit whenever. Removal is deliberately
+   * awkward: one dead key per call, and the caller has to echo back the exact
+   * count it was shown. A stale tab cannot purge a group that grew after it
+   * was rendered, and a wrong key removes nothing rather than something.
+   */
+  app.get("/admin/orphans", checkPassword, (req, res) => {
+    res.json({ ok: true, groups: claims.orphans((k) => !!events.get(k)) });
+  });
+
+  app.post("/admin/orphans/purge", express.json(), checkPassword, (req, res) => {
+    const eventKey = String((req.body && req.body.eventKey) || "");
+    const expect = Number(req.body && req.body.expect);
+    if (!eventKey) return res.status(400).json({ ok: false, error: "eventKey is required." });
+    const live = (k) => !!events.get(k);
+    const group = claims.orphans(live).find((g) => g.eventKey === eventKey);
+    if (!group) return res.status(404).json({ ok: false, error: "Nothing stranded under that key." });
+    if (!Number.isFinite(expect) || expect !== group.total) {
+      return res.status(409).json({ ok: false, error: "Count has moved — re-read the list first.", actual: group.total });
+    }
+    const removed = claims.removeOrphans(live, eventKey);
+    console.log("✓ purged " + removed + " stranded code(s) from " + eventKey);
+    res.json({ ok: true, removed });
+  });
+
+  /** A face for the two endpoints above. Nobody should delete records they
+   *  have not looked at, so the list comes first and the button carries the
+   *  count it was rendered with. */
+  app.get("/admin/cleanup", (req, res) => {
+    res.type("html").send(`<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stranded tickets</title>
+<style>
+  :root{--ink:#0E262B;--deep:#081619;--gold:#C9A227;--bright:#E3C25E;--paper:#F1E9DD;--line:rgba(241,233,221,.16)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--deep);color:var(--paper);font:16px/1.5 system-ui,sans-serif;padding:18px;max-width:780px}
+  h1{font-size:1.2rem;margin:0 0 6px}
+  .sub{color:rgba(241,233,221,.6);font-size:.88rem;margin-bottom:16px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;background:var(--ink)}
+  .key{font-weight:600;word-break:break-all}
+  .meta{font-size:.82rem;color:rgba(241,233,221,.62);margin-top:4px}
+  .warn{color:#E3A55E}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.8rem}
+  td{padding:5px 6px;border-top:1px solid var(--line);color:rgba(241,233,221,.72);word-break:break-all}
+  button{font:inherit;margin-top:12px;padding:10px 14px;border-radius:8px;cursor:pointer;
+    border:1px solid rgba(227,120,120,.5);background:transparent;color:#E89090}
+  button:hover{background:rgba(227,120,120,.12)}
+  .ok{color:var(--bright)}
+</style>
+<h1>Stranded tickets</h1>
+<div class="sub">Codes pointing at an event that no longer exists. They cannot be claimed &mdash; the guest signs in, types the code, and only then gets turned away &mdash; and they clutter the door desk.</div>
+<div id="out">Loading&hellip;</div>
+<script>
+var PW = sessionStorage.getItem('tl_admin_pw') || prompt('Admin password');
+if (PW) sessionStorage.setItem('tl_admin_pw', PW);
+var out = document.getElementById('out');
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function load(){
+  out.textContent = 'Loading...';
+  fetch('/admin/orphans', { headers: { 'x-admin-password': PW } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var g = (d && d.groups) || [];
+      if (!g.length) { out.innerHTML = '<div class="grp ok">Nothing stranded. Every code points at a live event.</div>'; return; }
+      out.innerHTML = g.map(function(x){
+        var rows = x.samples.map(function(s){
+          return '<tr><td>' + esc(s.code) + '</td><td>' + esc(s.who) + '</td><td>' + esc(s.status) + '</td><td>' + esc(s.channel) + '</td></tr>';
+        }).join('');
+        var more = x.total > x.samples.length ? '<div class="meta">and ' + (x.total - x.samples.length) + ' more</div>' : '';
+        var minted = x.minted ? '<div class="meta warn">' + x.minted + ' already minted on-chain. The keepsake itself survives &mdash; only this bookkeeping row goes.</div>' : '';
+        return '<div class="grp"><div class="key">' + esc(x.eventKey) + '</div>' +
+          '<div class="meta">' + x.total + ' code(s), ' + x.claimed + ' claimed</div>' + minted +
+          '<table>' + rows + '</table>' + more +
+          '<button data-key="' + esc(x.eventKey) + '" data-n="' + x.total + '">Remove these ' + x.total + '</button></div>';
+      }).join('');
+    })
+    .catch(function(){ out.textContent = 'Could not load - wrong password?'; });
+}
+document.addEventListener('click', function(ev){
+  var b = ev.target && ev.target.closest ? ev.target.closest('button[data-key]') : null;
+  if (!b) return;
+  var key = b.getAttribute('data-key'), n = Number(b.getAttribute('data-n'));
+  if (!confirm('Permanently remove ' + n + ' code(s) from "' + key + '"? This cannot be undone.')) return;
+  b.disabled = true; b.textContent = 'Removing...';
+  fetch('/admin/orphans/purge', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-password': PW },
+    body: JSON.stringify({ eventKey: key, expect: n }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.ok) { load(); } else { b.disabled = false; b.textContent = 'Failed: ' + ((d && d.error) || 'unknown'); } })
+    .catch(function(){ b.disabled = false; b.textContent = 'Failed - try again'; });
+});
+load();
+</script>`);
+  });
+
+  /**
    * THE DOOR DESK. "I cannot find my ticket" is the most common thing that will
    * be said on the night, and until now the only answer was a CSV on somebody's
    * laptop. Search by email, stub label or code; resend the claim link; or walk

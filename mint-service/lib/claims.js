@@ -343,6 +343,7 @@ module.exports = {
   importRoster, listRoster, markEmailed,
   activate, allocateOnline, allocateOnlineBatch, onlineRemaining, retireOnline, search,
   reserve, finalize, release, markRedeemed, markAttended, removeByEvent,
+  orphans, removeOrphans,
 };
 
 /**
@@ -413,4 +414,57 @@ function markAttended(code, by) {
     write(data);
   }
   return c;
+}
+
+/**
+ * Codes whose event no longer resolves — and what removing them would cost.
+ *
+ * A claim record carries an eventKey, not the event itself. Delete or recreate
+ * an event and every code issued under the old key is stranded: the claim page
+ * renders with no name, no venue and no vault link, and the claim POST refuses
+ * outright at the onChainEventId check. The guest does the whole sign-in dance
+ * and gets "this event is no longer available" at the last step.
+ *
+ * Takes a predicate rather than requiring events.js, so the store stays a leaf
+ * and the caller decides what "exists" means. Read-only on purpose: knowing
+ * what would go is a separate act from making it go.
+ */
+function orphans(eventExists) {
+  const data = read();
+  const groups = new Map();
+  for (const [code, c] of Object.entries(data.codes || {})) {
+    const key = c.eventKey || "(no event key)";
+    if (c.eventKey && eventExists(c.eventKey)) continue;
+    if (!groups.has(key)) groups.set(key, { eventKey: key, total: 0, claimed: 0, minted: 0, samples: [] });
+    const g = groups.get(key);
+    g.total++;
+    if (c.status === "claimed") g.claimed++;
+    if (c.tokenId) g.minted++;
+    if (g.samples.length < 5) {
+      g.samples.push({
+        code,
+        who: c.email || c.assignedTo || "",
+        status: c.status || "unclaimed",
+        channel: c.channel || "",
+        tokenId: c.tokenId || null,
+      });
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.total - a.total);
+}
+
+/** Delete stranded codes. Scoped to one dead eventKey at a time so a typo in
+ *  the predicate can't empty the store in a single call. Returns the count. */
+function removeOrphans(eventExists, eventKey) {
+  const data = read();
+  let n = 0;
+  for (const [code, c] of Object.entries(data.codes || {})) {
+    const key = c.eventKey || "(no event key)";
+    if (key !== eventKey) continue;
+    if (c.eventKey && eventExists(c.eventKey)) continue; // live event: never touch
+    delete data.codes[code];
+    n++;
+  }
+  if (n) write(data);
+  return n;
 }
