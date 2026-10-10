@@ -1482,7 +1482,19 @@ ${inscriptionJs}
       // at the provider, two problems that need opposite responses. Privy's
       // own wording is short and readable, so pass it through.
       console.error('[claim] sendCode failed', e);
-      var why = (e && (e.message || e.error)) ? String(e.message || e.error).slice(0, 140) : '';
+      // Dig, don't give up at .message. Privy throws a few different shapes
+      // (Error, {error}, {body:{...}}, bare string), and the one time it
+      // matters is the one time we shrug and print the useless line.
+      var why = '';
+      try {
+        if (typeof e === 'string') why = e;
+        else if (e) {
+          why = e.message || e.error || (e.body && (e.body.error || e.body.message)) || '';
+          if (!why && e.status) why = 'provider returned ' + e.status;
+          if (!why) { var j = JSON.stringify(e); if (j && j !== '{}') why = j; }
+        }
+      } catch (_) { why = ''; }
+      why = String(why).slice(0, 160);
       err.textContent = why
         ? 'Could not send the code — ' + why
         : 'Could not send the code — check the address and try again.';
