@@ -342,7 +342,7 @@ module.exports = {
   generate, get, listByEvent, statsByEvent, listByOwner,
   importRoster, listRoster, markEmailed,
   activate, allocateOnline, allocateOnlineBatch, onlineRemaining, retireOnline, search,
-  reserve, finalize, release, markRedeemed, removeByEvent,
+  reserve, finalize, release, markRedeemed, markAttended, removeByEvent,
 };
 
 /**
@@ -393,4 +393,24 @@ function search(q) {
       hit(c.email) || hit(c.assignedTo) || hit(c.label))
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
     .slice(0, 25);
+}
+
+/**
+ * Admit someone at the door who never claimed.
+ *
+ * Attendance is recorded off-chain and instantly: a queue on New Year's Eve is
+ * no place for a blockchain write. The keepsake is minted and redeemed behind
+ * them, and anything that fails gets reconciled afterwards. Idempotent, so a
+ * double tap on a cold night does not double-admit.
+ */
+function markAttended(code, by) {
+  const data = read();
+  const c = data.codes[code];
+  if (!c) return null;
+  if (!c.attendedAt) {
+    c.attendedAt = new Date().toISOString();
+    c.attendedBy = String(by || "door").slice(0, 40);
+    write(data);
+  }
+  return c;
 }

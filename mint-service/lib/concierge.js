@@ -310,9 +310,10 @@ function draw(rows){
       + ' &middot; ' + esc(r.channel) + ' &middot; ' + esc(r.status)
       + (r.active ? '' : ' &middot; NOT ACTIVATED') + '</div>'
       + '<div class="acts">'
+      + '<button class="btn" data-act="admit" data-code="' + esc(r.code) + '" style="border-color:rgba(127,179,166,.65);color:#7FB3A6">Admit</button>'
       + '<a class="btn" href="/door/' + encodeURIComponent(r.code) + '" target="_blank">Door check-in</a>'
       + '<a class="btn" href="/claim/' + encodeURIComponent(r.code) + '" target="_blank">Claim page</a>'
-      + (r.email ? '<button class="btn" onclick="resend(this,\'' + esc(r.code) + '\')">Resend email</button>' : '')
+      + (r.email ? '<button class="btn" data-act="resend" data-code="' + esc(r.code) + '">Resend email</button>' : '')
       + '</div><div class="msg" id="m-' + esc(r.code) + '"></div></div>';
   }).join('');
 }
@@ -322,6 +323,33 @@ function go(){
   fetch('/admin/guest/search?q=' + encodeURIComponent(v), { headers: { 'x-admin-password': PW } })
     .then(function(r){ return r.ok ? r.json() : { rows: [] }; })
     .then(function(d){ draw(d.rows || []); });
+}
+// One delegated listener rather than inline onclick attributes. The buttons
+// are built inside a template literal inside a JS string, and getting a quoted
+// code through three layers of escaping intact is a bug waiting to happen —
+// it already was one. Data attributes carry it without any quoting at all.
+out.addEventListener('click', function(e){
+  var b = e.target.closest('button[data-act]');
+  if (!b) return;
+  if (b.getAttribute('data-act') === 'admit') admit(b, b.getAttribute('data-code'));
+  else resend(b, b.getAttribute('data-code'));
+});
+
+function admit(btn, code){
+  var m = document.getElementById('m-' + code);
+  var pin = sessionStorage.getItem('tl_door_pin');
+  if (!pin) { pin = prompt('Door PIN'); if (!pin) return; sessionStorage.setItem('tl_door_pin', pin); }
+  btn.disabled = true; m.textContent = 'Admitting...';
+  fetch('/door/' + encodeURIComponent(code) + '/admit', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ password: pin }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) { m.textContent = 'ADMITTED' + (d.alreadyClaimed ? '' : ' - keepsake minting behind them'); m.style.color = '#7FB3A6'; }
+      else {
+        m.textContent = d.error || 'Failed'; btn.disabled = false;
+        if (/PIN/i.test(d.error || '')) sessionStorage.removeItem('tl_door_pin');
+      }
+    })
+    .catch(function(){ m.textContent = 'Failed.'; btn.disabled = false; });
 }
 function resend(btn, code){
   var m = document.getElementById('m-' + code);
@@ -650,6 +678,107 @@ q.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(go, 220)
       res.status(400).json({ ok: false, error: err.message });
     }
   });
+
+  /**
+   * ADMIT AT THE DOOR, CLAIMED OR NOT.
+   *
+   * /door/:code refuses anything unclaimed, because redemption is a flag on a
+   * token and an unclaimed ticket has no token yet. Meanwhile the gala page
+   * promises a stub gets you in whether you claimed it or not, and a good
+   * number of buyers never finish the claim. On the night that gap is a queue.
+   *
+   * So attendance is recorded off-chain and the guest walks in immediately.
+   * The chain catches up behind them: mint the keepsake custodially against
+   * the address they bought under, then redeem it. If any of that fails the
+   * guest is still inside and correctly marked attended — it is reconciled
+   * afterwards, which is an afternoon in January rather than a queue on the
+   * thirty-first.
+   */
+  app.post("/door/:code/admit", express.json(), (req, res) => {
+    try {
+      const code = req.params.code;
+      const rec = claims.get(code);
+      if (!rec) return res.status(404).json({ ok: false, error: "That code isn't valid." });
+      const details = events.get(rec.eventKey);
+      if (!details || !details.redemptionEnabled) {
+        return res.status(400).json({ ok: false, error: "Door check-in isn't enabled for this event." });
+      }
+
+      const given = String((req.body && req.body.password) || "");
+      const pin = details.doorPin || events.ensureDoorPin(details.key);
+      const matches = (secret) => {
+        if (!secret) return false;
+        const a = Buffer.from(given), b = Buffer.from(String(secret));
+        return a.length === b.length && crypto.timingSafeEqual(a, b);
+      };
+      if (!matches(pin) && !matches(PASSWORD)) {
+        return res.status(401).json({ ok: false, error: "Wrong door PIN." });
+      }
+
+      if (rec.redeemedAt || rec.attendedAt) {
+        return res.status(409).json({ ok: false, error: "Already admitted.", at: rec.redeemedAt || rec.attendedAt });
+      }
+
+      // Let them in first. Everything after this is bookkeeping.
+      claims.markAttended(code, (req.body && req.body.by) || "door");
+      res.json({ ok: true, admitted: true, alreadyClaimed: !!rec.tokenId, name: rec.label || "" });
+
+      settleAdmission(code, String((req.body && req.body.name) || "")).catch((e) => {
+        console.error(`  ⚠ admission settle failed for ${code}: ${e.message}`);
+      });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+
+  /** The chain half of an admission, run after the guest has already walked in. */
+  async function settleAdmission(code, buyerName) {
+    const rec = claims.get(code);
+    if (!rec) return;
+    const details = events.get(rec.eventKey);
+    if (!details) return;
+    const chain = chainByVersion[details.onChainVersion] || chainV3;
+    const lib = libByVersion[details.onChainVersion] || ticklorev3;
+    if (!chain) { console.error(`  ⚠ no chain for ${code}; left for reconciliation`); return; }
+
+    let tokenId = rec.tokenId;
+    if (!tokenId) {
+      // Custodial mint: nobody proved a wallet at the door, so the keepsake is
+      // held against the address the ticket was bought under. They can take
+      // ownership later from /wallet.
+      if (!claims.reserve(code)) { console.log(`  · ${code} already being claimed; skipping mint`); return; }
+      try {
+        const r = await lib.mintTicket(chain.contract, {
+          eventId: details.onChainEventId,
+          to: chain.signer.address,
+          price: rec.priceCents || 0,
+          buyerName: buyerName || "",
+          inscription: "",
+          sponsorRef: rec.sponsorRef,
+          sectionRef: rec.sectionRef || 0,
+        });
+        tokenId = r.tokenId;
+        claims.finalize(code, { email: rec.assignedTo || rec.email || "", tokenId, address: null });
+        console.log(`  ✓ door mint ${code} → #${tokenId}`);
+      } catch (e) {
+        claims.release(code, e.message);
+        console.error(`  ⚠ door mint failed for ${code}: ${e.message}`);
+        return;
+      }
+    }
+
+    try {
+      await lib.redeemTicket(chain.contract, tokenId);
+      claims.markRedeemed(code);
+      console.log(`  ✓ door redeem ${code} → #${tokenId}`);
+    } catch (e) {
+      if (/already redeemed/i.test(String(e?.shortMessage || e?.reason || e?.message || ""))) {
+        claims.markRedeemed(code);
+        return;
+      }
+      console.error(`  ⚠ door redeem failed for ${code}: ${e.message}`);
+    }
+  }
 
   /** The concierge console page. Password gate is client-side (in-memory). */
   app.get("/admin", (req, res) => {
