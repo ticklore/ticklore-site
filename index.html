@@ -108,6 +108,9 @@
     font-size: 0.88rem; transition: border-color .2s, background .2s;
   }
   .btn-ghost:hover { border-color: var(--gold); background: rgba(201,162,39,0.08); }
+  /* Two calls to action, side by side. The links row above hides below 860px,
+     so anything a returning ticket-holder needs has to live out here. */
+  .navcta { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
   .btn-solid {
     background: var(--gold); color: var(--ink-deep); padding: 13px 28px; border-radius: 3px;
     font-size: 0.92rem; font-weight: 600; transition: background .2s, transform .2s; display:inline-block;
@@ -239,7 +242,10 @@
     <a href="#story">Why it matters</a>
     <a href="about.html">About</a>
   </div>
-  <a href="https://app.ticklore.com" class="btn-ghost">Try the demo</a>
+  <div class="navcta">
+    <a href="https://app.ticklore.com/wallet" class="btn-ghost">My tickets</a>
+    <a href="https://app.ticklore.com" class="btn-ghost">Try the demo</a>
+  </div>
 </nav>
 
 <header class="hero">
