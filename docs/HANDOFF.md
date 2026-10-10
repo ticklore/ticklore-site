@@ -1264,3 +1264,39 @@ with no internet at the venue.
 **Still open:** test the resend path end to end before the night; confirm what the printed tickets say
 (`app.ticklore.com/gala` works, `ticklore.com/gala` 404s); Netlify still locked behind the dead GitHub
 OAuth; `Monkeynomics-site` and `made-in-recovery` not yet pushed to the `ticklore` account.
+
+## 🔑 WHERE THE LOGINS ACTUALLY LIVE (2026-10-09)
+Three lockouts in two weeks cost the better part of two days. The answers, written down so
+nobody rediscovers them at midnight.
+
+**THE 2FA CODES ARE IN THE iPHONE PASSWORDS APP.** Settings → Passwords → the site. iOS stores
+verification codes beside the password and generates them quietly; nothing is ever installed, so there
+is no app in the app list to find. GitHub's code was there after an evening spent hunting for an
+authenticator that did not exist. **Look there first, for any service.**
+
+**GitHub never emails a 2FA code.** Waiting for one is waiting forever. It comes from the device.
+
+**Recovery addresses, which decide whether a lockout is survivable:**
+| Account | Email | Recoverable? |
+|---|---|---|
+| GitHub `ticklore` (the live one) | bigowl70@gmail.com | **yes** — inbox is read daily |
+| GitHub `weldingcrypto` (archive) | alex@vbre.org → **change to alex@ticklore.com** | only if the email is moved |
+| Netlify | bigowl70@gmail.com, but **login is GitHub OAuth, Password: Not set** | only via GitHub |
+| Render | bigowl70@gmail.com **+ its own password** | **yes, independently** |
+| Stripe | alex@ticklore.com, passkey + authenticator | phone-bound |
+
+**Netlify is the weak one and has locked twice.** Its account email is fine; the problem is that its
+only door runs through GitHub. **Set a Netlify password.** When doing it: keep the working session open,
+open the reset link in a DIFFERENT browser, and then use **Log in** — not Sign up. A reset on 2026-09-25
+followed by a signup created a second, empty account ("alex-dgzaf1s's team"); the real account is the
+one holding the projects under bigowl70@gmail.com.
+
+**Sessions are per-browser.** Being locked out of one browser means nothing about another — a live
+session in Edge or a second Chrome profile has twice been the way back in. Check every browser and
+profile before starting a recovery.
+
+**Still outstanding from this:** Netlify is still linked to `weldingcrypto/ticklore-site`, so
+**ticklore.com cannot be updated** — commit `aaa7eaa` (a "My tickets" link to the wallet in the
+homepage nav) is written and waiting for that repoint. In the Netlify link screen, **switch the account
+dropdown from `weldingcrypto` to `ticklore` first**; both accounts contain a repo named `ticklore-site`
+and picking the wrong one silently relinks the dead repo.
